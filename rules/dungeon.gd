@@ -204,7 +204,8 @@ func battle_setup(room_id: int) -> Dictionary:
 	if not room.encounter.is_empty():
 		label += " — %s (XP %d)" % [room.encounter.label, room.encounter.xp]
 	return {"map": map, "pc_start": pc_cell - rect.position, "foes": foes, "label": label,
-			"theme": "dungeon", "room_id": room_id}
+			"theme": "dungeon", "room_id": room_id,
+			"style": "cave" if params and params.algorithm == DungeonParams.Algorithm.CAVE else "rooms"}
 
 
 func _nearest_free(from: Vector2i, rect: Rect2i, taken: Dictionary) -> Vector2i:

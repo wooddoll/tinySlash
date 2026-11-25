@@ -88,6 +88,9 @@ func _build_world() -> void:
 	# 높은 칸의 옆면만 상자로, 윗면과 나머지는 Kenney Mini Dungeon 모델
 	var bases := _multimesh(BoxMesh.new())
 	var base_xf: Array = []
+	var floors: Array = []
+	var cave := params.algorithm == DungeonParams.Algorithm.CAVE
+	var quarter := Basis.from_scale(Vector3.ONE * 0.25)
 	var model_xf := {}  # 모델 이름 -> [Transform3D]
 	var add := func(model: String, xf: Transform3D) -> void:
 		if not model_xf.has(model):
@@ -105,13 +108,17 @@ func _build_world() -> void:
 				pos.y = h
 				if h > 0.0:
 					base_xf.append([Transform3D(Basis.from_scale(Vector3(1, h, 1)), pos - Vector3(0, h / 2.0, 0)),
-							Color(0.42, 0.4, 0.45)])
-				add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos))
+							Color(0.45, 0.33, 0.27) if cave else Color(0.42, 0.4, 0.45)])
+				floors.append(c)
+				if cave:
+					# Cave Kit 바닥 (4x4 조각을 1/4로)
+					add.call("modular-cave-kit/template-floor", Transform3D(spin.call() * quarter, pos))
+				else:
+					add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos))
 				if d.difficult.has(c):
 					add.call("stones", Transform3D(spin.call(), pos))
-			elif _touches_floor(c):
-				add.call("wall", Transform3D(Basis.IDENTITY, pos))
 	_fill(bases, base_xf)
+	Kenney.build_edge_walls(world, floors, d.is_floor, d.get_height, cave)
 
 	for c in d.obstacles:
 		if d.obstacles[c] >= 2.0:
@@ -121,7 +128,9 @@ func _build_world() -> void:
 	add.call("stairs", Transform3D(Basis.IDENTITY, _top(d.exit)))
 
 	for model in model_xf:
-		var inst := _multimesh(Kenney.mesh(model), false)
+		var parts: PackedStringArray = model.split("/")
+		var m := Kenney.mesh(parts[-1], parts[0] if parts.size() > 1 else Kenney.DUNGEON)
+		var inst := _multimesh(m, false)
 		var mm := inst.multimesh
 		var list: Array = model_xf[model]
 		mm.instance_count = list.size()

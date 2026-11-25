@@ -104,6 +104,7 @@ func _build_world() -> void:
 		"brush": _mat(Color(0.27, 0.43, 0.22)), "dirt": _mat(Color(0.56, 0.47, 0.33)),
 		"stone": _mat(Color(0.6, 0.58, 0.55)),
 		"wall": _mat(Color(0.3, 0.29, 0.33)),
+		"cave": _mat(Color(0.4, 0.29, 0.24)),
 	}
 	if _dungeon():
 		var env: Environment = $WorldEnvironment.environment.duplicate()
@@ -145,10 +146,7 @@ func _build_world() -> void:
 				grid.walls[cell] = 3.0
 			if ch == "X":
 				# 바닥과 맞닿은 벽만 그립니다 (안쪽 벽은 격자에만 있음)
-				if _touches_floor(map, x, y):
-					# 보기 편하게 1칸 높이 벽으로 그림 (규칙상 높이는 3.0)
-					_kenney(terrain, "wall", Vector3(x + 0.5, 0.0, y + 0.5), 0.0)
-				continue
+				continue  # 벽은 아래에서 바닥 가장자리에 벽판으로 그림 (규칙상 높이는 3.0)
 
 			var body := StaticBody3D.new()
 			body.position = Vector3(x + 0.5, 0, y + 0.5)
@@ -167,8 +165,13 @@ func _build_world() -> void:
 			mesh.material_override = mats[mat_key]
 			if _dungeon():
 				mesh.material_override = mats["wall"]
-				var tile := "floor-detail" if (x * 7 + y * 13) % 9 == 0 else "floor"
-				_kenney(terrain, tile, Vector3(x + 0.5, th + 0.002, y + 0.5), ((x * 3 + y) % 4) * PI / 2.0)
+				var yaw := ((x * 3 + y) % 4) * PI / 2.0
+				if custom.get("style", "") == "cave":
+					mesh.material_override = mats["cave"]
+					_kenney(terrain, "template-floor", Vector3(x + 0.5, th + 0.002, y + 0.5), yaw, "modular-cave-kit", 0.25)
+				else:
+					var tile := "floor-detail" if (x * 7 + y * 13) % 9 == 0 else "floor"
+					_kenney(terrain, tile, Vector3(x + 0.5, th + 0.002, y + 0.5), yaw)
 			body.add_child(mesh)
 			var shape := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
@@ -221,16 +224,30 @@ func _build_world() -> void:
 			ov.visible = false
 			terrain.add_child(ov)
 			overlays[cell] = ov
+	if _dungeon():
+		var floors: Array = []
+		for c in grid.heights:
+			if not _is_wall_char(map, c):
+				floors.append(c)
+		Kenney.build_edge_walls(terrain, floors, func(c: Vector2i) -> bool: return not _is_wall_char(map, c),
+				grid.get_height, custom.get("style", "") == "cave")
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
 
 
 ## Kenney Mini Dungeon 모델 하나를 칸 위에 놓습니다 (그림자만 있고 충돌은 칸 상자가 맡음)
-func _kenney(parent: Node3D, model: String, pos: Vector3, yaw: float) -> void:
+func _kenney(parent: Node3D, model: String, pos: Vector3, yaw: float, pack := Kenney.DUNGEON, size := 1.0) -> void:
 	var m := MeshInstance3D.new()
-	m.mesh = Kenney.mesh(model)
+	m.mesh = Kenney.mesh(model, pack)
+	m.scale = Vector3.ONE * size
 	m.position = pos
 	m.rotation.y = yaw
 	parent.add_child(m)
+
+
+func _is_wall_char(map: Array, c: Vector2i) -> bool:
+	if c.y < 0 or c.x < 0 or c.y >= map.size() or c.x >= (map[c.y] as String).length():
+		return true
+	return (map[c.y] as String)[c.x] == "X"
 
 
 func _touches_floor(map: Array, x: int, y: int) -> bool:

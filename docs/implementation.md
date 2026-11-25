@@ -45,9 +45,14 @@
 ### 1.3 에셋 (`assets/kenney/`, CC0)
 | 팩 | 크기 기준 | 쓰는 곳 |
 |---|---|---|
-| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 던전 생성기와 던전 전투의 바닥, 벽, 기둥(`column`), 바위(`rocks`), 잔해(`stones`), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
+| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 방 던전(BSP, 흩뿌리기)의 바닥, 기둥(`column`), 바위(`rocks`), 잔해(`stones`), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
 | Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
-| Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 아직 안 씀 |
+| Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 방 던전의 벽(`template-wall`, `template-wall-corner`)을 1/4로 줄여 씀 |
+| Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽과 바닥(`template-floor`)을 1/4로 줄여 씀 |
+| Survival Kit | | 아직 안 씀 |
+| Nature Kit | | 아직 안 씀. 이 팩만 GLB가 `Models/GLTF format/`에 들어 있음 |
+
+**벽 그리는 방식**: 벽 칸을 상자로 채우지 않고, 바닥 칸과 벽 칸 사이 모서리마다 얇은 벽판을 세웁니다 (`kenney.gd`의 `build_edge_walls`). 바닥끼리 맞닿은 볼록한 모서리에는 모서리 조각을 놓습니다. 규칙상 벽 칸은 그대로 높이 3.0의 통과 불가 칸입니다.
 
 팩마다 GLB 모델, `Textures/colormap.png`, `License.txt`, `Preview.png`만 넣었습니다 (FBX, OBJ는 뺌).
 

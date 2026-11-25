@@ -40,3 +40,51 @@ static func _first_mesh(n: Node) -> MeshInstance3D:
 		if m:
 			return m
 	return null
+
+
+## 바닥 칸과 벽 칸 사이 모서리마다 얇은 벽판을 세웁니다 (Modular Dungeon/Cave Kit, 4유닛 조각을 1/4로 줄여 씀).
+## floors: 바닥 칸 목록, is_floor(c) -> bool, height(c) -> float. 볼록한 모서리에는 기둥 조각을 놓습니다.
+static func build_edge_walls(parent: Node3D, floors: Array, is_floor: Callable, height: Callable, cave := false) -> void:
+	var pack := "modular-cave-kit" if cave else "modular-dungeon-kit"
+	var s := Basis.from_scale(Vector3.ONE * 0.25)
+	var walls: Array[Transform3D] = []
+	var corners: Array[Transform3D] = []
+	for c in floors:
+		var h: float = height.call(c)
+		var center := Vector3(c.x + 0.5, h, c.y + 0.5)
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if not is_floor.call(c + d):
+				# 조각의 -Z(벽 두께 방향)가 벽 칸 쪽을 보게
+				var yaw := atan2(-float(d.x), -float(d.y))
+				walls.append(Transform3D(Basis(Vector3.UP, yaw) * s, center + Vector3(d.x, 0, d.y) * 0.5))
+		for dx in [-1, 1]:
+			for dy in [-1, 1]:
+				if is_floor.call(c + Vector2i(dx, 0)) and is_floor.call(c + Vector2i(0, dy)) \
+						and not is_floor.call(c + Vector2i(dx, dy)):
+					corners.append(Transform3D(_corner_basis(dx, dy) * s, center + Vector3(dx, 0, dy) * 0.5))
+	_multimesh(parent, mesh("template-wall", pack), walls)
+	_multimesh(parent, mesh("template-wall-corner", pack), corners)
+
+
+## 모서리 조각은 원점에서 (-X, -Z) 쪽으로 놓여 있음 -> 그 방향이 (dx, dy)를 보게 돌림
+static func _corner_basis(dx: int, dy: int) -> Basis:
+	for k in 4:
+		var b := Basis(Vector3.UP, k * PI / 2.0)
+		var v := b * Vector3(-1, 0, -1)
+		if signi(roundi(v.x)) == dx and signi(roundi(v.z)) == dy:
+			return b
+	return Basis.IDENTITY
+
+
+static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D]) -> void:
+	if xfs.is_empty() or m == null:
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = m
+	mm.instance_count = xfs.size()
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+	var inst := MultiMeshInstance3D.new()
+	inst.multimesh = mm
+	parent.add_child(inst)

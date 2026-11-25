@@ -12,6 +12,7 @@ This project is not affiliated with, endorsed by, or sponsored by Wizards of the
 
 ## 3D models
 
-Mini Dungeon, Mini Characters, and Modular Dungeon Kit by Kenney (www.kenney.nl),
+Mini Dungeon, Mini Characters, Modular Dungeon Kit, Modular Cave Kit, Survival Kit,
+and Nature Kit by Kenney (www.kenney.nl),
 licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
 Files are in `assets/kenney/<pack>/` with each pack's `License.txt`.
