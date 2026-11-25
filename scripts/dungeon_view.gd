@@ -29,9 +29,14 @@ static var retreat_cell := Vector2i(-1, -1)
 static var opened := {}
 static var gold := 0
 static var floor_no := 1
-## 전투 사이에 이어지는 파이터 상태. 지면 checkpoint(이 층에 들어올 때 상태)로 되돌림 [임시]
+## 전투 사이에 이어지는 파이터 상태
 static var hero: HeroState = null
-static var checkpoint: HeroState = null
+## 쉼터(세이브 지점)는 1, 4, 7...층 시작 방에 있음. 지면 마지막 저장으로 돌아감 (rules 3.6)
+const SAVE_EVERY := 3
+## 마지막 저장: {params, floor, hero, gold, rested}
+static var save := {}
+## 이 층 쉼터에서 긴 휴식을 했는지 (쉼터마다 한 번)
+static var rested_here := false
 static var _pending_toast := ""
 ## 짧은 휴식을 한 모닥불 (꺼짐)
 static var used_fires := {}
@@ -75,6 +80,7 @@ var rest_roll: Button
 var rest_fire := Vector2i(-1, -1)
 var rest_log := PackedStringArray()
 var rest_dice := Dice.new()
+var shelter := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -82,8 +88,8 @@ func _ready() -> void:
 	if saved == null:
 		saved = DungeonParams.new()
 		saved.rng_seed = randi_range(1, 999999)
-	params = saved
 	_take_battle_result()
+	params = saved  # 지면 저장한 층의 파라미터로 바뀜
 	_build_ui()
 	Sfx.wire_buttons(self)
 	_generate()
@@ -95,11 +101,8 @@ func _take_battle_result() -> void:
 			"win":
 				cleared[int(Battle.custom.room_id)] = true  # 들어선 칸에서 계속
 			"lose":
-				# 층 시작 지점과 그때 상태로 [임시: 체크포인트 규칙 대신]
-				explore_cell = Vector2i(-1, -1)
-				if checkpoint:
-					hero = checkpoint.duplicate_state()
-				_pending_toast = "쓰러졌어요… 층 입구에서 다시 시작"
+				_load_save()
+				_pending_toast = "쓰러졌어요… %d층 쉼터에서 다시 시작" % floor_no
 			_:
 				explore_cell = retreat_cell  # 도망침
 		if Battle.custom.has("level_up"):
@@ -238,6 +241,11 @@ func _build_world() -> void:
 
 	for c in d.campfires:
 		_add_campfire(c)
+	shelter = Vector2i(-1, -1)
+	if is_save_floor(params.floor_depth):
+		shelter = shelter_cell(d)
+		if shelter != Vector2i(-1, -1):
+			_add_shelter(shelter)
 
 	select_mesh = _overlay_layer(Color(1.0, 0.85, 0.2, 0.4))
 	hover_mesh = _overlay_layer(Color(1, 1, 1, 0.18))
@@ -621,6 +629,8 @@ func _process(delta: float) -> void:
 			var fire := _fire_near(explorer.cell)
 			if fire != Vector2i(-1, -1):
 				_open_rest(fire)
+			elif _near(shelter, explorer.cell):
+				_long_rest()
 			elif explorer.cell == dungeon.exit:
 				_next_floor()
 		return
@@ -651,7 +661,8 @@ func _set_exploring(on: bool) -> void:
 		gold = 0
 		floor_no = params.floor_depth
 		hero = HeroState.fresh()
-		checkpoint = hero.duplicate_state()
+		rested_here = false
+		_write_save()  # 탐험을 시작한 곳이 첫 저장
 	else:
 		if explorer:
 			explore_cell = explorer.cell
@@ -670,7 +681,8 @@ func _apply_mode() -> void:
 		_show_room(select_mesh, -1)
 		if hero == null:
 			hero = HeroState.fresh()
-			checkpoint = hero.duplicate_state()
+		if save.is_empty():
+			_write_save()
 		if _pending_toast != "":
 			_toast(_pending_toast)
 			_pending_toast = ""
@@ -712,6 +724,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		_toast("출구 계단 — Enter: 다음 층으로")
 	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
 		_toast("모닥불 — Enter: 짧은 휴식")
+	elif _near(shelter, to) and not _near(shelter, from):
+		_toast("이미 쉬었어요" if rested_here else "쉼터 — Enter: 긴 휴식")
 	_update_explore_info()
 
 
@@ -755,7 +769,7 @@ func _next_floor() -> void:
 	var keep_gold := gold
 	floor_no += 1
 	Sfx.play(self, "stairs")
-	checkpoint = hero.duplicate_state()
+	rested_here = false
 	# 몬스터 예산을 파이터 레벨과 층 깊이에 맞춤
 	params.party_level = hero.level()
 	params.floor_depth = floor_no
@@ -765,7 +779,11 @@ func _next_floor() -> void:
 	_syncing = false
 	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
 	gold = keep_gold
-	_toast("%d층" % floor_no)
+	if is_save_floor(floor_no):
+		_write_save()  # 쉼터가 있는 층에 도착하면 저장
+		_toast("%d층 — 쉼터가 있어요 (저장했어요)" % floor_no)
+	else:
+		_toast("%d층" % floor_no)
 
 
 # --- 전장의 안개: 탐험 중에는 본 칸만 그림 ---
@@ -821,6 +839,83 @@ func _reveal(c: Vector2i) -> void:
 		if exploring:
 			for e in _fog_index.get(n, []):
 				_fog_show(e, true)
+
+
+# --- 쉼터: 긴 휴식과 저장 (rules 3.6, 5.3) ---
+
+static func is_save_floor(n: int) -> bool:
+	return (n - 1) % SAVE_EVERY == 0
+
+
+## 시작 방에서 시작 칸에 가장 가까운 빈 칸 (시작 칸, 모닥불, 상자, 몬스터 칸은 피함)
+static func shelter_cell(d: Dungeon) -> Vector2i:
+	var taken := {d.start: true, d.exit: true}
+	for c in d.campfires:
+		taken[c] = true
+	for r in d.rooms:
+		for t in r.treasure:
+			taken[t.cell] = true
+		if not r.encounter.is_empty():
+			for f in r.encounter.foes:
+				taken[f[1]] = true
+	var best := Vector2i(-1, -1)
+	var best_d := 1 << 30
+	for c in d.rooms[d.start_room].cells:
+		if d.is_walkable(c) and not taken.has(c):
+			var dd: int = (c - d.start).length_squared()
+			if dd < best_d:
+				best_d = dd
+				best = c
+	return best
+
+
+func _near(target: Vector2i, c: Vector2i) -> bool:
+	return target != Vector2i(-1, -1) and maxi(absi(target.x - c.x), absi(target.y - c.y)) <= 1
+
+
+func _add_shelter(c: Vector2i) -> void:
+	var root := Node3D.new()
+	root.position = _top(c)
+	world.add_child(root)
+	var tent := Kenney.instance("tent-canvas", "survival-kit")
+	tent.scale = Vector3.ONE * 1.7
+	root.add_child(tent)
+	_fog_add(c, [root])
+
+
+func _write_save() -> void:
+	save = {"params": params.duplicate_params(), "floor": floor_no, "hero": hero.duplicate_state(),
+			"gold": gold, "rested": rested_here}
+
+
+## 마지막 저장으로 돌아감: 그 층을 처음 상태로 다시 만들고 파이터 상태, 금화도 그때로
+static func _load_save() -> void:
+	if save.is_empty():
+		explore_cell = Vector2i(-1, -1)
+		return
+	saved = (save.params as DungeonParams).duplicate_params()
+	floor_no = save.floor
+	hero = (save.hero as HeroState).duplicate_state()
+	gold = save.gold
+	rested_here = save.rested
+	cleared.clear()
+	opened.clear()
+	used_fires.clear()
+	seen.clear()
+	explore_cell = Vector2i(-1, -1)
+	retreat_cell = Vector2i(-1, -1)
+
+
+func _long_rest() -> void:
+	if rested_here:
+		_toast("이 쉼터에서는 이미 쉬었어요")
+		return
+	hero.long_rest()
+	rested_here = true
+	_write_save()
+	Sfx.play(self, "confirm")
+	_toast("긴 휴식: HP, 히트 다이스, 기능 회복 · 저장했어요")
+	_update_explore_info()
 
 
 # --- 모닥불과 짧은 휴식 (rules 5.3) ---
@@ -972,11 +1067,11 @@ func _update_explore_info() -> void:
 	var hp := hero.current_hp()
 	var hp_col := "#f66" if hp * 2 <= hero.max_hp() else "#ddd"
 	var probe := hero.make_creature()
-	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d\n"
+	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d · 저장 %d층\n"
 			+ "[b]파이터[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n"
 			+ "히트 다이스 %d/%d · 물약 %d · Second Wind %d%s\n"
-			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물 · 불 모닥불") % [
-		floor_no, dungeon.seed_used, lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
+			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물 · 불 모닥불 · 텐트 쉼터") % [
+		floor_no, dungeon.seed_used, int(save.get("floor", floor_no)), lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
 		hero.hit_dice_left(), lv, probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
 		(" · Action Surge %d" % probe.resources.action_surge) if probe.resources.has("action_surge") else "",
 		gold, left]

@@ -386,3 +386,17 @@ func test_fog_visible_cells() -> void:
 				check(d.is_floor(n), "only floor cells")
 				check(maxi(absi(n.x - c.x), absi(n.y - c.y)) <= 3, "within 3 steps")
 			break
+
+
+func test_shelter_floors_and_cell() -> void:
+	const DV = preload("res://scripts/dungeon_view.gd")
+	check(DV.is_save_floor(1) and DV.is_save_floor(4) and DV.is_save_floor(7), "save floors 1,4,7")
+	check(not DV.is_save_floor(2) and not DV.is_save_floor(3) and not DV.is_save_floor(5), "no save on 2,3,5")
+	for algo in ALGOS:
+		for s in range(1, 11):
+			var d := DungeonGenerator.generate(params(algo, s))
+			var c := DV.shelter_cell(d)
+			check(c != Vector2i(-1, -1), "algo %d seed %d has shelter cell" % [algo, s])
+			check(d.is_walkable(c) and c != d.start, "shelter walkable and not on start")
+			eq(d.room_at(c), d.start_room, "shelter in start room")
+			check(not d.campfires.has(c), "shelter not on campfire")

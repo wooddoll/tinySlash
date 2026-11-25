@@ -34,7 +34,7 @@
 | `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, B 전투, G 던전 생성기 |
 | `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 좌클릭 이동·공격, 1~3 무기, Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
 | `dungeon.tscn` 던전 생성기 | `dungeon_view.gd` | 왼쪽 패널 파라미터, 좌클릭 방 고르기, B 그 방에서 전투, Tab 탐험 모드, Esc 바깥으로 |
-| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
+| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트 옆에서 Enter 긴 휴식, 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
 
 공통:
 - `camera_rig.gd`: 아이소메트릭 카메라입니다. 직교 투영, 30° 내려다보기, 45° 회전이고, `isometric`을 끄면 원근 시점이 됩니다.
@@ -52,7 +52,7 @@
 | Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
 | Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 방 던전의 벽(`template-wall`, `template-wall-corner`)을 1/4로 줄여 씀 |
 | Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽과 바닥(`template-floor`)을 1/4로 줄여 씀 |
-| Survival Kit | 작은 소품 (모닥불은 2.6배로 키워 씀) | 던전 모닥불(`campfire-pit`) |
+| Survival Kit | 작은 소품 (모닥불 2.6배, 텐트 1.7배로 키워 씀) | 던전 모닥불(`campfire-pit`), 쉼터 텐트(`tent-canvas`) |
 | Nature Kit | | 아직 안 씀. 이 팩만 GLB가 `Models/GLTF format/`에 들어 있음 |
 
 오디오 (`assets/kenney/audio/<팩>/`, OGG). `scripts/sfx.gd`가 그룹별로 파일 하나를 골라 음높이를 ±8% 바꿔 틉니다. 재생기는 트리 루트에 붙여서 장면이 바뀌어도 끝까지 들립니다.
@@ -105,6 +105,7 @@
 | 히트 다이스, 모닥불 짧은 휴식 |
 | 효과음 (Kenney 오디오) |
 | 전장의 안개, 층이 깊을수록 조우 예산 증가 |
+| 쉼터: 긴 휴식, 저장, 지면 마지막 저장으로 돌아가기 |
 | 아이소메트릭 카메라, Kenney 3D 모델 (지형, 캐릭터 애니메이션) |
 
 아직 안 된 것은 [todo.md](todo.md)를 보세요.
@@ -147,14 +148,17 @@
   - 이겼는데 쓰러져 있었으면 HP 1로 일어납니다.
   - 이긴 전투는 R로 다시 할 수 없습니다 (XP가 두 번 쌓이지 않게). 진 전투는 R로 전투 시작 때 상태로 다시 할 수 있습니다.
   - 전투 중 Esc로 도망치면 그때 HP와 사용 횟수를 가져갑니다. 쓰러진 채로 도망치면 패배입니다.
-  - 지면 그 층에 들어올 때의 상태(체크포인트)로 되돌아가고 층 입구에서 다시 시작합니다. 정리한 방은 그대로 둡니다 [임시].
+  - 지면 마지막 저장(쉼터)으로 돌아갑니다 (아래 "쉼터").
   - 레벨업: XP가 문턱을 넘으면 그 레벨의 파이터(`Catalog.fighter(level)`)로 다시 만듭니다. 늘어난 최대 HP만큼 회복하고, 새로 생기거나 늘어난 사용 횟수(Action Surge, Second Wind)를 더합니다. 5레벨까지입니다.
   - 다음 층으로 내려가면 생성기의 파티 레벨을 파이터 레벨에 맞춰 몬스터 예산을 올립니다.
   - 히트 다이스: `hit_dice_spent`만 저장하고 남은 수는 `레벨 - 쓴 수`입니다. 그래서 레벨이 오르면 1개 늘어납니다.
 - 짧은 휴식: 켜진 모닥불 옆 칸(대각선 포함)에서 Enter를 누르면 휴식 창이 열립니다.
   - Enter로 히트 다이스를 1개씩 굴립니다 (`spend_hit_die`). HP가 가득 찼거나 남은 주사위가 없으면 못 굴립니다.
   - Esc나 Tab으로 마치면 Second Wind 1회와 Action Surge가 돌아오고(`finish_short_rest`), 모닥불이 꺼집니다.
-  - 긴 휴식(`long_rest`)은 함수만 있고 아직 쓰는 곳이 없습니다 (여관, 세이브 지점이 생기면 연결).
+- 쉼터(세이브 지점): 1, 4, 7…층(`SAVE_EVERY = 3`) 시작 방에서 시작 칸에 가장 가까운 빈 칸에 텐트(Survival Kit `tent-canvas`)를 놓습니다 (`shelter_cell`).
+  - 저장(`save`): 생성 파라미터(시드 포함), 층, 파이터 상태, 금화, 긴 휴식 여부. 탐험을 시작할 때, 쉼터 층에 도착할 때, 긴 휴식을 할 때 씁니다.
+  - 텐트 옆에서 Enter: 긴 휴식(`HeroState.long_rest`)과 저장. 쉼터마다 한 번입니다.
+  - 지면(`_load_save`): 저장한 파라미터로 그 층을 다시 만들고, 정리한 방·연 상자·쓴 모닥불·본 칸을 지우고, 파이터 상태와 금화를 되돌립니다. 생성기 슬라이더도 그 값으로 바뀝니다.
 - 전장의 안개: 탐험 중에는 본 칸만 그립니다.
   - 방에 들어서면 방 전체가, 통로에서는 바닥을 따라 3걸음 안의 칸이 보입니다 (`visible_from`).
   - 던전은 칸마다 무엇이 그려졌는지 기록해 둡니다 (`_fog_index`: MultiMesh 조각 번호 또는 노드). 안 본 칸의 MultiMesh 조각은 크기 0 변환으로, 노드는 `visible = false`로 숨깁니다. 그래서 던전을 다시 만들지 않고 칸 단위로 드러냅니다.
@@ -170,6 +174,6 @@ Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/r
 ```
 
 - `tests/test_rules.gd`: 규칙 엔진 31개 (수정치, 치명타, 피해 순서, 엄폐, 기회 공격, 무기 숙달, AI 전투 등)
-- `tests/test_dungeon.gd`: 던전 생성기와 탐험 25개 (같은 시드 재현, 모든 방 도달 가능, XP 예산, 높이차, 전투 지도, 들어선 칸에서 전투 시작, 탐험 충돌, 전투 사이 상태와 레벨업, 모닥불 배치, 짧은·긴 휴식, 효과음 파일 존재, 층 깊이 예산, 안개 시야 등)
+- `tests/test_dungeon.gd`: 던전 생성기와 탐험 26개 (같은 시드 재현, 모든 방 도달 가능, XP 예산, 높이차, 전투 지도, 들어선 칸에서 전투 시작, 탐험 충돌, 전투 사이 상태와 레벨업, 모닥불 배치, 짧은·긴 휴식, 효과음 파일 존재, 층 깊이 예산, 안개 시야, 쉼터 위치 등)
 - 실행기는 테스트 중 생긴 스크립트 오류도 실패로 셉니다.
 - 새로 만든 `class_name`이 인식되지 않으면 먼저 `--headless --path . --import`를 한 번 실행합니다.
