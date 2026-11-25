@@ -291,3 +291,60 @@ func test_hero_state_down_after_win_stands_at_one() -> void:
 	var copy := h.duplicate_state()
 	copy.xp = 999
 	eq(h.xp, 25, "duplicate is independent")
+
+
+func test_campfires_in_safe_rooms() -> void:
+	for algo in ALGOS:
+		for s in range(1, 11):
+			var p := params(algo, s)
+			p.campfire_count = 2
+			var d := DungeonGenerator.generate(p)
+			check(d.campfires.size() >= 1, "algo %d seed %d has a campfire" % [algo, s])
+			var dist: Dictionary = d.flood(d.start).dist
+			var seen := {}
+			for c in d.campfires:
+				check(d.is_walkable(c), "campfire walkable")
+				check(dist.has(c), "campfire reachable")
+				check(not seen.has(c), "campfires on different cells")
+				seen[c] = true
+				var r := d.room_at(c)
+				check(r >= 0 and d.rooms[r].encounter.is_empty(), "campfire room has no monsters")
+				for t in d.rooms[r].treasure:
+					check(t.cell != c, "campfire not on chest")
+	var p0 := params(DungeonParams.Algorithm.BSP, 5)
+	p0.campfire_count = 0
+	eq(DungeonGenerator.generate(p0).campfires.size(), 0, "no campfires when count 0")
+
+
+func test_short_and_long_rest() -> void:
+	var h := HeroState.fresh()
+	h.xp = 900  # 3레벨: 히트 다이스 3개, 최대 HP 28
+	var c := h.make_creature()
+	c.hp = 4
+	c.resources["second_wind"] = 0
+	c.resources["action_surge"] = 0
+	h.absorb(c)
+	eq(h.hit_dice_left(), 3, "hit dice = level")
+	var dice := Dice.new(11)
+	var r := h.spend_hit_die(dice)
+	check(r.heal >= 1 and r.heal == r.roll + 2, "heal = d10 + CON 2")
+	eq(h.current_hp(), 4 + r.heal, "hp went up")
+	eq(h.hit_dice_left(), 2, "one hit die spent")
+	h.finish_short_rest()
+	var c2 := h.make_creature()
+	eq(c2.resources.second_wind, 1, "short rest regains one second wind")
+	eq(c2.resources.action_surge, 1, "short rest regains action surge")
+	h.finish_short_rest()
+	eq(h.make_creature().resources.second_wind, 2, "second wind capped at max")
+	h.finish_short_rest()
+	eq(h.make_creature().resources.second_wind, 2, "still capped")
+	# 다 쓰면 더 못 씀
+	h.spend_hit_die(dice)
+	h.spend_hit_die(dice)
+	eq(h.spend_hit_die(dice), {}, "no hit dice left")
+	h.long_rest()
+	eq(h.current_hp(), 28, "long rest full hp")
+	eq(h.hit_dice_left(), 3, "long rest restores hit dice")
+	eq(h.make_creature().resources.get("potion", 0), 1, "long rest keeps potion count")
+	var full := HeroState.fresh()
+	eq(full.spend_hit_die(dice), {}, "cannot spend at full hp")

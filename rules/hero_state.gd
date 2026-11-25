@@ -12,6 +12,8 @@ var xp := 0
 var hp := -1
 ## second_wind, action_surge, potion. 비어 있으면 처음 상태
 var resources := {}
+## 쓴 히트 다이스 수. 남은 수 = 레벨 - 이것 (rules 5.3)
+var hit_dice_spent := 0
 
 
 static func fresh() -> HeroState:
@@ -37,6 +39,7 @@ func duplicate_state() -> HeroState:
 	h.xp = xp
 	h.hp = hp
 	h.resources = resources.duplicate()
+	h.hit_dice_spent = hit_dice_spent
 	return h
 
 
@@ -71,3 +74,46 @@ func absorb(c: Creature, xp_gain := 0) -> Dictionary:
 		if gain > 0:
 			resources[k] = resources.get(k, 0) + gain
 	return {"level_up": after.level}
+
+
+# --- 휴식 (rules 5.3) ---
+
+func hit_die() -> int:
+	return Catalog.fighter(level()).hit_die
+
+
+func hit_dice_left() -> int:
+	return maxi(level() - hit_dice_spent, 0)
+
+
+func con_mod() -> int:
+	return Rules.ability_mod(Catalog.fighter(level()).scores[Catalog.CON])
+
+
+## 짧은 휴식 중 히트 다이스 1개: 굴림 + CON (최소 1)만큼 회복. 못 쓰면 빈 사전
+func spend_hit_die(dice: Dice) -> Dictionary:
+	if hit_dice_left() <= 0 or current_hp() >= max_hp():
+		return {}
+	var roll := dice.roll_die(hit_die())
+	var heal := maxi(roll + con_mod(), 1)
+	var before := current_hp()
+	hp = mini(before + heal, max_hp())
+	hit_dice_spent += 1
+	return {"roll": roll, "heal": hp - before}
+
+
+## 짧은 휴식을 마칠 때: Second Wind 1회, Action Surge 전부 [SRD]
+func finish_short_rest() -> void:
+	var fresh_c := Creature.new(Catalog.fighter(level()), 0)
+	if fresh_c.resources.has("second_wind"):
+		resources["second_wind"] = mini(resources.get("second_wind", fresh_c.resources.second_wind) + 1, fresh_c.resources.second_wind)
+	if fresh_c.resources.has("action_surge"):
+		resources["action_surge"] = fresh_c.resources.action_surge
+
+
+## 긴 휴식: HP, 히트 다이스, 기능 사용 횟수 전부 (물약은 그대로)
+func long_rest() -> void:
+	hp = -1
+	hit_dice_spent = 0
+	var potion: int = resources.get("potion", 0)
+	resources = {"potion": potion}

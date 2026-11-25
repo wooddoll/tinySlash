@@ -32,6 +32,8 @@ var start := Vector2i.ZERO
 var exit := Vector2i.ZERO
 var start_room := 0
 var exit_room := 0
+## 모닥불 칸 (짧은 휴식). 서 있을 수 있는 칸에 놓임
+var campfires: Array[Vector2i] = []
 
 
 func _init(w: int, h: int) -> void:
@@ -112,7 +114,7 @@ func encounter_totals() -> Dictionary:
 	return {"foes": foes, "xp": xp}
 
 
-## 텍스트 지도. # 벽 . 바닥 + 문 O 기둥 o 바위 , 잔해 1/2 단상 S 시작 E 출구 m 몬스터 $ 보물
+## 텍스트 지도. # 벽 . 바닥 + 문 O 기둥 o 바위 , 잔해 1/2 단상 S 시작 E 출구 m 몬스터 $ 보물 * 모닥불
 func to_ascii(show_contents := true) -> String:
 	var marks := {}
 	if show_contents:
@@ -122,6 +124,8 @@ func to_ascii(show_contents := true) -> String:
 					marks[f[1]] = "m"
 			for t in r.treasure:
 				marks[t.cell] = "$"
+		for c in campfires:
+			marks[c] = "*"
 		marks[start] = "S"
 		marks[exit] = "E"
 	var lines := PackedStringArray()

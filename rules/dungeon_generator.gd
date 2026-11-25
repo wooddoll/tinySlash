@@ -68,6 +68,7 @@ func _run(params: DungeonParams) -> Dungeon:
 	_features()
 	_encounters()
 	_treasure()
+	_campfires()
 	return d
 
 
@@ -719,6 +720,33 @@ func _treasure() -> void:
 		if r.kind == "exit":
 			gold *= 2
 		(r.treasure as Array).append({"cell": best, "gold": gold})
+
+
+## 모닥불: 몬스터 없는 보통 방 중 깊이가 고르게 퍼지게 고르고, 방 가운데에 가까운 빈 칸에 놓음.
+## 난수를 쓰지 않아서 다른 내용물에 영향을 주지 않음
+func _campfires() -> void:
+	if p.campfire_count <= 0:
+		return
+	var pool: Array = []
+	for r in d.rooms:
+		if r.encounter.is_empty() and r.kind == "normal":
+			pool.append(r)
+	if pool.is_empty():
+		for r in d.rooms:
+			if r.encounter.is_empty():
+				pool.append(r)
+	pool.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.depth < b.depth)
+	var k := mini(p.campfire_count, pool.size())
+	for i in k:
+		var r: Dictionary = pool[int((i + 0.5) * pool.size() / k)]
+		var free := _free_cells(r)
+		if free.is_empty():
+			continue
+		var best := free[0]
+		for c in free:
+			if (c - r.center).length_squared() < (best - r.center).length_squared():
+				best = c
+		d.campfires.append(best)
 
 
 ## rng 시드를 따르는 섞기 (Array.shuffle은 전역 난수를 씀)

@@ -32,6 +32,8 @@ static var floor_no := 1
 static var hero: HeroState = null
 static var checkpoint: HeroState = null
 static var _pending_toast := ""
+## 짧은 휴식을 한 모닥불 (꺼짐)
+static var used_fires := {}
 
 @onready var focus: Node3D = $Focus
 @onready var rig: Node3D = $CameraRig
@@ -61,6 +63,13 @@ var toast: Label
 var explorer: Explorer
 var chests := {}
 var _leaving := false
+var fires := {}  # 칸 -> 불꽃 노드들
+var rest_panel: PanelContainer
+var rest_label: RichTextLabel
+var rest_roll: Button
+var rest_fire := Vector2i(-1, -1)
+var rest_log := PackedStringArray()
+var rest_dice := Dice.new()
 
 
 func _ready() -> void:
@@ -104,6 +113,7 @@ func _generate() -> void:
 		world.queue_free()
 	explorer = null
 	chests.clear()
+	fires.clear()
 	world = Node3D.new()
 	world.name = "World"
 	add_child(world)
@@ -208,6 +218,9 @@ func _build_world() -> void:
 		var rc: Rect2i = r.rect
 		lbl.position = Vector3(rc.position.x + rc.size.x / 2.0, 2.2, rc.position.y + rc.size.y / 2.0)
 		world.add_child(lbl)
+
+	for c in d.campfires:
+		_add_campfire(c)
 
 	select_mesh = _overlay_layer(Color(1.0, 0.85, 0.2, 0.4))
 	hover_mesh = _overlay_layer(Color(1, 1, 1, 0.18))
@@ -362,6 +375,7 @@ func _build_ui() -> void:
 	_slider(box, "encounter_ratio", "몬스터 방 비율", 0.0, 1.0, 0.05)
 	_slider(box, "treasure_ratio", "보물 방 비율", 0.0, 1.0, 0.05)
 	_check(box, "boss_room", "출구 방에 보스")
+	_slider(box, "campfire_count", "모닥불", 0, 4, 1)
 
 	var copy := Button.new()
 	copy.text = "텍스트 지도 복사"
@@ -387,6 +401,7 @@ func _build_ui() -> void:
 	fight_button.pressed.connect(_fight)
 	rbox.add_child(fight_button)
 
+	_build_rest_panel(layer)
 	toast = Label.new()
 	toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -513,6 +528,7 @@ func _set_param(prop: String, value: Variant) -> void:
 	params.set(prop, value)
 	cleared.clear()
 	opened.clear()
+	used_fires.clear()
 	explore_cell = Vector2i(-1, -1)
 	retreat_cell = Vector2i(-1, -1)
 	selected = -1
@@ -573,10 +589,20 @@ func _process(delta: float) -> void:
 		camera.h_offset = 0.0
 		if _leaving:
 			return
+		if rest_panel.visible:
+			if Input.is_action_just_pressed("end_turn"):
+				_rest_roll()
+			elif Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+				_finish_rest()
+			return
 		if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
 			_set_exploring(false)
-		elif Input.is_action_just_pressed("end_turn") and explorer and explorer.cell == dungeon.exit:
-			_next_floor()
+		elif Input.is_action_just_pressed("end_turn") and explorer:
+			var fire := _fire_near(explorer.cell)
+			if fire != Vector2i(-1, -1):
+				_open_rest(fire)
+			elif explorer.cell == dungeon.exit:
+				_next_floor()
 		return
 	# 왼쪽 패널(300px)에 가리지 않게 화면 중심을 오른쪽으로 옮김
 	camera.h_offset = -150.0 * camera.size / get_viewport().get_visible_rect().size.y
@@ -659,6 +685,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		return
 	if to == dungeon.exit:
 		_toast("출구 계단 — Enter: 다음 층으로")
+	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
+		_toast("모닥불 — Enter: 짧은 휴식")
 	_update_explore_info()
 
 
@@ -710,6 +738,133 @@ func _next_floor() -> void:
 	_toast("%d층" % floor_no)
 
 
+# --- 모닥불과 짧은 휴식 (rules 5.3) ---
+
+func _add_campfire(c: Vector2i) -> void:
+	var root := Node3D.new()
+	root.position = _top(c)
+	world.add_child(root)
+	var pit := Kenney.instance("campfire-pit", "survival-kit")
+	pit.scale = Vector3.ONE * 2.6
+	root.add_child(pit)
+	var lit := not used_fires.has(c)
+	var flame := CPUParticles3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.07
+	sm.height = 0.14
+	var fm := StandardMaterial3D.new()
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.albedo_color = Color(1.0, 0.55, 0.15)
+	sm.material = fm
+	flame.mesh = sm
+	flame.amount = 18
+	flame.lifetime = 0.7
+	flame.position.y = 0.12
+	flame.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	flame.emission_sphere_radius = 0.12
+	flame.direction = Vector3.UP
+	flame.spread = 15.0
+	flame.gravity = Vector3(0, 1.2, 0)
+	flame.initial_velocity_min = 0.2
+	flame.initial_velocity_max = 0.5
+	flame.scale_amount_min = 0.6
+	flame.scale_amount_max = 1.2
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 1))
+	curve.add_point(Vector2(1, 0))
+	flame.scale_amount_curve = curve
+	flame.emitting = lit
+	root.add_child(flame)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.3)
+	light.light_energy = 2.5
+	light.omni_range = 5.0
+	light.position.y = 0.6
+	light.visible = lit
+	root.add_child(light)
+	fires[c] = {"flame": flame, "light": light}
+
+
+## 옆 칸(대각선 포함)에 아직 안 쓴 모닥불이 있으면 그 칸
+func _fire_near(c: Vector2i) -> Vector2i:
+	for f in fires:
+		if not used_fires.has(f) and maxi(absi(f.x - c.x), absi(f.y - c.y)) <= 1:
+			return f
+	return Vector2i(-1, -1)
+
+
+func _open_rest(fire: Vector2i) -> void:
+	rest_fire = fire
+	rest_log = PackedStringArray()
+	explorer.active = false
+	rest_panel.visible = true
+	_update_rest()
+
+
+func _rest_roll() -> void:
+	var r := hero.spend_hit_die(rest_dice)
+	if r.is_empty():
+		return
+	rest_log.append("d%d → %d + CON %d = HP +%d" % [hero.hit_die(), r.roll, hero.con_mod(), r.heal])
+	_update_rest()
+	_update_explore_info()
+
+
+func _finish_rest() -> void:
+	hero.finish_short_rest()
+	used_fires[rest_fire] = true
+	var f: Dictionary = fires[rest_fire]
+	(f.flame as CPUParticles3D).emitting = false
+	(f.light as OmniLight3D).visible = false
+	rest_panel.visible = false
+	explorer.active = true
+	_toast("짧은 휴식을 마쳤어요 — Second Wind 1회%s 회복" % (", Action Surge" if hero.level() >= 2 else ""))
+	_update_explore_info()
+
+
+func _update_rest() -> void:
+	var can := hero.hit_dice_left() > 0 and hero.current_hp() < hero.max_hp()
+	rest_roll.disabled = not can
+	var lines := PackedStringArray()
+	lines.append("[b]짧은 휴식[/b] (모닥불은 한 번 쓰면 꺼져요)")
+	lines.append("HP %d/%d · 히트 다이스 %d/%d (d%d + CON %d)" % [
+		hero.current_hp(), hero.max_hp(), hero.hit_dice_left(), hero.level(), hero.hit_die(), hero.con_mod()])
+	for l in rest_log:
+		lines.append("  " + l)
+	if not can:
+		lines.append("[color=gray]%s[/color]" % ("HP가 가득 찼어요" if hero.current_hp() >= hero.max_hp() else "남은 히트 다이스가 없어요"))
+	lines.append("마치면 Second Wind 1회와 Action Surge가 돌아와요")
+	rest_label.text = "\n".join(lines)
+
+
+func _build_rest_panel(layer: CanvasLayer) -> void:
+	rest_panel = PanelContainer.new()
+	# 플레이어와 모닥불을 가리지 않게 화면 아래쪽에
+	rest_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	rest_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	rest_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	rest_panel.offset_bottom = -40
+	rest_panel.add_theme_stylebox_override("panel", _panel_style())
+	rest_panel.visible = false
+	layer.add_child(rest_panel)
+	var box := VBoxContainer.new()
+	rest_panel.add_child(box)
+	rest_label = _rich(box)
+	rest_label.custom_minimum_size.x = 380
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	rest_roll = Button.new()
+	rest_roll.text = "히트 다이스 굴리기 (Enter)"
+	rest_roll.focus_mode = Control.FOCUS_NONE
+	rest_roll.pressed.connect(_rest_roll)
+	row.add_child(rest_roll)
+	var done := Button.new()
+	done.text = "휴식 마치기 (Esc)"
+	done.focus_mode = Control.FOCUS_NONE
+	done.pressed.connect(_finish_rest)
+	row.add_child(done)
+
+
 func _toast(text: String) -> void:
 	toast.text = text
 	var tw := create_tween()
@@ -730,10 +885,10 @@ func _update_explore_info() -> void:
 	var probe := hero.make_creature()
 	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d\n"
 			+ "[b]파이터[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n"
-			+ "물약 %d · Second Wind %d%s\n"
-			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물") % [
+			+ "히트 다이스 %d/%d · 물약 %d · Second Wind %d%s\n"
+			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물 · 불 모닥불") % [
 		floor_no, dungeon.seed_used, lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
-		probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
+		hero.hit_dice_left(), lv, probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
 		(" · Action Surge %d" % probe.resources.action_surge) if probe.resources.has("action_surge") else "",
 		gold, left]
 	var here := dungeon.room_at(explorer.cell) if explorer else -1
