@@ -18,11 +18,13 @@
 | `dice.gd` | `Dice` | 모든 주사위 굴림. 시드 고정, 테스트용 `forced` 값 | 1.3 |
 | `weapon_data.gd` | `WeaponData` | 무기 데이터 (Resource) | 4.4 |
 | `creature_stats.gd` | `CreatureStats` | 크리처 스탯 블록 (Resource). 화면용 `model`, `weapon_model`, `sprite_scale`(크기)도 여기 | 7, 8장 |
-| `catalog.gd` | `Catalog` | 무기 11종, 파이터 레벨 1~5, 몬스터 5종 데이터 | 4.4, 7, 8장 |
-| `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원 | 3.3, 6장 |
+| `catalog.gd` | `Catalog` | 무기 12종, 파이터·클레릭 레벨 1~5 (`pc(cls, level)`), 몬스터 5종 데이터 | 4.4, 7, 8장 |
+| `spells.gd` | `Spells` | 클레릭 주문과 Channel Divinity: 쓸 수 있는지(`why_not`, `target_error`), 시전(`cast`), 집중, 화면 설명 | 7.5, 7.6 |
+| `hero_state.gd` | `HeroState` | 던전 탐험 중 전투 사이에 이어지는 파티원 상태 (`cls`: fighter / cleric) | 5.3, 9 |
+| `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원, 주문 슬롯(`slot1`~), 집중 | 3.3, 6장 |
 | `damage.gd` | `Damage` | 피해 수정, 임시 HP, 회복, 사망 내성, 즉사 | 4.2, 5장 |
 | `combat_grid.gd` | `CombatGrid` | 높이, 벽, 험지, 점유, 이동 비용, 길찾기, 엄폐 | 2장 |
-| `combat.gd` | `Combat` | 이니셔티브, 턴, 행동, 공격 판정, 기회 공격, 무기 숙달 | 3, 4장 |
+| `combat.gd` | `Combat` | 이니셔티브, 턴, 행동, 공격 판정, 기회 공격, 무기 숙달, 내성 굴림(`saving_throw`, Bless 포함) | 3, 4장 |
 | `monster_ai.gd` | `MonsterAI` | 몬스터 행동 결정 | 8.1 |
 | `dungeon_params.gd` | `DungeonParams` | 던전 생성 파라미터 (Resource) | 9.2 |
 | `dungeon_generator.gd` | `DungeonGenerator` | 던전 생성 | 9.2, 9.3 |
@@ -32,7 +34,7 @@
 | 장면 | 스크립트 | 조작 |
 |---|---|---|
 | `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, B 전투, G 던전 생성기 |
-| `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 좌클릭 이동·공격, 1~3 무기, Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
+| `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 파티원 차례마다 그 캐릭터를 조종. 좌클릭 이동·공격, 1~3 무기, 주문 버튼 → 대상 클릭(우클릭·Esc 취소), Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
 | `dungeon.tscn` 던전 생성기 | `dungeon_view.gd` | 왼쪽 패널 파라미터, 좌클릭 방 고르기, B 그 방에서 전투, Tab 탐험 모드, Esc 바깥으로 |
 | `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트·상인 옆에서 Enter 쉼터 창(긴 휴식, 물약 사기), 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
 
@@ -48,7 +50,7 @@
 | 팩 | 크기 기준 | 쓰는 곳 |
 |---|---|---|
 | Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 방 던전(BSP, 흩뿌리기)의 바닥, 기둥(`column`), 바위(`rocks`), 잔해(`stones`, 동굴은 Nature Kit 바위), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
-| Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
+| Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 클레릭(`character-female-b`, 메이스 대신 Survival Kit `tool-hammer`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
 | Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 방 던전의 벽(`template-wall`, `template-wall-corner`)을 1/4로 줄여 씀 |
 | Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽과 바닥(`template-floor`)을 1/4로 줄여 씀 |
 | Survival Kit | 작은 소품 (모닥불 2.6배, 텐트 1.7배로 키워 씀) | 던전 모닥불(`campfire-pit`), 쉼터 텐트(`tent-canvas`) |
@@ -71,7 +73,7 @@
 
 ## 2. 설계
 
-- **규칙과 화면 분리**: `Combat`은 `event` 시그널로 사전(dictionary)을 내보냅니다. 종류는 `log`, `turn_start`, `move`, `teleport`, `attack`, `hp`, `condition`, `death`, `fled`, `end`입니다. `battle.gd`는 이벤트를 큐에 쌓아 두고 하나씩 트윈 애니메이션으로 재생합니다.
+- **규칙과 화면 분리**: `Combat`은 `event` 시그널로 사전(dictionary)을 내보냅니다. 종류는 `log`, `turn_start`, `move`, `teleport`, `attack`, `cast`, `hp`, `condition`, `death`, `fled`, `end`입니다. `battle.gd`는 이벤트를 큐에 쌓아 두고 하나씩 트윈 애니메이션으로 재생합니다.
 - **주사위**: 모든 굴림이 `Dice` 하나를 거칩니다. 시드를 고정하거나 `forced`에 값을 넣으면 결과가 정해지므로 테스트할 수 있습니다.
 - **일시 효과**: `Creature.effects`에 `{type, owner, phase, skip, target}` 형태로 저장합니다. owner의 턴 시작이나 끝(phase)에 skip이 0이면 사라집니다. 회피, Sap, Slow, Vex가 이 방식입니다.
 - **데이터**: `WeaponData`, `CreatureStats`는 `Resource`이지만, 지금은 `.tres` 파일 대신 `catalog.gd` 코드로 만듭니다.
@@ -94,6 +96,7 @@
 | 격자 이동: 험지, 오르기, 벽 모서리, 적 칸 통과 규칙, 이동 경로의 기회 공격 칸 표시 |
 | 엄폐 (광선 4개 방식), 사거리, 장거리·근접 불리점 |
 | 기회 공격, 이탈, 질주, 회피, Second Wind, Action Surge, 물약 |
+| 동료 클레릭: 주문 7종, Channel Divinity 3종, 집중, Bless, 슬롯 주문 턴당 1개 |
 | 무기 숙달: Graze, Sap, Slow, Vex, Topple, Push, Cleave |
 | 저항·취약·면역, 임시 HP, 사망 내성, 즉사 |
 | 몬스터 5종과 특성 (Pack Tactics, Redirect Attack, Nimble Escape 등), AI |
@@ -142,21 +145,23 @@
   - 이김: 방에 들어선 칸에서 계속합니다.
   - 짐: 던전 시작 지점으로 돌아갑니다 (체크포인트 규칙 3.6 대신 임시).
   - Esc로 도망: 방에 들어서기 직전 칸으로 돌아갑니다. 다시 들어가면 같은 전투가 처음부터 시작됩니다.
-- 파이터 상태는 `rules/hero_state.gd`(`HeroState`)가 들고 있습니다.
-  - 전투 장면은 `custom["hero"]`가 있으면 그걸로 PC를 만들고(`make_creature`), 이기거나 도망치면 결과를 다시 담습니다(`absorb`).
-  - 이어지는 것: HP, 물약, Second Wind, Action Surge, XP. 임시 HP와 상태 이상은 이어지지 않습니다.
-  - 이겼는데 쓰러져 있었으면 HP 1로 일어납니다.
+- 파티 상태는 `rules/hero_state.gd`(`HeroState`)가 파티원마다 하나씩 들고 있습니다 (`dungeon_view.gd`의 `hero` 파이터, `ally` 클레릭, `party()`).
+  - 전투 장면은 `custom["party"]`가 있으면 그걸로 PC들을 만들고(`make_creature`), 이기거나 도망치면 결과를 다시 담습니다(`absorb`). 없으면(단독 전투) 1레벨 파이터 + 클레릭으로 싸웁니다.
+  - 첫 파티원은 들어선 칸에, 나머지는 그 근처 빈 칸 중 적에게서 먼 칸에 섭니다 (`_free_cell_near`).
+  - XP는 파티 인원수로 나눠 각자 더합니다.
+  - 이어지는 것: HP, 물약, Second Wind, Action Surge, 주문 슬롯, Channel Divinity, XP. 임시 HP, 상태 이상, 집중은 이어지지 않습니다.
+  - 이겼는데 쓰러져(또는 죽어) 있었으면 HP 1로 일어납니다.
   - 이긴 전투는 R로 다시 할 수 없습니다 (XP가 두 번 쌓이지 않게). 진 전투는 R로 전투 시작 때 상태로 다시 할 수 있습니다.
-  - 전투 중 Esc로 도망치면 그때 HP와 사용 횟수를 가져갑니다. 쓰러진 채로 도망치면 패배입니다.
+  - 전투 중 Esc로 도망치면 그때 HP와 사용 횟수를 가져갑니다. 모두 쓰러진 채로 도망치면 패배입니다.
   - 지면 마지막 저장(쉼터)으로 돌아갑니다 (아래 "쉼터").
-  - 레벨업: XP가 문턱을 넘으면 그 레벨의 파이터(`Catalog.fighter(level)`)로 다시 만듭니다. 늘어난 최대 HP만큼 회복하고, 새로 생기거나 늘어난 사용 횟수(Action Surge, Second Wind)를 더합니다. 5레벨까지입니다.
-  - 다음 층으로 내려가면 생성기의 파티 레벨을 파이터 레벨에 맞춰 몬스터 예산을 올립니다.
+  - 레벨업: XP가 문턱을 넘으면 그 레벨의 스탯(`Catalog.pc(cls, level)`)으로 다시 만듭니다. 늘어난 최대 HP만큼 회복하고, 새로 생기거나 늘어난 사용 횟수(Action Surge, Second Wind, 주문 슬롯, Channel Divinity)를 더합니다. 5레벨까지입니다.
+  - 다음 층으로 내려가면 생성기의 파티 레벨과 인원을 파티에 맞춰 몬스터 예산을 정합니다. 파티 인원 기본값은 2입니다.
   - 히트 다이스: `hit_dice_spent`만 저장하고 남은 수는 `레벨 - 쓴 수`입니다. 그래서 레벨이 오르면 1개 늘어납니다.
 - 짧은 휴식: 켜진 모닥불 옆 칸(대각선 포함)에서 Enter를 누르면 휴식 창이 열립니다.
-  - Enter로 히트 다이스를 1개씩 굴립니다 (`spend_hit_die`). HP가 가득 찼거나 남은 주사위가 없으면 못 굴립니다.
-  - Esc나 Tab으로 마치면 Second Wind 1회와 Action Surge가 돌아오고(`finish_short_rest`), 모닥불이 꺼집니다.
+  - Enter로 히트 다이스를 1개씩 굴립니다 (`spend_hit_die`). 쓸 수 있는 파티원 중 HP 비율이 가장 낮은 사람이 굴립니다 (`_rest_target`).
+  - Esc나 Tab으로 마치면 Second Wind 1회, Action Surge, Channel Divinity 1회가 돌아오고(`finish_short_rest`), 모닥불이 꺼집니다.
 - 쉼터(세이브 지점): 1, 4, 7…층(`SAVE_EVERY = 3`) 시작 방에서 시작 칸에 가장 가까운 빈 칸에 텐트(Survival Kit `tent-canvas`)를 놓습니다 (`shelter_cell`).
-  - 저장(`save`): 생성 파라미터(시드 포함), 층, 파이터 상태, 금화, 긴 휴식 여부. 탐험을 시작할 때, 쉼터 층에 도착할 때, 긴 휴식을 할 때 씁니다.
+  - 저장(`save`): 생성 파라미터(시드 포함), 층, 파티 상태(`hero`, `ally`), 금화, 긴 휴식 여부. 탐험을 시작할 때, 쉼터 층에 도착할 때, 긴 휴식을 할 때 씁니다.
   - 텐트 옆에 상인(Mini Characters `character-worker`)이 섭니다. 텐트와 상인 칸은 지나갈 수 없습니다 (`Explorer.blocked`).
   - 텐트나 상인 옆에서 Enter: 쉼터 창. 긴 휴식(`HeroState.long_rest`, 쉼터마다 한 번)과 물약 사기(50골드, 최대 5개, `HeroState.buy_potion`). 둘 다 하고 나면 저장합니다.
   - 지면(`_load_save`): 저장한 파라미터로 그 층을 다시 만들고, 정리한 방·연 상자·쓴 모닥불·본 칸을 지우고, 파이터 상태와 금화를 되돌립니다. 생성기 슬라이더도 그 값으로 바뀝니다.
@@ -166,7 +171,8 @@
   - 벽판과 모서리 조각은 붙어 있는 바닥 칸에 속합니다. 생성기 화면에서는 전부 보입니다.
   - 본 칸은 static이라 전투에 다녀와도 남고, 새 층이나 파라미터를 바꾸면 지워집니다.
 - 층 깊이: `DungeonParams.floor_depth`. 다음 층으로 내려갈 때 층 수와 파이터 레벨을 생성기 파라미터에 넣고 슬라이더도 맞춥니다.
-- 탐험 상태(위치, 정리한 방, 연 상자, 금화, 층, 파이터 상태, 본 칸)는 `dungeon_view.gd`의 static 변수라서 장면을 오가도 남습니다. 상자는 옆 칸(대각선 포함)에 서면 열립니다. 출구 계단에서 Enter를 누르면 같은 파라미터에 새 시드로 다음 층을 만듭니다.
+- 동료 모델: 탐험 중 클레릭이 플레이어가 지나간 길을 0.9유닛 뒤에서 따라 걷습니다 (`_update_follower`). 충돌은 없고 화면에만 있습니다.
+- 탐험 상태(위치, 정리한 방, 연 상자, 금화, 층, 파티 상태, 본 칸)는 `dungeon_view.gd`의 static 변수라서 장면을 오가도 남습니다. 상자는 옆 칸(대각선 포함)에 서면 열립니다. 출구 계단에서 Enter를 누르면 같은 파라미터에 새 시드로 다음 층을 만듭니다.
 
 ## 5. 테스트
 

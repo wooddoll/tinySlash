@@ -25,6 +25,9 @@ extends Resource
 @export var bonus_die_on_advantage := 0
 ## 몬스터 전용: 명중하면 중형 이하 대상을 넘어뜨림 (늑대 물기)
 @export var knocks_prone := false
+## 주문 공격용: 공격 능력치 (Rules.Ability, -1이면 무기 기본값)과 피해에 수정치를 더할지
+@export var ability := -1
+@export var add_mod := true
 
 
 func melee_reach() -> int:

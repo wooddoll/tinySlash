@@ -38,7 +38,7 @@ enum Difficulty { LOW, MODERATE, HIGH }
 
 @export_group("Encounters")
 @export_range(1, 5) var party_level := 1
-@export_range(1, 6) var party_size := 1
+@export_range(1, 6) var party_size := 2
 @export var difficulty := Difficulty.MODERATE
 ## 깊은 방일수록 난이도 한 단계 위
 @export var difficulty_ramp := true

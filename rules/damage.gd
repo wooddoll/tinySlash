@@ -79,7 +79,8 @@ static func heal(target: Creature, amount: int) -> int:
 
 
 ## 반환: {"roll": int, "result": "success"/"fail"/"stable"/"dead"/"revived"}
-static func death_save(target: Creature, dice: Dice) -> Dictionary:
+## bonus: Bless 같은 내성 보너스 (1과 20 판정에는 영향 없음)
+static func death_save(target: Creature, dice: Dice, bonus := 0) -> Dictionary:
 	var r := dice.roll_die(20)
 	var result := ""
 	if r == 20:
@@ -88,7 +89,7 @@ static func death_save(target: Creature, dice: Dice) -> Dictionary:
 	elif r == 1:
 		target.death_failures += 2
 		result = "fail"
-	elif r >= 10:
+	elif r + bonus >= 10:
 		target.death_successes += 1
 		result = "success"
 	else:

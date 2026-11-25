@@ -30,6 +30,16 @@ extends Resource
 ## 숙달을 쓸 수 있는 무기 id
 @export var weapon_masteries := PackedStringArray()
 @export var hit_die := 10
+## 크리처 종류: humanoid, undead, beast (Turn Undead 대상 판정)
+@export var creature_type := "humanoid"
+## 주문 (클레릭): 쓸 수 있는 주문·Channel Divinity id (rules/spells.gd)
+@export var spells := PackedStringArray()
+## 레벨별 주문 슬롯 수 (인덱스 0 = 1레벨 슬롯)
+@export var spell_slots := PackedInt32Array()
+## Channel Divinity 사용 횟수
+@export var channel_divinity := 0
+## 주문 시전 능력치 (Rules.Ability). -1이면 주문 없음
+@export var spell_ability := -1
 ## AI 성향: melee, ranged, skirmisher
 @export var ai_style := "melee"
 ## 화면 표시용

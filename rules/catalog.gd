@@ -1,16 +1,19 @@
-## SRD 5.2.1 기반 데이터: 무기, 파이터, 몬스터 (docs/rules.md 4.4, 7, 8장)
+## SRD 5.2.1 기반 데이터: 무기, 파이터, 클레릭, 몬스터 (docs/rules.md 4.4, 7, 8장)
 ## 사거리와 속도는 칸 단위(5ft = 1칸)로 변환해 둡니다.
 class_name Catalog
 extends RefCounted
 
 const STR := Rules.Ability.STR
 const CON := Rules.Ability.CON
+const WIS := Rules.Ability.WIS
+const CHA := Rules.Ability.CHA
 
 
 static func weapon(id: String) -> WeaponData:
 	match id:
 		"greatsword": return _w(id, "대검", 2, 6, "slashing", {"heavy": true, "two_handed": true, "mastery": "graze"})
 		"longsword": return _w(id, "롱소드", 1, 8, "slashing", {"versatile_sides": 10, "mastery": "sap"})
+		"mace": return _w(id, "메이스", 1, 6, "bludgeoning", {"mastery": "sap"})
 		"flail": return _w(id, "도리깨", 1, 8, "bludgeoning", {"mastery": "sap"})
 		"warhammer": return _w(id, "워해머", 1, 8, "bludgeoning", {"versatile_sides": 10, "mastery": "push"})
 		"javelin": return _w(id, "투창", 1, 6, "piercing", {"thrown": true, "range_normal": 6, "range_long": 24, "mastery": "slow"})
@@ -66,6 +69,49 @@ static func fighter(level := 1) -> CreatureStats:
 	return s
 
 
+## 동료 클레릭 (Acolyte 배경, Life Domain, Divine Order: Protector). docs/rules.md 7.4
+static func cleric(level := 1) -> CreatureStats:
+	var s := CreatureStats.new()
+	s.id = "cleric"
+	s.display_name = "클레릭"
+	s.is_pc = true
+	s.level = level
+	s.scores = PackedInt32Array([14, 8, 13, 10, 17, 13])
+	if level >= 4:
+		s.scores[WIS] = 19
+	s.ac = 18  # Chain Mail 16 (Protector) + Shield 2
+	s.max_hp = 8 + 1 + (level - 1) * (5 + 1)
+	s.speed = 6
+	s.initiative_bonus = -1
+	s.save_proficiencies = [WIS, CHA]
+	s.hit_die = 8
+	s.weapons = [weapon("mace")]
+	s.model = "mini-characters/character-female-b"
+	s.weapon_model = "survival-kit/tool-hammer"
+	s.spell_ability = WIS
+	const SLOTS := [[2], [3], [4, 2], [4, 3], [4, 3, 2]]
+	s.spell_slots = PackedInt32Array(SLOTS[clampi(level, 1, 5) - 1])
+	var sp := ["sacred_flame", "spare_the_dying", "guiding_bolt", "cure_wounds", "healing_word", "bless"]
+	var f := ["spellcasting", "protector"]
+	if level >= 2:
+		sp.append_array(["shield_of_faith", "divine_spark", "turn_undead"])
+		f.append("channel_divinity")
+		s.channel_divinity = 2
+	if level >= 3:
+		sp.append("preserve_life")
+		f.append_array(["disciple_of_life", "preserve_life"])
+	if level >= 5:
+		f.append("sear_undead")
+	s.spells = PackedStringArray(sp)
+	s.features = PackedStringArray(f)
+	return s
+
+
+## 클래스 id로 PC 스탯
+static func pc(cls: String, level := 1) -> CreatureStats:
+	return cleric(level) if cls == "cleric" else fighter(level)
+
+
 static func monster(id: String) -> CreatureStats:
 	var s := CreatureStats.new()
 	s.id = id
@@ -101,6 +147,7 @@ static func monster(id: String) -> CreatureStats:
 		"skeleton":
 			_m(s, "스켈레톤", 0.25, 50, [10, 16, 15, 6, 8, 5], 14, 13, 6, Rules.Size.MEDIUM, 3)
 			s.weapons = [weapon("shortsword"), weapon("shortbow")]
+			s.creature_type = "undead"
 			s.vulnerabilities = PackedStringArray(["bludgeoning"])
 			s.immunities = PackedStringArray(["poison"])
 			s.condition_immunities = PackedStringArray(["exhaustion", "poisoned"])
@@ -112,6 +159,7 @@ static func monster(id: String) -> CreatureStats:
 			_m(s, "늑대", 0.25, 50, [14, 15, 12, 3, 12, 6], 12, 11, 8, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("bite")]
 			s.features = PackedStringArray(["pack_tactics"])
+			s.creature_type = "beast"
 			s.ai_style = "melee"
 			s.tint = Color(0.55, 0.55, 0.6)
 			s.sprite_scale = 0.85

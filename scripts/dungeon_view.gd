@@ -31,6 +31,8 @@ static var gold := 0
 static var floor_no := 1
 ## 전투 사이에 이어지는 파이터 상태
 static var hero: HeroState = null
+## 동료 클레릭
+static var ally: HeroState = null
 ## 쉼터(세이브 지점)는 1, 4, 7...층 시작 방에 있음. 지면 마지막 저장으로 돌아감 (rules 3.6)
 const SAVE_EVERY := 3
 ## 마지막 저장: {params, floor, hero, gold, rested}
@@ -69,6 +71,9 @@ var toast: Label
 
 # 탐험
 var explorer: Explorer
+## 플레이어를 따라 걷는 동료 모델
+var follower: CharacterModel
+var _trail: Array[Vector3] = []
 var chests := {}
 var _leaving := false
 var fires := {}  # 칸 -> 불꽃 노드들
@@ -126,6 +131,7 @@ func _generate() -> void:
 	if world:
 		world.queue_free()
 	explorer = null
+	follower = null
 	chests.clear()
 	fires.clear()
 	_fog_index.clear()
@@ -634,6 +640,7 @@ func _process(delta: float) -> void:
 			_generate()
 	if exploring:
 		camera.h_offset = 0.0
+		_update_follower(delta)
 		if _leaving:
 			return
 		if rest_panel.visible:
@@ -680,10 +687,11 @@ func _set_exploring(on: bool) -> void:
 	exploring = on
 	Sfx.play(self, "switch")
 	if on:
-		# 생성기에서 새로 시작하면 금화, 층 수, 파이터 상태를 처음부터
+		# 생성기에서 새로 시작하면 금화, 층 수, 파티 상태를 처음부터
 		gold = 0
 		floor_no = params.floor_depth
 		hero = HeroState.fresh()
+		ally = HeroState.fresh("cleric")
 		rested_here = false
 		_write_save()  # 탐험을 시작한 곳이 첫 저장
 	else:
@@ -704,6 +712,8 @@ func _apply_mode() -> void:
 		_show_room(select_mesh, -1)
 		if hero == null:
 			hero = HeroState.fresh()
+		if ally == null:
+			ally = HeroState.fresh("cleric")
 		if save.is_empty():
 			_write_save()
 		if _pending_toast != "":
@@ -719,6 +729,7 @@ func _apply_mode() -> void:
 				if c != Vector2i(-1, -1):
 					explorer.blocked[c] = true
 			explorer.entered_cell.connect(_on_entered_cell)
+			_spawn_follower()
 		_reveal(explorer.cell)
 		_fog_apply_all()
 		rig.target = explorer
@@ -729,6 +740,9 @@ func _apply_mode() -> void:
 		if explorer:
 			explorer.queue_free()
 			explorer = null
+		if follower:
+			follower.queue_free()
+			follower = null
 		rig.target = focus
 		_fog_apply_all()
 		help_label.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Tab: 탐험 · Esc: 바깥으로"
@@ -763,7 +777,7 @@ func _start_battle(room: int, from: Vector2i, to: Vector2i) -> void:
 	_toast("몬스터 발견! — " + str(dungeon.rooms[room].encounter.label))
 	Sfx.play(self, "alert")
 	Battle.custom = dungeon.battle_setup(room, to)
-	Battle.custom["hero"] = hero
+	Battle.custom["party"] = party()
 	await get_tree().create_timer(0.8).timeout
 	get_tree().change_scene_to_file("res://scenes/battle.tscn")
 
@@ -796,11 +810,13 @@ func _next_floor() -> void:
 	floor_no += 1
 	Sfx.play(self, "stairs")
 	rested_here = false
-	# 몬스터 예산을 파이터 레벨과 층 깊이에 맞춤
+	# 몬스터 예산을 파티 레벨, 인원, 층 깊이에 맞춤
 	params.party_level = hero.level()
+	params.party_size = party().size()
 	params.floor_depth = floor_no
 	_syncing = true
 	(controls["party_level"] as HSlider).value = hero.level()
+	(controls["party_size"] as HSlider).value = party().size()
 	(controls["floor_depth"] as HSlider).value = floor_no
 	_syncing = false
 	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
@@ -871,6 +887,67 @@ func _reveal(c: Vector2i) -> void:
 
 static func is_save_floor(n: int) -> bool:
 	return (n - 1) % SAVE_EVERY == 0
+
+
+static func party() -> Array:
+	return [hero, ally].filter(func(h: HeroState) -> bool: return h != null)
+
+
+## 정보 창의 파티원 두 줄: 레벨, HP, XP, 히트 다이스 / 남은 기능과 주문 슬롯
+func _member_line(h: HeroState) -> String:
+	var lv := h.level()
+	var next_xp := "최고" if lv >= HeroState.MAX_LEVEL else str(Rules.XP_THRESHOLDS[lv])
+	var hp := h.current_hp()
+	var probe := h.make_creature()
+	var res: Array[String] = ["히트 다이스 %d/%d" % [h.hit_dice_left(), lv]]
+	if probe.resources.has("second_wind"):
+		res.append("Second Wind %d" % probe.resources.second_wind)
+	if probe.resources.has("action_surge"):
+		res.append("Action Surge %d" % probe.resources.action_surge)
+	var slots: Array[String] = []
+	for l in range(1, probe.stats.spell_slots.size() + 1):
+		slots.append("%d레벨 %d/%d" % [l, probe.resources.get("slot%d" % l, 0), probe.stats.spell_slots[l - 1]])
+	if not slots.is_empty():
+		res.append("슬롯 " + " ".join(slots))
+	if probe.resources.has("channel"):
+		res.append("Channel %d" % probe.resources.channel)
+	return "[b]%s[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n   %s" % [h.display_name(), lv,
+		"#f66" if hp * 2 <= h.max_hp() else "#ddd", hp, h.max_hp(), h.xp, next_xp, " · ".join(res)]
+
+
+# 동료 모델: 플레이어가 지나간 길을 0.9유닛 뒤에서 따라감
+func _spawn_follower() -> void:
+	follower = CharacterModel.new()
+	world.add_child(follower)
+	var st := ally.stats()
+	follower.setup(st.model, 1.0, st.weapon_model)
+	follower.position = explorer.position
+	_trail = [explorer.position]
+
+
+func _update_follower(delta: float) -> void:
+	if follower == null or explorer == null:
+		return
+	var p := explorer.position
+	if _trail.is_empty() or p.distance_to(_trail[-1]) > 0.12:
+		_trail.append(p)
+		if _trail.size() > 60:
+			_trail.pop_front()
+	var target := _trail[0]
+	var acc := 0.0
+	for i in range(_trail.size() - 1, 0, -1):
+		acc += _trail[i].distance_to(_trail[i - 1])
+		if acc >= 0.9:
+			target = _trail[i - 1]
+			break
+	var to := target - follower.position
+	to.y = 0.0
+	var moving := to.length() > 0.05 and follower.position.distance_to(p) > 0.7
+	if moving:
+		follower.position += to.normalized() * minf(to.length(), 5.0 * delta)
+		follower.face(to)
+	follower.position.y = lerpf(follower.position.y, target.y, 1.0 - exp(-14.0 * delta))
+	follower.set_base("sprint" if moving else "idle")
 
 
 ## 시작 방에서 시작 칸에 가장 가까운 빈 칸 (시작 칸, 모닥불, 상자, 몬스터 칸, exclude는 피함)
@@ -958,10 +1035,10 @@ func _update_shop() -> void:
 	shop_buy.disabled = not hero.can_buy_potion(gold)
 	var lines := PackedStringArray()
 	lines.append("[b]쉼터[/b] (%d층 · 여기서 한 일은 저장돼요)" % floor_no)
-	lines.append("HP %d/%d · 히트 다이스 %d/%d · 물약 %d/%d · 금화 %d" % [
-		hero.current_hp(), hero.max_hp(), hero.hit_dice_left(), hero.level(),
-		hero.potions(), HeroState.MAX_POTIONS, gold])
-	lines.append("긴 휴식: HP, 히트 다이스, 기능 사용 횟수를 모두 회복 (쉼터마다 한 번)%s" % (
+	for h in party():
+		lines.append("%s HP %d/%d · 히트 다이스 %d/%d" % [h.display_name(), h.current_hp(), h.max_hp(), h.hit_dice_left(), h.level()])
+	lines.append("물약 %d/%d (파이터가 들고 다님) · 금화 %d" % [hero.potions(), HeroState.MAX_POTIONS, gold])
+	lines.append("긴 휴식: 파티 모두 HP, 히트 다이스, 기능, 주문 슬롯 회복 (쉼터마다 한 번)%s" % (
 		" [color=gray]— 이미 쉬었어요[/color]" if rested_here else ""))
 	lines.append("상인: 회복 물약 (2d4+2 회복) %d골드%s" % [HeroState.POTION_PRICE,
 		" [color=gray]— 가득 찼어요[/color]" if hero.potions() >= HeroState.MAX_POTIONS
@@ -1005,7 +1082,7 @@ func _build_shop_panel(layer: CanvasLayer) -> void:
 
 func _write_save() -> void:
 	save = {"params": params.duplicate_params(), "floor": floor_no, "hero": hero.duplicate_state(),
-			"gold": gold, "rested": rested_here}
+			"ally": ally.duplicate_state(), "gold": gold, "rested": rested_here}
 
 
 ## 마지막 저장으로 돌아감: 그 층을 처음 상태로 다시 만들고 파이터 상태, 금화도 그때로
@@ -1016,6 +1093,7 @@ static func _load_save() -> void:
 	saved = (save.params as DungeonParams).duplicate_params()
 	floor_no = save.floor
 	hero = (save.hero as HeroState).duplicate_state()
+	ally = (save.ally as HeroState).duplicate_state() if save.has("ally") else HeroState.fresh("cleric")
 	gold = save.gold
 	rested_here = save.rested
 	cleared.clear()
@@ -1030,11 +1108,12 @@ func _long_rest() -> void:
 	if rested_here:
 		_toast("이 쉼터에서는 이미 쉬었어요")
 		return
-	hero.long_rest()
+	for h in party():
+		h.long_rest()
 	rested_here = true
 	_write_save()
 	Sfx.play(self, "confirm")
-	_toast("긴 휴식: HP, 히트 다이스, 기능 회복 · 저장했어요")
+	_toast("긴 휴식: HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요")
 	_update_explore_info()
 
 
@@ -1103,18 +1182,32 @@ func _open_rest(fire: Vector2i) -> void:
 	_update_rest()
 
 
+## 히트 다이스를 쓸 파티원: 쓸 수 있는 사람 중 HP 비율이 가장 낮은 사람
+func _rest_target() -> HeroState:
+	var best: HeroState = null
+	for h in party():
+		if h.hit_dice_left() > 0 and h.current_hp() < h.max_hp():
+			if best == null or float(h.current_hp()) / h.max_hp() < float(best.current_hp()) / best.max_hp():
+				best = h
+	return best
+
+
 func _rest_roll() -> void:
-	var r := hero.spend_hit_die(rest_dice)
+	var h := _rest_target()
+	if h == null:
+		return
+	var r := h.spend_hit_die(rest_dice)
 	if r.is_empty():
 		return
 	Sfx.play(self, "dice")
-	rest_log.append("d%d → %d + CON %d = HP +%d" % [hero.hit_die(), r.roll, hero.con_mod(), r.heal])
+	rest_log.append("%s d%d → %d + CON %d = HP +%d" % [h.display_name(), h.hit_die(), r.roll, h.con_mod(), r.heal])
 	_update_rest()
 	_update_explore_info()
 
 
 func _finish_rest() -> void:
-	hero.finish_short_rest()
+	for h in party():
+		h.finish_short_rest()
 	used_fires[rest_fire] = true
 	var f: Dictionary = fires[rest_fire]
 	(f.flame as CPUParticles3D).emitting = false
@@ -1122,22 +1215,25 @@ func _finish_rest() -> void:
 	rest_panel.visible = false
 	explorer.active = true
 	Sfx.play(self, "confirm")
-	_toast("짧은 휴식을 마쳤어요 — Second Wind 1회%s 회복" % (", Action Surge" if hero.level() >= 2 else ""))
+	_toast("짧은 휴식을 마쳤어요 — Second Wind 1회%s 회복" % (", Action Surge, Channel Divinity 1회" if hero.level() >= 2 else ""))
 	_update_explore_info()
 
 
 func _update_rest() -> void:
-	var can := hero.hit_dice_left() > 0 and hero.current_hp() < hero.max_hp()
+	var can := _rest_target() != null
 	rest_roll.disabled = not can
 	var lines := PackedStringArray()
 	lines.append("[b]짧은 휴식[/b] (모닥불은 한 번 쓰면 꺼져요)")
-	lines.append("HP %d/%d · 히트 다이스 %d/%d (d%d + CON %d)" % [
-		hero.current_hp(), hero.max_hp(), hero.hit_dice_left(), hero.level(), hero.hit_die(), hero.con_mod()])
+	for h in party():
+		lines.append("%s HP %d/%d · 히트 다이스 %d/%d (d%d + CON %d)" % [h.display_name(),
+			h.current_hp(), h.max_hp(), h.hit_dice_left(), h.level(), h.hit_die(), h.con_mod()])
 	for l in rest_log:
 		lines.append("  " + l)
 	if not can:
-		lines.append("[color=gray]%s[/color]" % ("HP가 가득 찼어요" if hero.current_hp() >= hero.max_hp() else "남은 히트 다이스가 없어요"))
-	lines.append("마치면 Second Wind 1회와 Action Surge가 돌아와요")
+		lines.append("[color=gray]더 굴릴 수 없어요 (HP가 가득 찼거나 히트 다이스가 없음)[/color]")
+	else:
+		lines.append("[color=gray]Enter: 가장 많이 다친 파티원이 굴려요[/color]")
+	lines.append("마치면 Second Wind 1회, Action Surge, Channel Divinity 1회가 돌아와요 (주문 슬롯은 긴 휴식에)")
 	rest_label.text = "\n".join(lines)
 
 
@@ -1182,19 +1278,13 @@ func _update_explore_info() -> void:
 	for r in dungeon.rooms:
 		if not r.encounter.is_empty() and not cleared.has(r.id):
 			left += 1
-	var lv := hero.level()
-	var next_xp := "최고" if lv >= HeroState.MAX_LEVEL else str(Rules.XP_THRESHOLDS[lv])
-	var hp := hero.current_hp()
-	var hp_col := "#f66" if hp * 2 <= hero.max_hp() else "#ddd"
-	var probe := hero.make_creature()
-	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d · 저장 %d층\n"
-			+ "[b]파이터[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n"
-			+ "히트 다이스 %d/%d · 물약 %d · Second Wind %d%s\n"
-			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작 · 계단=출구 · 상자 · 모닥불 · 텐트=쉼터") % [
-		floor_no, dungeon.seed_used, int(save.get("floor", floor_no)), lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
-		hero.hit_dice_left(), lv, probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
-		(" · Action Surge %d" % probe.resources.action_surge) if probe.resources.has("action_surge") else "",
-		gold, left]
+	var lines := PackedStringArray()
+	lines.append("[b]탐험 중[/b]  %d층 · 시드 %d · 저장 %d층" % [floor_no, dungeon.seed_used, int(save.get("floor", floor_no))])
+	for h in party():
+		lines.append(_member_line(h))
+	lines.append("금화 %d · 물약 %d · 남은 몬스터 방 %d" % [gold, hero.potions(), left])
+	lines.append("[color=#6af]●[/color] 시작 · 계단=출구 · 상자 · 모닥불 · 텐트=쉼터")
+	info_label.text = "\n".join(lines)
 	var here := dungeon.room_at(explorer.cell) if explorer else -1
 	if here < 0:
 		room_label.text = "[color=gray]통로[/color]"

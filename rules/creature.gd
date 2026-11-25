@@ -24,8 +24,10 @@ var conditions := {}
 ## 일시 효과: {"type", "owner", "phase", "skip", "target"}
 ## owner의 턴 시작/끝(phase)에 skip이 0이면 사라집니다.
 var effects: Array[Dictionary] = []
-## 사용 횟수가 있는 자원: second_wind, action_surge, potion
+## 사용 횟수가 있는 자원: second_wind, action_surge, potion, slot1~slot3, channel
 var resources := {}
+## 집중 중인 주문 id (없으면 빈 문자열)
+var concentration := ""
 
 # 턴 자원
 var movement_left := 0
@@ -47,6 +49,11 @@ func _init(s: CreatureStats, team_id: int, name_override := "") -> void:
 		resources["second_wind"] = second_wind_max()
 	if s.has_feature("action_surge"):
 		resources["action_surge"] = 1
+	for i in s.spell_slots.size():
+		if s.spell_slots[i] > 0:
+			resources["slot%d" % (i + 1)] = s.spell_slots[i]
+	if s.channel_divinity > 0:
+		resources["channel"] = s.channel_divinity
 
 
 # --- 능력치 ---
@@ -60,7 +67,20 @@ func pb() -> int:
 
 
 func ac() -> int:
-	return stats.ac
+	return stats.ac + (2 if has_effect("shield_of_faith") else 0)
+
+
+## 주문 내성 DC와 주문 공격 보너스 (rules 7.5)
+func spell_mod() -> int:
+	return mod(stats.spell_ability) if stats.spell_ability >= 0 else 0
+
+
+func spell_dc() -> int:
+	return Rules.save_dc(spell_mod(), pb())
+
+
+func spell_attack_bonus() -> int:
+	return spell_mod() + pb()
 
 
 func speed() -> int:
@@ -131,7 +151,7 @@ func is_bloodied() -> bool:
 
 
 func is_incapacitated() -> bool:
-	return has_condition("incapacitated") or has_condition("unconscious")
+	return has_condition("incapacitated") or has_condition("unconscious") or has_effect("turned")
 
 
 func can_act() -> bool:
@@ -182,6 +202,16 @@ func remove_effects(type: String) -> void:
 	for i in range(effects.size() - 1, -1, -1):
 		if effects[i].type == type:
 			effects.remove_at(i)
+
+
+## owner가 건 types 효과를 지움. 지운 게 있으면 true
+func remove_effects_from(owner: Creature, types: Array) -> bool:
+	var removed := false
+	for i in range(effects.size() - 1, -1, -1):
+		if effects[i].owner == owner and types.has(effects[i].type):
+			effects.remove_at(i)
+			removed = true
+	return removed
 
 
 ## owner의 턴 시작("start") 또는 끝("end")에 호출됩니다.

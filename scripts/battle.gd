@@ -34,6 +34,7 @@ const ENCOUNTER_KEYS := {KEY_F1: "easy", KEY_F2: "normal", KEY_F3: "hard", KEY_F
 static var encounter_id := "normal"
 ## 던전 생성기에서 넘겨준 전투 (Dungeon.battle_setup). 비어 있으면 기본 맵과 F1~F5 조우.
 ## 끝나면 custom["result"]에 "win" 또는 "lose"를 남깁니다.
+## custom["party"]: 던전 탐험의 파티 (HeroState 배열). 없으면 1레벨 파이터 + 클레릭
 static var custom := {}
 
 @onready var focus: Node3D = $Focus
@@ -42,7 +43,13 @@ static var custom := {}
 
 var grid: CombatGrid
 var combat: Combat
+## 지금 조종하는 파티원 (파티원 차례마다 바뀜)
 var pc: Creature
+var party: Array[Creature] = []
+## party와 같은 순서의 HeroState (던전 탐험일 때만)
+var heroes: Array = []
+## 대상을 고르는 중인 주문 id
+var pending_spell := ""
 var views := {}
 var overlays := {}
 var overlay_mats := {}
@@ -62,7 +69,10 @@ var hint_label: Label
 var log_box: RichTextLabel
 var result_label: Label
 var weapon_buttons: Array[Button] = []
+var weapon_box: HBoxContainer
 var action_buttons := {}
+var spell_bar: HBoxContainer
+var spell_buttons := {}
 
 
 func _ready() -> void:
@@ -73,6 +83,7 @@ func _ready() -> void:
 	combat.event.connect(func(ev: Dictionary) -> void: queue.append(ev))
 	_log("[color=gray]%s[/color]" % _encounter_label())
 	Sfx.wire_buttons(self)
+	_rebuild_bar()  # 무기·주문 버튼은 직접 효과음을 붙임 (wire_buttons 뒤에)
 	Sfx.play(self, "fight")
 	combat.start()
 
@@ -290,15 +301,22 @@ func _overlay_mat(kind: String) -> StandardMaterial3D:
 
 func _spawn_units() -> void:
 	combat = Combat.new(grid, Dice.new())
-	if custom.has("hero"):
-		pc = (custom.hero as HeroState).make_creature()  # 던전 탐험: 앞 전투의 HP와 사용 횟수를 이어 감
+	if custom.has("party"):
+		heroes = custom.party  # 던전 탐험: 앞 전투의 HP와 사용 횟수를 이어 감
+		for h in heroes:
+			party.append((h as HeroState).make_creature())
 	else:
-		pc = Creature.new(Catalog.fighter(1), 0, "파이터")
-		pc.resources["potion"] = 1
-	pc.facing = Vector2i(1, 0)
-	combat.add(pc, custom.get("pc_start", PC_START))
-	var counts := {}
+		var f := Creature.new(Catalog.fighter(1), 0, "파이터")
+		f.resources["potion"] = 1
+		party = [f, Creature.new(Catalog.cleric(1), 0, "클레릭")]
+	pc = party[0]
 	var foes: Array = custom.foes if _dungeon() else ENCOUNTERS[encounter_id].foes
+	var foe_cells: Array = foes.map(func(e: Array) -> Vector2i: return e[1])
+	var start: Vector2i = custom.get("pc_start", PC_START)
+	for i in party.size():
+		party[i].facing = Vector2i(1, 0)
+		combat.add(party[i], start if i == 0 else _free_cell_near(start, foe_cells))
+	var counts := {}
 	for entry in foes:
 		var id: String = entry[0]
 		var st := Catalog.monster(id)
@@ -316,6 +334,29 @@ func _spawn_units() -> void:
 		v.setup(c)
 		v.position = cell_pos(c.cell)
 		views[c] = v
+
+
+## start 가까이에서 비어 있고 설 수 있는 칸. 같은 거리면 적에게서 먼 칸
+func _free_cell_near(start: Vector2i, avoid: Array) -> Vector2i:
+	for r in range(1, 6):
+		var best := Vector2i(-1, -1)
+		var best_score := -1
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var c := start + Vector2i(dx, dy)
+				if maxi(absi(dx), absi(dy)) != r or not grid.heights.has(c) or grid.walls.has(c):
+					continue
+				if grid.occupant(c) != null or avoid.has(c) or absf(grid.get_height(c) - grid.get_height(start)) > 1.0:
+					continue
+				var score := 0
+				for a in avoid:
+					score += grid.distance(c, a)
+				if score > best_score:
+					best_score = score
+					best = c
+		if best.x >= 0:
+			return best
+	return start
 
 
 func cell_pos(cell: Vector2i) -> Vector3:
@@ -362,14 +403,14 @@ func _build_ui() -> void:
 
 	hint_label = Label.new()
 	hint_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	hint_label.offset_top = -100
-	hint_label.offset_bottom = -72
+	hint_label.offset_top = -136
+	hint_label.offset_bottom = -108
 	hint_label.offset_left = 12
 	_outline(hint_label)
 	layer.add_child(hint_label)
 
 	var help := Label.new()
-	help.text = "좌클릭: 이동/공격 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F5: 조우 바꾸기 · Esc: 탐험으로")
+	help.text = "좌클릭: 이동/공격/주문 대상 · 우클릭: 주문 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F5: 조우 바꾸기 · Esc: 탐험으로")
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	help.offset_top = -24
 	help.offset_left = 12
@@ -384,19 +425,13 @@ func _build_ui() -> void:
 	bar.offset_left = 12
 	bar.add_theme_constant_override("separation", 6)
 	layer.add_child(bar)
-	var group := ButtonGroup.new()
-	for i in 3:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.button_group = group
-		b.button_pressed = i == 0
-		b.pressed.connect(func() -> void: weapon_index = i; dirty = true)
-		bar.add_child(b)
-		weapon_buttons.append(b)
+	weapon_box = HBoxContainer.new()
+	weapon_box.add_theme_constant_override("separation", 6)
+	bar.add_child(weapon_box)
 	bar.add_child(VSeparator.new())
 	var actions := [
 		["dash", "질주"], ["disengage", "이탈"], ["dodge", "회피"],
-		["second_wind", "Second Wind"], ["potion", "물약"], ["end", "턴 종료"],
+		["second_wind", "Second Wind"], ["action_surge", "Action Surge"], ["potion", "물약"], ["end", "턴 종료"],
 	]
 	for a in actions:
 		var b := Button.new()
@@ -405,6 +440,16 @@ func _build_ui() -> void:
 		b.pressed.connect(func() -> void: _do_action(id))
 		bar.add_child(b)
 		action_buttons[id] = b
+
+	# 주문 (클레릭 차례에만 보임)
+	spell_bar = HBoxContainer.new()
+	spell_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	spell_bar.offset_top = -104
+	spell_bar.offset_bottom = -70
+	spell_bar.offset_left = 12
+	spell_bar.add_theme_constant_override("separation", 6)
+	spell_bar.visible = false
+	layer.add_child(spell_bar)
 
 	result_label = Label.new()
 	result_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -428,21 +473,85 @@ func _log(text: String) -> void:
 
 
 func _weapon() -> WeaponData:
-	return pc.stats.weapons[weapon_index]
+	return pc.stats.weapons[mini(weapon_index, pc.stats.weapons.size() - 1)]
+
+
+## 지금 파티원에 맞게 무기, 행동, 주문 버튼을 다시 만듦
+func _rebuild_bar() -> void:
+	for b in weapon_buttons:
+		b.queue_free()
+	weapon_buttons.clear()
+	weapon_index = 0
+	var group := ButtonGroup.new()
+	for i in pc.stats.weapons.size():
+		var b := Button.new()
+		b.toggle_mode = true
+		b.button_group = group
+		b.button_pressed = i == 0
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(func() -> void:
+			weapon_index = i
+			pending_spell = ""
+			dirty = true)
+		b.pressed.connect(func() -> void: Sfx.play(b, "click"))
+		weapon_box.add_child(b)
+		weapon_buttons.append(b)
+	action_buttons["second_wind"].visible = pc.resources.has("second_wind")
+	action_buttons["action_surge"].visible = pc.resources.has("action_surge")
+	action_buttons["potion"].visible = pc.resources.has("potion")
+	for b in spell_buttons.values():
+		b.queue_free()
+	spell_buttons.clear()
+	for id in pc.stats.spells:
+		var b := Button.new()
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.text = Spells.spell_name(id)
+		b.tooltip_text = _spell_tooltip(id)
+		b.pressed.connect(func() -> void: _pick_spell(id))
+		b.pressed.connect(func() -> void: Sfx.play(b, "click"))
+		spell_bar.add_child(b)
+		spell_buttons[id] = b
+	spell_bar.visible = not pc.stats.spells.is_empty()
+
+
+func _spell_tooltip(id: String) -> String:
+	var d: Dictionary = Spells.DATA[id]
+	var kind := "소마법" if d.level == 0 else ("Channel Divinity" if d.level == -1 else "%d레벨 주문" % d.level)
+	return "%s · %s · %s · %d칸%s" % [kind, "행동" if d.time == "action" else "보너스 행동",
+		{"enemy": "적 하나", "ally": "아군 하나", "downed": "쓰러진 아군", "any": "누구든 하나", "area": "주변"}[d.target],
+		Spells.range_of(pc, id), " · 집중" if d.get("conc", false) else ""]
+
+
+func _pick_spell(id: String) -> void:
+	if not _player_turn():
+		return
+	var why := Spells.why_not(combat, pc, id)
+	if why != "":
+		_log("[color=gray]%s: %s[/color]" % [Spells.spell_name(id), why])
+		pending_spell = ""
+	elif not Spells.needs_target(id):
+		pending_spell = ""
+		Spells.cast(combat, pc, id)
+	else:
+		pending_spell = "" if pending_spell == id else id
+	dirty = true
 
 
 func _player_turn() -> bool:
-	return not combat.over and combat.current() == pc and queue.is_empty() and not busy
+	return not combat.over and pc != null and pc.team == 0 and combat.current() == pc and queue.is_empty() and not busy
 
 
 func _do_action(id: String) -> void:
 	if not _player_turn():
 		return
+	pending_spell = ""
 	match id:
 		"dash": combat.dash(pc)
 		"disengage": combat.disengage(pc)
 		"dodge": combat.dodge(pc)
 		"second_wind": combat.second_wind(pc)
+		"action_surge": combat.action_surge(pc)
 		"potion": combat.drink_potion(pc)
 		"end": combat.end_turn(pc)
 	dirty = true
@@ -450,17 +559,39 @@ func _do_action(id: String) -> void:
 
 func _update_status() -> void:
 	var dot := func(b: bool) -> String: return "●" if b else "○"
-	status_label.text = "%s  HP %d/%d  AC %d  |  이동 %d칸  행동 %s  보너스 %s  반응 %s  |  Second Wind %d  물약 %d" % [
+	var res: Array[String] = []
+	if pc.resources.has("second_wind"):
+		res.append("Second Wind %d" % pc.resources.second_wind)
+	if pc.resources.has("action_surge"):
+		res.append("Action Surge %d" % pc.resources.action_surge)
+	if pc.resources.has("potion"):
+		res.append("물약 %d" % pc.resources.potion)
+	var slots: Array[String] = []
+	for l in range(1, pc.stats.spell_slots.size() + 1):
+		slots.append("%d레벨 %d/%d" % [l, pc.resources.get("slot%d" % l, 0), pc.stats.spell_slots[l - 1]])
+	if not slots.is_empty():
+		res.append("슬롯 " + " · ".join(slots))
+	if pc.resources.has("channel"):
+		res.append("Channel Divinity %d" % pc.resources.channel)
+	if pc.concentration != "":
+		res.append("집중: " + Spells.spell_name(pc.concentration))
+	if pc.has_effect("blessed"):
+		res.append("Bless")
+	status_label.text = "%s  HP %d/%d  AC %d  |  이동 %d칸  행동 %s  보너스 %s  반응 %s  |  %s" % [
 		pc.display_name, pc.hp, pc.stats.max_hp, pc.ac(), combat.move_budget(pc),
 		dot.call(pc.action_available or pc.attacks_left > 0), dot.call(pc.bonus_available),
-		dot.call(pc.reaction_available), pc.resources.get("second_wind", 0), pc.resources.get("potion", 0)]
+		dot.call(pc.reaction_available), "  ".join(res)]
 	for i in weapon_buttons.size():
 		var w: WeaponData = pc.stats.weapons[i]
 		var extra := "" if w.range_normal == 0 else " %d/%d칸" % [w.range_normal, w.range_long]
-		weapon_buttons[i].text = "%d %s (%s, %s%s)" % [i + 1, w.display_name, w.damage_text(), w.mastery, extra]
+		var mastery := (", " + w.mastery) if pc.can_use_mastery(w) else ""
+		weapon_buttons[i].text = "%d %s (%s%s%s)" % [i + 1, w.display_name, w.damage_text(), mastery, extra]
 	var mine := _player_turn()
 	for id in action_buttons:
 		action_buttons[id].disabled = not mine
+	for id in spell_buttons:
+		spell_buttons[id].disabled = not mine or Spells.why_not(combat, pc, id) != ""
+		spell_buttons[id].set_pressed_no_signal(pending_spell == id)
 	var cur := combat.current()
 	var parts: Array[String] = []
 	for c in combat.order:
@@ -518,6 +649,8 @@ func _play(ev: Dictionary) -> void:
 			await tw.finished
 		"attack":
 			await _anim_attack(ev)
+		"cast":
+			await _anim_cast(ev)
 		"hp":
 			if ev.delta > 0:
 				Sfx.play(self, "heal")
@@ -539,6 +672,10 @@ func _on_turn_start(c: Creature) -> void:
 	for v in views.values():
 		v.set_active(false)
 	views[c].set_active(true)
+	if c.team == 0:
+		pc = c
+		pending_spell = ""
+		_rebuild_bar()
 	focus.position = views[c].position
 	_update_status()
 	if c.team == 1:
@@ -579,6 +716,20 @@ func _anim_attack(ev: Dictionary) -> void:
 		Sfx.play(self, "miss")
 		_float_text(t.position, "빗나감", Color(0.8, 0.8, 0.8))
 	await get_tree().create_timer(0.25).timeout
+
+
+func _anim_cast(ev: Dictionary) -> void:
+	var a = views[ev.caster]
+	var t: Creature = ev.target
+	if t != null and t != ev.caster:
+		a.set_facing(t.cell - (ev.caster as Creature).cell)
+	a.attack(true)
+	Sfx.play(self, "cast")
+	await get_tree().create_timer(0.2).timeout
+	var friendly: bool = t == null or not t.is_hostile_to(ev.caster)
+	if t != null:
+		views[t].body.flash(Color(1.0, 0.85, 0.35) if friendly else Color(1.0, 0.95, 0.7))
+	await get_tree().create_timer(0.15).timeout
 
 
 func _anim_vanish(c: Creature) -> void:
@@ -629,15 +780,20 @@ func _show_result() -> void:
 	var keys := "Esc: 던전으로 · R: 다시" if _dungeon() else "F1~F5: 다른 조우 · R: 다시"
 	if _dungeon():
 		custom["result"] = "win" if combat.winner == 0 else "lose"
-	if combat.winner == 0 and custom.has("hero"):
-		# 이긴 전투는 다시 할 수 없음 (XP가 두 번 쌓이지 않게)
-		var hero: HeroState = custom.hero
-		var up := hero.absorb(pc, combat.xp_earned)
-		result_label.text = "승리!\n경험치 +%d (누적 %d) · 레벨 %d%s\nEsc: 던전으로" % [
-			combat.xp_earned, hero.xp, hero.level(), "\n레벨 업!" if up.has("level_up") else ""]
-		if up.has("level_up"):
-			custom["level_up"] = up.level_up
-		Sfx.play(self, "level_up" if up.has("level_up") else "win")
+	if combat.winner == 0 and not heroes.is_empty():
+		# 이긴 전투는 다시 할 수 없음 (XP가 두 번 쌓이지 않게). XP는 파티 인원수로 나눔 [SRD]
+		var share: int = combat.xp_earned / heroes.size()
+		var level_up := 0
+		for i in heroes.size():
+			var up: Dictionary = (heroes[i] as HeroState).absorb(party[i], share)
+			if up.has("level_up"):
+				level_up = up.level_up
+		var lead: HeroState = heroes[0]
+		result_label.text = "승리!\n경험치 %d → 한 명당 +%d (누적 %d) · 레벨 %d%s\nEsc: 던전으로" % [
+			combat.xp_earned, share, lead.xp, lead.level(), "\n레벨 업!" if level_up > 0 else ""]
+		if level_up > 0:
+			custom["level_up"] = level_up
+		Sfx.play(self, "level_up" if level_up > 0 else "win")
 	elif combat.winner == 0:
 		Sfx.play(self, "win")
 		result_label.text = "승리!\n경험치 %d · 레벨 %d\n%s" % [combat.xp_earned, Rules.level_for_xp(combat.xp_earned), keys]
@@ -656,6 +812,12 @@ func _refresh_player_turn() -> void:
 	_clear_overlays()
 	move_opts = {}
 	if not _player_turn():
+		return
+	if pending_spell != "":
+		for c in combat.creatures:
+			if Spells.target_error(combat, pc, pending_spell, c) == "":
+				_set_overlay(c.cell, "target")
+		_update_hover()
 		return
 	move_opts = combat.move_options(pc)
 	move_reach = grid.reachable(pc, combat.move_budget(pc))
@@ -687,27 +849,36 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_pick(event.position)
 		_click()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		if pending_spell != "":
+			pending_spell = ""
+			dirty = true
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode
 		if ENCOUNTER_KEYS.has(key) and not _dungeon():
 			encounter_id = ENCOUNTER_KEYS[key]
 			get_tree().reload_current_scene()
-		elif key == KEY_R and combat.over and not (custom.has("hero") and combat.winner == 0):
+		elif key == KEY_R and combat.over and not (not heroes.is_empty() and combat.winner == 0):
 			custom.erase("result")
 			get_tree().reload_current_scene()
-		elif key >= KEY_1 and key <= KEY_3:
+		elif key >= KEY_1 and key <= KEY_3 and key - KEY_1 < weapon_buttons.size():
 			weapon_buttons[key - KEY_1].button_pressed = true
 			weapon_index = key - KEY_1
+			pending_spell = ""
 			dirty = true
 		elif event.is_action("end_turn"):
 			_do_action("end")
+		elif event.is_action("back") and pending_spell != "":
+			pending_spell = ""
+			dirty = true
 		elif event.is_action("back"):
-			if custom.has("hero") and not combat.over:
-				# 전투 중 도망: 쓰러져 있었으면 패배, 아니면 지금 HP와 사용 횟수를 그대로 가져감
-				if pc.is_down() or not pc.is_alive():
+			if not heroes.is_empty() and not combat.over:
+				# 전투 중 도망: 모두 쓰러져 있었으면 패배, 아니면 지금 HP와 사용 횟수를 그대로 가져감
+				if party.all(func(m: Creature) -> bool: return m.is_down() or not m.is_alive()):
 					custom["result"] = "lose"
 				else:
-					(custom.hero as HeroState).absorb(pc)
+					for i in heroes.size():
+						(heroes[i] as HeroState).absorb(party[i])
 			if _dungeon():
 				get_tree().change_scene_to_file("res://scenes/dungeon.tscn")
 			else:
@@ -735,7 +906,24 @@ func _pick(screen_pos: Vector2) -> void:
 
 func _update_hover() -> void:
 	hint_label.text = ""
+	if pending_spell != "":
+		var nm := Spells.spell_name(pending_spell)
+		if hover_creature == null:
+			hint_label.text = "%s: 대상을 고르세요 — 우클릭이나 Esc로 취소" % nm
+			return
+		var err := Spells.target_error(combat, pc, pending_spell, hover_creature)
+		if err != "":
+			hint_label.text = "%s → %s: %s" % [nm, hover_creature.display_name, err]
+		else:
+			hint_label.text = "%s → %s (HP %d/%d): %s" % [nm, hover_creature.display_name, hover_creature.hp,
+				hover_creature.stats.max_hp, Spells.describe(combat, pc, pending_spell, hover_creature)]
+			_set_overlay(hover_cell, "hover")
+		return
 	if hover_cell.x < 0:
+		return
+	if hover_creature != null and hover_creature.team == 0 and hover_creature != pc:
+		hint_label.text = "%s  HP %d/%d  AC %d%s" % [hover_creature.display_name, hover_creature.hp,
+			hover_creature.stats.max_hp, hover_creature.ac(), "  (의식 없음)" if hover_creature.is_down() else ""]
 		return
 	if hover_creature != null and hover_creature.team == 1:
 		var info := combat.attack_info(pc, hover_creature, _weapon())
@@ -774,7 +962,15 @@ func _update_hover() -> void:
 
 
 func _click() -> void:
-	if not _player_turn() or hover_cell.x < 0:
+	if not _player_turn():
+		return
+	if pending_spell != "":
+		if hover_creature != null and Spells.target_error(combat, pc, pending_spell, hover_creature) == "":
+			Spells.cast(combat, pc, pending_spell, hover_creature)
+		pending_spell = ""
+		dirty = true
+		return
+	if hover_cell.x < 0:
 		return
 	if hover_creature != null and hover_creature.team == 1:
 		combat.attack(pc, hover_creature, _weapon())

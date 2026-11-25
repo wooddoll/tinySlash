@@ -376,3 +376,187 @@ func test_monster_ai_runs_full_combat() -> void:
 				cb.attack(c, target, c.melee_weapon())
 			cb.end_turn(c)
 	check(cb.over, "combat finished within 200 turns (guard=%d)" % guard)
+
+
+# --- 7.4~7.6: 동료 클레릭과 주문 ---
+
+func _cleric_party(level := 1) -> Array:
+	var cb := setup()
+	var c := spawn(cb, Catalog.cleric(level), 0, Vector2i(1, 1))
+	var f := spawn(cb, Catalog.fighter(1), 0, Vector2i(2, 1))
+	spawn(cb, Catalog.monster("wolf"), 1, Vector2i(7, 5))  # 적이 없으면 전투가 끝난 것으로 봄
+	return [cb, c, f]
+
+
+func test_cleric_stats() -> void:
+	var c1 := Creature.new(Catalog.cleric(1), 0)
+	eq(c1.stats.max_hp, 9, "lv1 hp")
+	eq(c1.ac(), 18, "chain mail + shield")
+	eq(c1.spell_dc(), 13, "dc 8+2+3")
+	eq(c1.spell_attack_bonus(), 5, "spell attack")
+	eq(c1.resources.get("slot1", 0), 2, "lv1 slots")
+	check(not c1.resources.has("channel"), "no channel at 1")
+	var c5 := Creature.new(Catalog.cleric(5), 0)
+	eq(c5.stats.max_hp, 33, "lv5 hp")
+	eq(c5.resources.get("slot3", 0), 2, "lv5 3rd slots")
+	eq(c5.resources.get("channel", 0), 2, "channel")
+	eq(c5.spell_dc(), 15, "lv5 dc (WIS 19, PB 3)")
+
+
+func test_cure_wounds_heals_and_spends_slot() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	f.hp = 3
+	cb.dice.forced = [4, 5]
+	check(Spells.cast(cb, c, "cure_wounds", f), "cast")
+	eq(f.hp, 12, "2d8(9)+3 capped at max")
+	eq(c.resources.slot1, 1, "slot spent")
+	check(not c.action_available, "action used")
+
+
+func test_healing_word_revives_downed_ally() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	cb.grid.remove(f)
+	cb.grid.place(f, Vector2i(6, 1))
+	f.hp = 0
+	f.add_condition("unconscious")
+	cb.dice.forced = [2, 3]
+	check(Spells.cast(cb, c, "healing_word", f), "cast at range")
+	eq(f.hp, 8, "2d4(5)+3")
+	check(not f.has_condition("unconscious"), "conscious again")
+	check(c.action_available and not c.bonus_available, "bonus action")
+
+
+func test_one_spell_slot_per_turn() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	f.hp = 1
+	cb.dice.forced = [1, 1]
+	Spells.cast(cb, c, "healing_word", f)
+	eq(Spells.why_not(cb, c, "cure_wounds"), "슬롯 주문은 턴에 하나만", "second slot spell blocked")
+	eq(Spells.why_not(cb, c, "sacred_flame"), "", "cantrip still fine")
+
+
+func test_sacred_flame_dex_save() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var g := spawn(cb, Catalog.monster("goblin_minion"), 1, Vector2i(6, 3))
+	cb.dice.forced = [1, 6]
+	Spells.cast(cb, c, "sacred_flame", g)
+	eq(g.hp, 1, "failed save takes 1d8")
+	c.start_turn_reset()
+	cb.dice.forced = [20]
+	Spells.cast(cb, c, "sacred_flame", g)
+	eq(g.hp, 1, "saved: no damage")
+
+
+func test_guiding_bolt_grants_advantage() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	var g := spawn(cb, Catalog.monster("goblin_minion"), 1, Vector2i(3, 1))
+	g.stats.max_hp = 30
+	g.hp = 30
+	cb.dice.forced = [15, 1, 1, 1, 1]
+	Spells.cast(cb, c, "guiding_bolt", g)
+	eq(g.hp, 26, "4d6 radiant without modifier")
+	check(g.has_effect("guided"), "marked")
+	check(cb.attack_info(f, g, f.melee_weapon()).adv_src.has("Guiding Bolt"), "next attack has advantage")
+	cb.dice.forced = [2, 3, 1, 1, 1, 1]
+	cb.attack(f, g, f.melee_weapon())
+	check(not g.has_effect("guided"), "used up by the next attack")
+
+
+func test_bless_and_concentration() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	Spells.cast(cb, c, "bless")
+	check(c.has_effect("blessed") and f.has_effect("blessed"), "both blessed")
+	eq(c.concentration, "bless", "concentrating")
+	cb.dice.forced = [10, 3]
+	eq(cb.saving_throw(f, STR, 30).total, 10 + f.save_bonus(STR) + 3, "save adds 1d4")
+	cb.dice.forced = [1, 1]
+	cb._deal(c, 5, "slashing", false, "")
+	eq(c.concentration, "", "failed CON save drops it")
+	check(not f.has_effect("blessed"), "bless ends for everyone")
+
+
+func test_shield_of_faith_and_new_concentration() -> void:
+	var p := _cleric_party(2)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	Spells.cast(cb, c, "shield_of_faith", f)
+	eq(f.ac(), 19, "+2 AC")
+	c.start_turn_reset()
+	Spells.cast(cb, c, "bless")
+	eq(f.ac(), 17, "new concentration ends the old one")
+
+
+func test_turn_undead() -> void:
+	var p := _cleric_party(2)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	eq(Spells.why_not(cb, c, "turn_undead"), "6칸 안에 언데드가 없음", "needs undead")
+	var s := spawn(cb, Catalog.monster("skeleton"), 1, Vector2i(4, 1))
+	cb.dice.forced = [1]
+	Spells.cast(cb, c, "turn_undead")
+	check(not s.can_act(), "turned skeleton can't act")
+	eq(c.resources.channel, 1, "channel spent")
+	cb.dice.forced = []
+	cb._deal(s, 1, "bludgeoning", false, "")
+	check(s.can_act(), "damage ends it")
+
+
+func test_divine_spark_heals_ally() -> void:
+	var p := _cleric_party(2)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	f.hp = 2
+	cb.dice.forced = [5]
+	Spells.cast(cb, c, "divine_spark", f)
+	eq(f.hp, 10, "1d8(5)+3")
+
+
+func test_preserve_life_caps_at_half() -> void:
+	var p := _cleric_party(3)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	f.hp = 2
+	c.hp = 3
+	Spells.cast(cb, c, "preserve_life")
+	eq(f.hp, 6, "fighter to half (12/2)")
+	eq(c.hp, 10, "cleric to half (21/2)")
+
+
+func test_spare_the_dying() -> void:
+	var p := _cleric_party()
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	f.hp = 0
+	f.add_condition("unconscious")
+	f.death_failures = 2
+	Spells.cast(cb, c, "spare_the_dying", f)
+	check(f.stable and f.death_failures == 0, "stable")
+
+
+func test_death_save_bless_bonus() -> void:
+	var f := Creature.new(Catalog.fighter(1), 0)
+	f.hp = 0
+	var d := Dice.new(1)
+	d.forced = [8]
+	eq(Damage.death_save(f, d, 2).result, "success", "8 + 2 succeeds")

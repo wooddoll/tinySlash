@@ -3,12 +3,13 @@
 class_name Combat
 extends RefCounted
 
-## ev.type: log, turn_start, move, teleport, attack, hp, condition, death, fled, end
+## ev.type: log, turn_start, move, teleport, attack, cast, hp, condition, death, fled, end
 signal event(ev: Dictionary)
 
 const STR := Rules.Ability.STR
 const DEX := Rules.Ability.DEX
 const CON := Rules.Ability.CON
+const WIS := Rules.Ability.WIS
 
 var grid: CombatGrid
 var dice: Dice
@@ -122,8 +123,10 @@ func _begin_turn(c: Creature) -> void:
 		x.process_phase(c, "start")
 	c.start_turn_reset()
 	if c.is_down() and not c.stable:
-		var r := Damage.death_save(c, dice)
-		log_msg("%s 사망 내성: %d → %s (성공 %d / 실패 %d)" % [c.display_name, r.roll, r.result, c.death_successes, c.death_failures])
+		var bless := dice.roll_die(4) if c.has_effect("blessed") else 0
+		var r := Damage.death_save(c, dice, bless)
+		log_msg("%s 사망 내성: %d%s → %s (성공 %d / 실패 %d)" % [c.display_name, r.roll,
+				(" + Bless %d" % bless) if bless > 0 else "", r.result, c.death_successes, c.death_failures])
 		if c.dead:
 			event.emit({"type": "death", "creature": c})
 
@@ -284,6 +287,8 @@ func attack_info_from(c: Creature, from: Vector2i, t: Creature, w: WeaponData) -
 	var am := c.mod(DEX) if w.ranged else c.mod(STR)
 	if w.finesse:
 		am = maxi(c.mod(STR), c.mod(DEX))
+	if w.ability >= 0:
+		am = c.mod(w.ability)
 
 	var adv := []
 	var dis := []
@@ -313,6 +318,8 @@ func attack_info_from(c: Creature, from: Vector2i, t: Creature, w: WeaponData) -
 		adv.append("Vex")
 	if c.stats.has_feature("pack_tactics") and ally_adjacent_to(c, t):
 		adv.append("Pack Tactics")
+	if t.has_effect("guided"):
+		adv.append("Guiding Bolt")
 
 	info.adv = Rules.combine_advantage(adv, dis)
 	info.adv_src = adv
@@ -322,6 +329,12 @@ func attack_info_from(c: Creature, from: Vector2i, t: Creature, w: WeaponData) -
 	info.bonus = am + c.pb()
 	info.target_ac = t.ac() + cov
 	info.chance = hit_chance(info.bonus, info.target_ac, info.adv)
+	if c.has_effect("blessed"):
+		# Bless 1d4: 네 경우의 평균
+		var sum := 0.0
+		for k in range(1, 5):
+			sum += hit_chance(info.bonus + k, info.target_ac, info.adv)
+		info.chance = sum / 4.0
 	info.valid = true
 	return info
 
@@ -364,6 +377,11 @@ func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, c
 	var r := dice.d20(info.adv)
 	var nat: int = r.value
 	var total: int = nat + info.bonus
+	var bless_txt := ""
+	if c.has_effect("blessed"):
+		var b := dice.roll_die(4)
+		total += b
+		bless_txt = " + Bless %d" % b
 	var target_ac: int = info.target_ac
 	var hit: bool = nat == 20 or (nat != 1 and total >= target_ac)
 	var crit: bool = hit and nat >= c.crit_threshold()
@@ -372,6 +390,7 @@ func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, c
 
 	# 1회성 효과는 굴리고 나면 사라집니다
 	c.remove_effects("sapped")
+	t.remove_effects("guided")
 	var vex := c.find_effect("vex", t)
 	if not vex.is_empty():
 		c.effects.erase(vex)
@@ -384,8 +403,8 @@ func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, c
 	elif info.adv < 0:
 		adv_txt = " [불리점: %s]" % ", ".join(info.dis_src)
 	var cover_txt: String = (" (엄폐 +%d)" % info.cover) if info.cover > 0 else ""
-	var line := "%s → %s (%s): d20 %s %+d = %d vs AC %d%s%s" % [
-		c.display_name, t.display_name, w.display_name, _rolls_text(r), info.bonus,
+	var line := "%s → %s (%s): d20 %s %+d%s = %d vs AC %d%s%s" % [
+		c.display_name, t.display_name, w.display_name, _rolls_text(r), info.bonus, bless_txt,
 		total, info.target_ac, cover_txt, adv_txt]
 	var result := {"hit": hit, "crit": crit, "damage": 0}
 
@@ -420,7 +439,9 @@ func roll_weapon_damage(c: Creature, w: WeaponData, crit: bool, had_adv: bool, a
 		total = maxi(total, Dice.sum(dice.roll(count, w.dice_sides)))
 	if had_adv and w.bonus_die_on_advantage > 0:
 		total += Dice.sum(dice.roll(2 if crit else 1, w.bonus_die_on_advantage))
-	if cleave:
+	if not w.add_mod:
+		pass
+	elif cleave:
 		total += mini(am, 0)
 	else:
 		total += am
@@ -439,6 +460,13 @@ func _deal(t: Creature, amount: int, type: String, crit: bool, label: String) ->
 	var prefix := (label + ": ") if label != "" else ""
 	log_msg("  %s%s %d 피해%s → HP %d/%d" % [prefix, t.display_name, res.dealt, note, t.hp, t.stats.max_hp])
 	event.emit({"type": "hp", "creature": t, "delta": -res.dealt, "hp": t.hp, "crit": crit})
+	if res.dealt > 0 and t.has_effect("turned"):
+		t.remove_effects("turned")
+		log_msg("  %s: 피해를 입어 Turn Undead가 풀림" % t.display_name)
+	if res.killed or res.downed:
+		_lose_focus(t)
+	elif res.dealt > 0 and t.concentration != "":
+		Spells.concentration_check(self, t, res.dealt)
 	if res.killed:
 		log_msg("  [color=orange]%s 쓰러짐[/color]" % t.display_name)
 		grid.remove(t)
@@ -466,12 +494,12 @@ func _apply_mastery(c: Creature, t: Creature, w: WeaponData, info: Dictionary, d
 		"topple":
 			if t.is_alive():
 				var dc := Rules.save_dc(info.ability_mod, c.pb())
-				var roll: int = dice.d20(0).value + t.save_bonus(CON)
-				if roll < dc and t.add_condition("prone"):
-					log_msg("  Topple: CON 내성 %d vs DC %d → 넘어짐!" % [roll, dc])
+				var sv := saving_throw(t, CON, dc)
+				if not sv.success and t.add_condition("prone"):
+					log_msg("  Topple: %s → 넘어짐!" % sv.text)
 					event.emit({"type": "condition", "creature": t})
 				else:
-					log_msg("  Topple: CON 내성 %d vs DC %d → 버팀" % [roll, dc])
+					log_msg("  Topple: %s → 버팀" % sv.text)
 		"push":
 			if t.is_alive() and t.stats.size <= Rules.Size.LARGE:
 				_push(c, t, 2)
@@ -655,6 +683,31 @@ func run_monster_turn() -> void:
 # =====================================================================
 # 도우미
 # =====================================================================
+
+## 내성 굴림 (Bless 1d4 포함). 반환 {"total", "success", "text"}
+func saving_throw(t: Creature, ability: int, dc: int, adv := 0) -> Dictionary:
+	var r := dice.d20(adv)
+	var bonus := t.save_bonus(ability)
+	var total: int = r.value + bonus
+	var extra := ""
+	if t.has_effect("blessed"):
+		var b := dice.roll_die(4)
+		total += b
+		extra = " + Bless %d" % b
+	var ok := total >= dc
+	var text := "%s %s 내성 d20 %s %+d%s = %d vs DC %d → %s" % [t.display_name, Rules.ABILITY_NAMES[ability],
+		_rolls_text(r), bonus, extra, total, dc, "성공" if ok else "실패"]
+	return {"total": total, "success": ok, "text": text}
+
+
+## 쓰러지거나 죽으면 집중과 그 크리처가 건 Turn Undead가 끝남 (rules 7.5)
+func _lose_focus(t: Creature) -> void:
+	if t.concentration != "":
+		Spells.end_concentration(self, t)
+	for x in creatures:
+		if x.remove_effects_from(t, ["turned"]):
+			log_msg("  %s의 Turn Undead가 풀림" % x.display_name)
+
 
 ## from 칸 1칸 안에, c를 볼 수 있고 행동 가능한 적이 있는가
 func enemy_adjacent(c: Creature, from: Vector2i) -> bool:

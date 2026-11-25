@@ -30,6 +30,7 @@ const GROUPS := {
 	"close": [["interface-sounds/close_001", "interface-sounds/close_002"], -6.0],
 	"dice": [["interface-sounds/drop_001", "interface-sounds/drop_002", "interface-sounds/drop_003"], -4.0],
 	"confirm": [["interface-sounds/confirmation_001"], -4.0],
+	"cast": [["interface-sounds/glass_002", "interface-sounds/glass_004"], -6.0],
 	"switch": [["ui-audio/switch2", "ui-audio/switch3"], -8.0],
 	# 음성
 	"fight": [["voiceover-pack-fighter/fight"], -6.0],

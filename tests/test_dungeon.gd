@@ -414,3 +414,22 @@ func test_buy_potion() -> void:
 	eq(h.potions(), HeroState.MAX_POTIONS, "capped")
 	check(not h.can_buy_potion(1000), "cannot buy past cap")
 	eq(h.make_creature().resources.potion, HeroState.MAX_POTIONS, "potions reach battle")
+
+
+func test_cleric_hero_state_slots_and_rests() -> void:
+	var h := HeroState.fresh("cleric")
+	eq(h.potions(), 0, "cleric starts without potion")
+	var c := h.make_creature()
+	eq(c.display_name, "클레릭", "name")
+	c.resources["slot1"] = 0
+	h.absorb(c)
+	eq(h.make_creature().resources.slot1, 0, "spent slot carries")
+	h.finish_short_rest()
+	eq(h.make_creature().resources.slot1, 0, "short rest keeps slots spent")
+	h.long_rest()
+	eq(h.make_creature().resources.slot1, 2, "long rest restores slots")
+	var up := h.absorb(h.make_creature(), 900)
+	eq(up.get("level_up", 0), 3, "level 3")
+	var c3 := h.make_creature()
+	eq(c3.resources.get("slot2", 0), 2, "new 2nd-level slots")
+	eq(c3.resources.get("channel", 0), 2, "channel divinity")
