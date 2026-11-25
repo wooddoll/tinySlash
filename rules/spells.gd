@@ -22,6 +22,19 @@ const DATA := {
 	"turn_undead": {"name": "Turn Undead", "level": -1, "time": "action", "range": 6, "target": "area"},
 	"preserve_life": {"name": "Preserve Life", "level": -1, "time": "action", "range": 6, "target": "area"},
 }
+## 원형 메뉴에 보여줄 한 줄 설명
+const SUMMARY := {
+	"sacred_flame": "적 하나가 DEX 내성에 실패하면 1d8 광휘. 엄폐로 피할 수 없음",
+	"spare_the_dying": "쓰러진 아군을 안정시킴 (사망 내성을 더 굴리지 않음)",
+	"guiding_bolt": "원거리 주문 공격 4d6 광휘. 맞으면 그 적을 노리는 다음 공격에 이점",
+	"cure_wounds": "옆 칸 아군(자신 포함) 2d8 + WIS 회복",
+	"healing_word": "멀리 있는 아군 2d4 + WIS 회복. 쓰러진 아군도 일으킴",
+	"bless": "주변 아군 3명의 공격과 내성에 +1d4 (집중)",
+	"shield_of_faith": "아군 하나 AC +2 (집중)",
+	"divine_spark": "아군은 1d8 + WIS 회복, 적은 CON 내성 실패 시 1d8 + WIS 광휘",
+	"turn_undead": "6칸 안 언데드가 WIS 내성에 실패하면 행동 불능",
+	"preserve_life": "클레릭 레벨 × 5 HP를 다친 아군에게 나눔 (최대 HP 절반까지)",
+}
 ## 집중이 끝나면 같이 사라지는 효과
 const CONC_EFFECTS := ["blessed", "shield_of_faith"]
 const HEALS := ["cure_wounds", "healing_word"]

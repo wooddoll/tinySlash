@@ -15,6 +15,7 @@ const KIND_NAMES := {"start": "시작 방", "exit": "출구 방", "normal": "방
 
 const Explorer = preload("res://scripts/dungeon_explorer.gd")
 const Sfx = preload("res://scripts/sfx.gd")
+const PartyPanel = preload("res://scripts/party_panel.gd")
 
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
@@ -73,6 +74,8 @@ var toast: Label
 var explorer: Explorer
 ## 플레이어를 따라 걷는 동료 모델
 var follower: CharacterModel
+## 탐험 중 왼쪽 파티 창
+var party_panel: PartyPanel
 var _trail: Array[Vector3] = []
 var chests := {}
 var _leaving := false
@@ -454,6 +457,10 @@ func _build_ui() -> void:
 
 	_build_rest_panel(layer)
 	_build_shop_panel(layer)
+	party_panel = PartyPanel.new()
+	party_panel.position = Vector2(12, 12)
+	party_panel.visible = false
+	layer.add_child(party_panel)
 	toast = Label.new()
 	toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -706,6 +713,7 @@ func _set_exploring(on: bool) -> void:
 ## 지금 모드에 맞게 플레이어, 카메라, UI를 맞춤
 func _apply_mode() -> void:
 	left_panel.visible = not exploring
+	party_panel.visible = exploring
 	fight_button.visible = not exploring
 	_show_room(hover_mesh, -1)
 	if exploring:
@@ -1285,6 +1293,15 @@ func _update_explore_info() -> void:
 	lines.append("금화 %d · 물약 %d · 남은 몬스터 방 %d" % [gold, hero.potions(), left])
 	lines.append("[color=#6af]●[/color] 시작 · 계단=출구 · 상자 · 모닥불 · 텐트=쉼터")
 	info_label.text = "\n".join(lines)
+	var members: Array = []
+	for h in party():
+		var st: CreatureStats = h.stats()
+		var fx: Array = []
+		if h.current_hp() * 2 <= h.max_hp():
+			fx.append(["다침", "debuff", "HP가 절반 이하 — 모닥불이나 쉼터에서 쉬세요"])
+		members.append({"key": h.cls, "name": "%s  %d레벨" % [h.display_name(), h.level()], "model": st.model,
+			"weapon": st.weapon_model, "hp": h.current_hp(), "max_hp": h.max_hp(), "effects": fx})
+	party_panel.show_members(members)
 	var here := dungeon.room_at(explorer.cell) if explorer else -1
 	if here < 0:
 		room_label.text = "[color=gray]통로[/color]"

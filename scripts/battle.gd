@@ -6,6 +6,8 @@ const UnitView = preload("res://scripts/unit_view.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
 const Sfx = preload("res://scripts/sfx.gd")
+const PartyPanel = preload("res://scripts/party_panel.gd")
+const RadialMenu = preload("res://scripts/radial_menu.gd")
 
 ## . 평지  1/2/3 높이 0.5/1.0/1.5  , 험지(덤불)  T 나무(완전 엄폐)  # 바위(낮은 벽)
 ## 던전용: X 던전 벽(통과 불가, 완전 엄폐)  P 돌기둥(완전 엄폐)
@@ -71,8 +73,9 @@ var result_label: Label
 var weapon_buttons: Array[Button] = []
 var weapon_box: HBoxContainer
 var action_buttons := {}
-var spell_bar: HBoxContainer
-var spell_buttons := {}
+var category_buttons := {}
+var party_panel: PartyPanel
+var radial: RadialMenu
 
 
 func _ready() -> void:
@@ -359,6 +362,54 @@ func _free_cell_near(start: Vector2i, avoid: Array) -> Vector2i:
 	return start
 
 
+## 왼쪽 파티 창 갱신
+func _refresh_party_panel() -> void:
+	if party_panel == null:
+		return
+	var members: Array = []
+	for i in party.size():
+		var c := party[i]
+		members.append({"key": str(i), "name": "%s  %d레벨" % [c.display_name, c.stats.level],
+			"model": c.stats.model, "weapon": c.stats.weapon_model,
+			"hp": views[c].shown_hp if views.has(c) else c.hp, "max_hp": c.stats.max_hp, "temp_hp": c.temp_hp,
+			"active": combat.current() == c and not combat.over, "down": c.is_down(), "dead": c.dead,
+			"effects": effects_of(c)})
+	party_panel.show_members(members)
+
+
+## 크리처에 걸린 상태와 효과를 [글자, 종류, 설명] 목록으로
+static func effects_of(c: Creature) -> Array:
+	var out: Array = []
+	if c.dead:
+		return [["사망", "debuff", "죽었습니다"]]
+	if c.has_condition("unconscious"):
+		out.append(["의식 없음", "debuff", "행동 불능, 넘어짐. 1칸 안에서 맞으면 치명타"])
+		if c.stable:
+			out.append(["안정", "info", "사망 내성을 더 굴리지 않음"])
+		else:
+			out.append(["사망 내성 ✓%d ✗%d" % [c.death_successes, c.death_failures], "debuff", "3번 성공하면 안정, 3번 실패하면 사망"])
+	elif c.has_condition("prone"):
+		out.append(["넘어짐", "debuff", "내 공격 불리점, 일어서려면 이동력 절반"])
+	var names := {
+		"blessed": ["Bless", "buff", "공격과 내성에 +1d4"],
+		"shield_of_faith": ["Shield of Faith", "buff", "AC +2"],
+		"dodging": ["회피", "buff", "나를 노리는 공격에 불리점"],
+		"vex": ["Vex", "buff", "그 대상에 대한 다음 공격에 이점"],
+		"guided": ["Guiding Bolt", "debuff", "나를 노리는 다음 공격에 이점"],
+		"sapped": ["Sap", "debuff", "다음 공격에 불리점"],
+		"slowed": ["Slow", "debuff", "속도 −2칸"],
+		"turned": ["Turn Undead", "debuff", "겁에 질려 행동 불능"],
+	}
+	var seen := {}
+	for e in c.effects:
+		if names.has(e.type) and not seen.has(e.type):
+			seen[e.type] = true
+			out.append(names[e.type])
+	if c.concentration != "":
+		out.append(["집중: " + Spells.spell_name(c.concentration), "info", "피해를 받으면 CON 내성으로 유지"])
+	return out
+
+
 func cell_pos(cell: Vector2i) -> Vector3:
 	return Vector3(cell.x + 0.5, grid.get_height(cell), cell.y + 0.5)
 
@@ -403,14 +454,14 @@ func _build_ui() -> void:
 
 	hint_label = Label.new()
 	hint_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	hint_label.offset_top = -136
-	hint_label.offset_bottom = -108
+	hint_label.offset_top = -100
+	hint_label.offset_bottom = -72
 	hint_label.offset_left = 12
 	_outline(hint_label)
 	layer.add_child(hint_label)
 
 	var help := Label.new()
-	help.text = "좌클릭: 이동/공격/주문 대상 · 우클릭: 주문 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F5: 조우 바꾸기 · Esc: 탐험으로")
+	help.text = "좌클릭: 이동/공격/대상 · 스킬·주문·아이템: 원형 메뉴(숫자로 고름) · 우클릭: 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F5: 조우 바꾸기 · Esc: 탐험으로")
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	help.offset_top = -24
 	help.offset_left = 12
@@ -429,27 +480,27 @@ func _build_ui() -> void:
 	weapon_box.add_theme_constant_override("separation", 6)
 	bar.add_child(weapon_box)
 	bar.add_child(VSeparator.new())
-	var actions := [
-		["dash", "질주"], ["disengage", "이탈"], ["dodge", "회피"],
-		["second_wind", "Second Wind"], ["action_surge", "Action Surge"], ["potion", "물약"], ["end", "턴 종료"],
-	]
-	for a in actions:
+	# 무기 공격 말고는 분류 버튼 → 원형 메뉴에서 고름
+	for cat in [["skill", "스킬"], ["spell", "주문"], ["item", "아이템"]]:
 		var b := Button.new()
-		b.text = a[1]
-		var id: String = a[0]
-		b.pressed.connect(func() -> void: _do_action(id))
+		b.text = "%s ▴" % cat[1]
+		var id: String = cat[0]
+		b.pressed.connect(func() -> void: _open_radial(id))
 		bar.add_child(b)
-		action_buttons[id] = b
+		category_buttons[id] = b
+	bar.add_child(VSeparator.new())
+	var end := Button.new()
+	end.text = "턴 종료"
+	end.pressed.connect(func() -> void: _do_action("end"))
+	bar.add_child(end)
+	action_buttons["end"] = end
 
-	# 주문 (클레릭 차례에만 보임)
-	spell_bar = HBoxContainer.new()
-	spell_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	spell_bar.offset_top = -104
-	spell_bar.offset_bottom = -70
-	spell_bar.offset_left = 12
-	spell_bar.add_theme_constant_override("separation", 6)
-	spell_bar.visible = false
-	layer.add_child(spell_bar)
+	party_panel = PartyPanel.new()
+	party_panel.position = Vector2(12, 72)
+	layer.add_child(party_panel)
+	radial = RadialMenu.new()
+	layer.add_child(radial)
+	radial.chosen.connect(_on_radial_chosen)
 
 	result_label = Label.new()
 	result_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -496,23 +547,79 @@ func _rebuild_bar() -> void:
 		b.pressed.connect(func() -> void: Sfx.play(b, "click"))
 		weapon_box.add_child(b)
 		weapon_buttons.append(b)
-	action_buttons["second_wind"].visible = pc.resources.has("second_wind")
-	action_buttons["action_surge"].visible = pc.resources.has("action_surge")
-	action_buttons["potion"].visible = pc.resources.has("potion")
-	for b in spell_buttons.values():
-		b.queue_free()
-	spell_buttons.clear()
-	for id in pc.stats.spells:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.text = Spells.spell_name(id)
-		b.tooltip_text = _spell_tooltip(id)
-		b.pressed.connect(func() -> void: _pick_spell(id))
-		b.pressed.connect(func() -> void: Sfx.play(b, "click"))
-		spell_bar.add_child(b)
-		spell_buttons[id] = b
-	spell_bar.visible = not pc.stats.spells.is_empty()
+	category_buttons["spell"].visible = not _radial_items("spell").is_empty()
+	category_buttons["item"].visible = not _radial_items("item").is_empty()
+	radial.close()
+
+
+# =====================================================================
+# 원형 메뉴: 스킬 / 주문 / 아이템
+# =====================================================================
+
+func _open_radial(cat: String) -> void:
+	if not _player_turn():
+		return
+	pending_spell = ""
+	dirty = true
+	var b: Button = category_buttons[cat]
+	var titles := {"skill": "스킬", "spell": "주문", "item": "아이템"}
+	radial.open(b.global_position + Vector2(b.size.x / 2.0, 0), "%s\n%s" % [pc.display_name, titles[cat]], _radial_items(cat))
+	Sfx.play(self, "open")
+
+
+func _on_radial_chosen(id: String) -> void:
+	if Spells.DATA.has(id):
+		_pick_spell(id)
+	else:
+		_do_action(id)
+
+
+func _radial_items(cat: String) -> Array:
+	var out: Array = []
+	var act := "" if pc.action_available else "행동을 이미 썼음"
+	var bonus := "" if pc.bonus_available else "보너스 행동을 이미 썼음"
+	match cat:
+		"skill":
+			out.append(_item("dash", "질주", "행동", "이번 턴 이동력 +%d칸" % pc.speed(), act))
+			out.append(_item("disengage", "이탈", "행동", "이번 턴에는 움직여도 기회 공격을 받지 않음", act))
+			out.append(_item("dodge", "회피", "행동", "다음 내 턴까지 나를 노리는 공격에 불리점", act))
+			if pc.resources.has("second_wind"):
+				var n: int = pc.resources.second_wind
+				out.append(_item("second_wind", "Second Wind", "보너스 · %d회" % n, "1d10 + %d 회복" % pc.stats.level,
+					"남은 횟수 없음" if n <= 0 else bonus))
+			if pc.resources.has("action_surge"):
+				var n: int = pc.resources.action_surge
+				out.append(_item("action_surge", "Action Surge", "%d회" % n, "이번 턴에 행동 1회 추가",
+					"남은 횟수 없음" if n <= 0 else ("이번 턴에 이미 씀" if pc.action_surge_used else "")))
+			for id in pc.stats.spells:
+				if Spells.DATA[id].level == -1:
+					out.append(_spell_item(id))
+		"spell":
+			for id in pc.stats.spells:
+				if Spells.DATA[id].level >= 0:
+					out.append(_spell_item(id))
+		"item":
+			if pc.resources.has("potion"):
+				var n: int = pc.resources.potion
+				out.append(_item("potion", "회복 물약", "보너스 · %d개" % n, "2d4 + 2 회복", "물약이 없음" if n <= 0 else bonus))
+	return out
+
+
+func _item(id: String, text: String, sub: String, desc: String, reason: String) -> Dictionary:
+	return {"id": id, "text": text, "sub": sub, "desc": desc, "disabled": reason != "", "reason": reason}
+
+
+func _spell_item(id: String) -> Dictionary:
+	var d: Dictionary = Spells.DATA[id]
+	var cost := "소마법"
+	if d.level == -1:
+		cost = "Channel %d" % pc.resources.get("channel", 0)
+	elif d.level >= 1:
+		var slot := Spells.lowest_slot(pc, d.level)
+		cost = "%d레벨 슬롯" % slot if slot > 0 else "슬롯 없음"
+	var sub := "%s · %s" % ["행동" if d.time == "action" else "보너스", cost]
+	return _item(id, Spells.spell_name(id), sub, "%s\n%s" % [Spells.SUMMARY.get(id, ""), _spell_tooltip(id)],
+		Spells.why_not(combat, pc, id))
 
 
 func _spell_tooltip(id: String) -> String:
@@ -589,9 +696,12 @@ func _update_status() -> void:
 	var mine := _player_turn()
 	for id in action_buttons:
 		action_buttons[id].disabled = not mine
-	for id in spell_buttons:
-		spell_buttons[id].disabled = not mine or Spells.why_not(combat, pc, id) != ""
-		spell_buttons[id].set_pressed_no_signal(pending_spell == id)
+	for id in category_buttons:
+		category_buttons[id].disabled = not mine
+		category_buttons[id].text = "%s ▴" % {"skill": "스킬", "spell": "주문", "item": "아이템"}[id]
+	if pending_spell != "":
+		category_buttons["spell" if Spells.DATA[pending_spell].level >= 0 else "skill"].text = "▶ " + Spells.spell_name(pending_spell)
+	_refresh_party_panel()
 	var cur := combat.current()
 	var parts: Array[String] = []
 	for c in combat.order:
@@ -664,6 +774,7 @@ func _play(ev: Dictionary) -> void:
 			await _anim_vanish(ev.creature)
 		"end":
 			pass
+	_refresh_party_panel()
 	busy = false
 	dirty = true
 
