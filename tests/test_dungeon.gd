@@ -247,3 +247,47 @@ func test_explorer_collision() -> void:
 	check(not Explorer.can_stand(d, Vector2(wall.x + 0.5, wall.y + 0.5)), "cannot stand in wall")
 	for c in d.obstacles:
 		check(not Explorer.can_stand(d, Vector2(c.x + 0.5, c.y + 0.5)), "cannot stand on obstacle")
+
+
+func test_hero_state_carries_between_battles() -> void:
+	var h := HeroState.fresh()
+	var c := h.make_creature()
+	eq(c.hp, 12, "fresh full hp")
+	eq(c.resources.get("potion", 0), 1, "fresh potion")
+	eq(c.resources.get("second_wind", 0), 2, "fresh second wind")
+	c.hp = 5
+	c.resources["second_wind"] = 1
+	c.resources["potion"] = 0
+	c.temp_hp = 4
+	eq(h.absorb(c, 50), {}, "no level up at 50 xp")
+	var c2 := h.make_creature()
+	eq(c2.hp, 5, "hp carried")
+	eq(c2.temp_hp, 0, "temp hp not carried")
+	eq(c2.resources.get("second_wind", 0), 1, "second wind carried")
+	eq(c2.resources.get("potion", 0), 0, "potion carried")
+	eq(h.xp, 50, "xp accumulates")
+
+
+func test_hero_state_level_up() -> void:
+	var h := HeroState.fresh()
+	var c := h.make_creature()
+	c.hp = 6
+	var up := h.absorb(c, 300)
+	eq(up.get("level_up", 0), 2, "level 2 at 300 xp")
+	var c2 := h.make_creature()
+	eq(c2.stats.level, 2, "creature built at new level")
+	eq(c2.stats.max_hp, 20, "level 2 max hp")
+	eq(c2.hp, 14, "hp grows by max hp gain")
+	eq(c2.resources.get("action_surge", 0), 1, "action surge gained")
+	eq(c2.resources.get("second_wind", 0), 2, "second wind kept")
+
+
+func test_hero_state_down_after_win_stands_at_one() -> void:
+	var h := HeroState.fresh()
+	var c := h.make_creature()
+	c.hp = 0
+	h.absorb(c, 25)
+	eq(h.make_creature().hp, 1, "stands at 1 hp")
+	var copy := h.duplicate_state()
+	copy.xp = 999
+	eq(h.xp, 25, "duplicate is independent")

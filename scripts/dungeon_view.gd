@@ -28,6 +28,10 @@ static var retreat_cell := Vector2i(-1, -1)
 static var opened := {}
 static var gold := 0
 static var floor_no := 1
+## 전투 사이에 이어지는 파이터 상태. 지면 checkpoint(이 층에 들어올 때 상태)로 되돌림 [임시]
+static var hero: HeroState = null
+static var checkpoint: HeroState = null
+static var _pending_toast := ""
 
 @onready var focus: Node3D = $Focus
 @onready var rig: Node3D = $CameraRig
@@ -76,9 +80,15 @@ func _take_battle_result() -> void:
 			"win":
 				cleared[int(Battle.custom.room_id)] = true  # 들어선 칸에서 계속
 			"lose":
-				explore_cell = Vector2i(-1, -1)  # 시작 지점으로 [임시: 체크포인트 대신]
+				# 층 시작 지점과 그때 상태로 [임시: 체크포인트 규칙 대신]
+				explore_cell = Vector2i(-1, -1)
+				if checkpoint:
+					hero = checkpoint.duplicate_state()
+				_pending_toast = "쓰러졌어요… 층 입구에서 다시 시작"
 			_:
 				explore_cell = retreat_cell  # 도망침
+		if Battle.custom.has("level_up"):
+			_pending_toast = "레벨 업! %d레벨" % Battle.custom.level_up
 	Battle.custom = {}
 
 
@@ -590,9 +600,11 @@ func _set_exploring(on: bool) -> void:
 		return
 	exploring = on
 	if on:
-		# 생성기에서 새로 시작하면 금화와 층 수를 처음부터
+		# 생성기에서 새로 시작하면 금화, 층 수, 파이터 상태를 처음부터
 		gold = 0
 		floor_no = 1
+		hero = HeroState.fresh()
+		checkpoint = hero.duplicate_state()
 	else:
 		if explorer:
 			explore_cell = explorer.cell
@@ -609,6 +621,12 @@ func _apply_mode() -> void:
 	_show_room(hover_mesh, -1)
 	if exploring:
 		_show_room(select_mesh, -1)
+		if hero == null:
+			hero = HeroState.fresh()
+			checkpoint = hero.duplicate_state()
+		if _pending_toast != "":
+			_toast(_pending_toast)
+			_pending_toast = ""
 		if explorer == null:
 			var at := explore_cell if dungeon.is_walkable(explore_cell) else dungeon.start
 			explorer = Explorer.new()
@@ -651,6 +669,7 @@ func _start_battle(room: int, from: Vector2i, to: Vector2i) -> void:
 	retreat_cell = from if dungeon.is_walkable(from) else dungeon.start
 	_toast("몬스터 발견! — " + str(dungeon.rooms[room].encounter.label))
 	Battle.custom = dungeon.battle_setup(room, to)
+	Battle.custom["hero"] = hero
 	await get_tree().create_timer(0.8).timeout
 	get_tree().change_scene_to_file("res://scenes/battle.tscn")
 
@@ -679,6 +698,13 @@ func _open_chest_anim(chest: Node3D, instant: bool) -> void:
 func _next_floor() -> void:
 	var keep_gold := gold
 	floor_no += 1
+	checkpoint = hero.duplicate_state()
+	# 몬스터 예산을 파이터 레벨에 맞춤
+	if params.party_level != hero.level():
+		params.party_level = hero.level()
+		_syncing = true
+		(controls["party_level"] as HSlider).value = hero.level()
+		_syncing = false
 	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
 	gold = keep_gold
 	_toast("%d층" % floor_no)
@@ -697,8 +723,19 @@ func _update_explore_info() -> void:
 	for r in dungeon.rooms:
 		if not r.encounter.is_empty() and not cleared.has(r.id):
 			left += 1
-	info_label.text = "[b]탐험 중[/b]  %d층 · 시드 %d\n금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물" % [
-		floor_no, dungeon.seed_used, gold, left]
+	var lv := hero.level()
+	var next_xp := "최고" if lv >= HeroState.MAX_LEVEL else str(Rules.XP_THRESHOLDS[lv])
+	var hp := hero.current_hp()
+	var hp_col := "#f66" if hp * 2 <= hero.max_hp() else "#ddd"
+	var probe := hero.make_creature()
+	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d\n"
+			+ "[b]파이터[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n"
+			+ "물약 %d · Second Wind %d%s\n"
+			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물") % [
+		floor_no, dungeon.seed_used, lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
+		probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
+		(" · Action Surge %d" % probe.resources.action_surge) if probe.resources.has("action_surge") else "",
+		gold, left]
 	var here := dungeon.room_at(explorer.cell) if explorer else -1
 	if here < 0:
 		room_label.text = "[color=gray]통로[/color]"

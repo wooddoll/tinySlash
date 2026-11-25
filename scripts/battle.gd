@@ -294,8 +294,11 @@ func _billboard(tex: Texture2D, px: float) -> Sprite3D:
 
 func _spawn_units() -> void:
 	combat = Combat.new(grid, Dice.new())
-	pc = Creature.new(Catalog.fighter(1), 0, "파이터")
-	pc.resources["potion"] = 1
+	if custom.has("hero"):
+		pc = (custom.hero as HeroState).make_creature()  # 던전 탐험: 앞 전투의 HP와 사용 횟수를 이어 감
+	else:
+		pc = Creature.new(Catalog.fighter(1), 0, "파이터")
+		pc.resources["potion"] = 1
 	pc.facing = Vector2i(1, 0)
 	combat.add(pc, custom.get("pc_start", PC_START))
 	var counts := {}
@@ -622,7 +625,15 @@ func _show_result() -> void:
 	var keys := "Esc: 던전으로 · R: 다시" if _dungeon() else "F1~F5: 다른 조우 · R: 다시"
 	if _dungeon():
 		custom["result"] = "win" if combat.winner == 0 else "lose"
-	if combat.winner == 0:
+	if combat.winner == 0 and custom.has("hero"):
+		# 이긴 전투는 다시 할 수 없음 (XP가 두 번 쌓이지 않게)
+		var hero: HeroState = custom.hero
+		var up := hero.absorb(pc, combat.xp_earned)
+		result_label.text = "승리!\n경험치 +%d (누적 %d) · 레벨 %d%s\nEsc: 던전으로" % [
+			combat.xp_earned, hero.xp, hero.level(), "\n레벨 업!" if up.has("level_up") else ""]
+		if up.has("level_up"):
+			custom["level_up"] = up.level_up
+	elif combat.winner == 0:
 		result_label.text = "승리!\n경험치 %d · 레벨 %d\n%s" % [combat.xp_earned, Rules.level_for_xp(combat.xp_earned), keys]
 	else:
 		result_label.text = "패배...\n%s" % keys
@@ -674,7 +685,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if ENCOUNTER_KEYS.has(key) and not _dungeon():
 			encounter_id = ENCOUNTER_KEYS[key]
 			get_tree().reload_current_scene()
-		elif key == KEY_R and combat.over:
+		elif key == KEY_R and combat.over and not (custom.has("hero") and combat.winner == 0):
 			custom.erase("result")
 			get_tree().reload_current_scene()
 		elif key >= KEY_1 and key <= KEY_3:
@@ -684,6 +695,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_action("end_turn"):
 			_do_action("end")
 		elif event.is_action("back"):
+			if custom.has("hero") and not combat.over:
+				# 전투 중 도망: 쓰러져 있었으면 패배, 아니면 지금 HP와 사용 횟수를 그대로 가져감
+				if pc.is_down() or not pc.is_alive():
+					custom["result"] = "lose"
+				else:
+					(custom.hero as HeroState).absorb(pc)
 			if _dungeon():
 				get_tree().change_scene_to_file("res://scenes/dungeon.tscn")
 			else:
