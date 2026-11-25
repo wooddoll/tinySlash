@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dungeon_view.gd" id="1_dv"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="2_cam"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.06, 0.06, 0.08, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.55, 0.65, 1)
+ambient_light_energy = 0.6
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="Dungeon" type="Node3D"]
+script = ExtResource("1_dv")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, 0.2868, -0.4096, 0, 0.8192, 0.5736, 0.5, -0.4967, 0.7094, 0, 10, 0)
+light_energy = 0.9
+shadow_enabled = true
+
+[node name="Focus" type="Node3D" parent="."]
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("target")]
+script = ExtResource("2_cam")
+target = NodePath("../Focus")
+ortho_size = 34.0
+max_ortho_size = 80.0
+iso_distance = 80.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+far = 300.0
