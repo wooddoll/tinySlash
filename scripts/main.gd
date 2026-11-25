@@ -1,10 +1,11 @@
 extends Node3D
 
-const SpriteFactory = preload("res://scripts/sprite_factory.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
+const Kenney = preload("res://scripts/kenney.gd")
 
 @export var tree_count := 40
 @export var grass_count := 150
+@export var decor_count := 40
 @export var world_half_size := 18.0
 
 @onready var decor: Node3D = $Decor
@@ -35,18 +36,18 @@ func _add_hint() -> void:
 	add_child(layer)
 
 
-## 나무와 풀을 빌보드 스프라이트로 흩뿌립니다.
+## 나무, 풀, 꽃, 바위 같은 Nature Kit 모델을 흩뿌립니다. 나무에는 충돌체를 붙입니다.
 func _scatter_decor() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2025
-	var tree_tex := SpriteFactory.make_tree()
-	var grass_tex := SpriteFactory.make_grass()
 
 	for i in tree_count:
 		var pos := _random_pos(rng, 5.0)
-		var s := _make_billboard(tree_tex, 1.0 / 12.0)
-		s.position = pos + Vector3(0, 2.0, 0)
-		decor.add_child(s)
+		var tree := Kenney.instance(Kenney.TREES[rng.randi() % Kenney.TREES.size()], Kenney.NATURE)
+		tree.scale = Vector3.ONE * rng.randf_range(2.0, 2.8)
+		tree.rotation.y = rng.randf() * TAU
+		tree.position = pos
+		decor.add_child(tree)
 		# 나무에 부딪히도록 충돌체 추가
 		var body := StaticBody3D.new()
 		var shape := CollisionShape3D.new()
@@ -59,10 +60,18 @@ func _scatter_decor() -> void:
 		decor.add_child(body)
 
 	for i in grass_count:
-		var g := _make_billboard(grass_tex, 1.0 / 16.0)
-		g.position = _random_pos(rng, 1.5) + Vector3(0, 0.19, 0)
-		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var g := Kenney.instance(Kenney.GRASS[rng.randi() % Kenney.GRASS.size()], Kenney.NATURE)
+		g.scale = Vector3.ONE * rng.randf_range(1.6, 2.4)
+		g.rotation.y = rng.randf() * TAU
+		g.position = _random_pos(rng, 1.5)
 		decor.add_child(g)
+
+	for i in decor_count:
+		var dcr := Kenney.instance(Kenney.DECOR[rng.randi() % Kenney.DECOR.size()], Kenney.NATURE)
+		dcr.scale = Vector3.ONE * rng.randf_range(1.8, 2.6)
+		dcr.rotation.y = rng.randf() * TAU
+		dcr.position = _random_pos(rng, 3.0)
+		decor.add_child(dcr)
 
 
 func _random_pos(rng: RandomNumberGenerator, keep_clear: float) -> Vector3:
@@ -72,14 +81,3 @@ func _random_pos(rng: RandomNumberGenerator, keep_clear: float) -> Vector3:
 		if p.length() > keep_clear:
 			return p
 	return Vector3.ZERO
-
-
-func _make_billboard(tex: Texture2D, pixel_size: float) -> Sprite3D:
-	var s := Sprite3D.new()
-	s.texture = tex
-	s.pixel_size = pixel_size
-	s.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	s.shaded = true
-	return s

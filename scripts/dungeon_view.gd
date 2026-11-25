@@ -181,7 +181,10 @@ func _build_world() -> void:
 				else:
 					add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos), c)
 				if d.difficult.has(c):
-					add.call("stones", Transform3D(spin.call(), pos), c)
+					if cave:
+						add.call("nature-kit/" + Kenney.pick(Kenney.CAVE_RUBBLE, c), Transform3D(spin.call() * Basis.from_scale(Vector3.ONE * 1.5), pos), c)
+					else:
+						add.call("stones", Transform3D(spin.call(), pos), c)
 	_fill(bases, base_xf)
 	for i in base_cells.size():
 		_fog_add(base_cells[i], [bases.multimesh, i, base_xf[i][0]])
@@ -190,7 +193,13 @@ func _build_world() -> void:
 			_fog_add(part[1][i], [part[0], i, part[2][i]])
 
 	for c in d.obstacles:
-		if d.obstacles[c] >= 2.0:
+		if cave:
+			# 동굴은 갈색 바위: 기둥은 키 큰 바위, 낮은 바위는 납작한 큰 바위를 세로로 늘림
+			if d.obstacles[c] >= 2.0:
+				add.call("nature-kit/" + Kenney.pick(Kenney.CAVE_PILLARS, c), Transform3D(spin.call() * Basis.from_scale(Vector3(1.0, 1.7, 1.0)), _top(c)), c)
+			else:
+				add.call("nature-kit/" + Kenney.pick(Kenney.CAVE_ROCKS, c), Transform3D(spin.call() * Basis.from_scale(Vector3(1.0, 2.6, 1.0)), _top(c)), c)
+		elif d.obstacles[c] >= 2.0:
 			add.call("column", Transform3D(Basis.IDENTITY, _top(c)), c)
 		else:
 			add.call("rocks", Transform3D(spin.call(), _top(c)), c)

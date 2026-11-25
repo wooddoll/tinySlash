@@ -3,6 +3,20 @@
 extends RefCounted
 
 const DUNGEON := "mini-dungeon"
+const NATURE := "nature-kit"
+## 동굴 소품 (Nature Kit의 갈색 바위): 기둥(완전 엄폐), 바위(높이 1), 잔해(험지)
+const CAVE_PILLARS := ["rock_tallA", "rock_tallB", "rock_tallC", "rock_tallD", "rock_tallE", "rock_tallF"]
+const CAVE_ROCKS := ["rock_largeA", "rock_largeB", "rock_largeC", "rock_largeD", "rock_largeE", "rock_largeF"]
+const CAVE_RUBBLE := ["rock_smallFlatA", "rock_smallFlatB", "rock_smallFlatC", "rock_smallA", "rock_smallB"]
+## 바깥 나무와 풀
+const TREES := ["tree_default", "tree_oak", "tree_detailed", "tree_fat", "tree_pineDefaultA", "tree_pineRoundA", "tree_cone"]
+const GRASS := ["grass", "grass_large", "grass_leafs", "flower_redA", "flower_yellowA", "flower_purpleA"]
+const DECOR := ["rock_smallA", "rock_smallC", "stump_round", "mushroom_redGroup", "mushroom_tanGroup", "plant_bush", "log"]
+
+
+## 칸 좌표로 고르는 변형 (같은 칸은 늘 같은 모양)
+static func pick(list: Array, c: Vector2i) -> String:
+	return list[absi(c.x * 7 + c.y * 13 + c.x * c.y) % list.size()]
 
 static var _meshes := {}
 
@@ -18,7 +32,7 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 		var inst := scene.instantiate()
 		var mi := _first_mesh(inst)
 		if mi:
-			found = mi.mesh
+			found = _recolor(mi.mesh) if pack == NATURE else mi.mesh
 		inst.free()
 	if found == null:
 		push_error("Kenney 모델 없음: " + key)
@@ -29,7 +43,36 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 ## 애니메이션이 있는 모델(상자, 캐릭터)은 장면째로 씁니다
 static func instance(model: String, pack := DUNGEON) -> Node3D:
 	var scene := load("res://assets/kenney/%s/%s.glb" % [pack, model]) as PackedScene
-	return scene.instantiate() as Node3D
+	var n := scene.instantiate() as Node3D
+	if pack == NATURE:
+		for mi in n.find_children("*", "MeshInstance3D", true, false):
+			mi.mesh = mesh(model, pack) if mi == _first_mesh(n) else _recolor(mi.mesh)
+	return n
+
+
+## Nature Kit 색 고치기: 가져온 색이 한 번 더 밝아져 있어 되돌리고(sRGB→선형),
+## 원래 청록색인 잎과 풀은 우리 초록 땅에 맞는 녹색으로 바꿉니다 (동굴 바위 윗면은 이끼처럼 보임)
+const NATURE_GREENS := {
+	"leafsGreen": Color(0.30, 0.55, 0.22),
+	"leafsDark": Color(0.18, 0.40, 0.20),
+	"grass": Color(0.36, 0.58, 0.24),
+}
+static var _recolored := {}
+
+
+static func _recolor(src: Mesh) -> Mesh:
+	if _recolored.has(src):
+		return _recolored[src]
+	var m := src.duplicate() as Mesh
+	for i in m.get_surface_count():
+		var mat := m.surface_get_material(i) as StandardMaterial3D
+		if mat == null:
+			continue
+		var fixed := mat.duplicate() as StandardMaterial3D
+		fixed.albedo_color = NATURE_GREENS.get(mat.resource_name, mat.albedo_color.srgb_to_linear())
+		m.surface_set_material(i, fixed)
+	_recolored[src] = m
+	return m
 
 
 static func _first_mesh(n: Node) -> MeshInstance3D:

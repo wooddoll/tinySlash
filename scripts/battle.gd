@@ -2,7 +2,6 @@
 ## 여기서는 그 결과(event)를 순서대로 애니메이션으로 보여주고 플레이어 입력을 받습니다.
 extends Node3D
 
-const SpriteFactory = preload("res://scripts/sprite_factory.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
@@ -121,8 +120,6 @@ func _build_world() -> void:
 		mats["b"] = _mat(Color(0.43, 0.41, 0.4))
 		mats["brush"] = _mat(Color(0.38, 0.33, 0.28))
 		mats["dirt"] = _mat(Color(0.55, 0.52, 0.48))
-	var tree_tex := SpriteFactory.make_tree()
-	var grass_tex := SpriteFactory.make_grass()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(0.9, 0.9)
 	for key in ["move", "path", "danger", "target", "hover"]:
@@ -185,10 +182,17 @@ func _build_world() -> void:
 			terrain.add_child(body)
 
 			var top := Vector3(x + 0.5, th, y + 0.5)
+			var cave: bool = custom.get("style", "") == "cave"
+			var turn := ((x * 5 + y * 3) % 4) * PI / 2.0
 			if ch == "T":
-				var tree := _billboard(tree_tex, 1.0 / 12.0)
-				tree.position = top + Vector3(0, 2.0, 0)
-				terrain.add_child(tree)
+				# 유닛을 덜 가리게 바깥 장면보다 작게
+				_kenney(terrain, Kenney.pick(Kenney.TREES, cell), top, turn, Kenney.NATURE, 1.5)
+			elif ch == "P" and cave:
+				_kenney(terrain, Kenney.pick(Kenney.CAVE_PILLARS, cell), top, turn, Kenney.NATURE, 1.0, 1.7)
+			elif ch == "#" and cave:
+				_kenney(terrain, Kenney.pick(Kenney.CAVE_ROCKS, cell), top, turn, Kenney.NATURE, 1.0, 2.6)
+			elif ch == "," and cave:
+				_kenney(terrain, Kenney.pick(Kenney.CAVE_RUBBLE, cell), top, turn, Kenney.NATURE, 1.5)
 			elif ch == "P" and _dungeon():
 				_kenney(terrain, "column", top, 0.0)
 			elif ch == "#" and _dungeon():
@@ -215,10 +219,8 @@ func _build_world() -> void:
 				terrain.add_child(rock)
 			elif ch == "," and not _dungeon():
 				for i in 3:
-					var g := _billboard(grass_tex, 1.0 / 16.0)
-					g.position = top + Vector3(-0.3 + i * 0.3, 0.19, -0.2 + (i % 2) * 0.35)
-					g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-					terrain.add_child(g)
+					var gp := top + Vector3(-0.3 + i * 0.3, 0.0, -0.2 + (i % 2) * 0.35)
+					_kenney(terrain, Kenney.pick(Kenney.GRASS, cell + Vector2i(i, 0)), gp, turn + i, Kenney.NATURE, 1.6)
 
 			var ov := MeshInstance3D.new()
 			ov.mesh = plane
@@ -237,11 +239,11 @@ func _build_world() -> void:
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
 
 
-## Kenney Mini Dungeon 모델 하나를 칸 위에 놓습니다 (그림자만 있고 충돌은 칸 상자가 맡음)
-func _kenney(parent: Node3D, model: String, pos: Vector3, yaw: float, pack := Kenney.DUNGEON, size := 1.0) -> void:
+## Kenney 모델 하나를 칸 위에 놓습니다 (그림자만 있고 충돌은 칸 상자가 맡음). stretch_y: 세로로만 늘림
+func _kenney(parent: Node3D, model: String, pos: Vector3, yaw: float, pack := Kenney.DUNGEON, size := 1.0, stretch_y := 1.0) -> void:
 	var m := MeshInstance3D.new()
 	m.mesh = Kenney.mesh(model, pack)
-	m.scale = Vector3.ONE * size
+	m.scale = Vector3(size, size * stretch_y, size)
 	m.position = pos
 	m.rotation.y = yaw
 	parent.add_child(m)
@@ -284,15 +286,6 @@ func _overlay_mat(kind: String) -> StandardMaterial3D:
 	return m
 
 
-func _billboard(tex: Texture2D, px: float) -> Sprite3D:
-	var s := Sprite3D.new()
-	s.texture = tex
-	s.pixel_size = px
-	s.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	s.shaded = true
-	return s
 
 
 func _spawn_units() -> void:

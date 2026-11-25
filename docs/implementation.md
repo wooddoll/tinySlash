@@ -39,21 +39,20 @@
 공통:
 - `camera_rig.gd`: 아이소메트릭 카메라입니다. 직교 투영, 30° 내려다보기, 45° 회전이고, `isometric`을 끄면 원근 시점이 됩니다.
 - `character_model.gd`: Kenney 3D 캐릭터 하나. 기본 동작(idle, walk, sprint, crouch)은 반복하고, 공격 같은 동작은 한 번 하고 돌아옵니다. 쓰러지면 die 자세로 멈춥니다. 맞으면 붉게 번쩍이고, 오른팔 뼈에 무기 모델을 붙입니다 (위치는 손을 따라가고 방향은 몸 기준으로 고정).
-- `sprite_factory.gd`: 나무와 풀 텍스처를 코드로 그립니다. 예전 8방향 캐릭터 시트 함수도 남아 있지만 지금은 쓰지 않습니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다.
-- `kenney.gd`: `assets/kenney/`의 GLB 모델에서 메시를 꺼내 줍니다.
+- `kenney.gd`: `assets/kenney/`의 GLB 모델에서 메시를 꺼내 줍니다. 동굴 소품, 나무, 풀 목록과 칸 좌표로 변형을 고르는 `pick`도 있습니다. Nature Kit은 가져온 색이 한 번 더 밝아져 있어 sRGB→선형으로 되돌리고, 원래 청록색인 잎과 풀(`leafsGreen`, `leafsDark`, `grass`)은 녹색으로 바꿉니다 (`_recolor`).
 - `sfx.gd`: 효과음. 전투(휘두르기, 명중, 치명타, 빗나감, 쓰러짐, 회복, 발소리, 시작 "Fight", 승리·패배·레벨 업 음성), 탐험(발소리 0.6유닛마다, 상자와 금화, 몬스터 발견, 계단, 모닥불 휴식), 모든 버튼 클릭.
 - `dungeon_explorer.gd`: 던전 안을 걷는 플레이어입니다. 물리 엔진 대신 던전 격자로 충돌을 봅니다. 반지름 0.28 원의 네 귀퉁이가 모두 서 있을 수 있는 칸이어야 하고, 축마다 따로 시험해서 벽을 따라 미끄러집니다. 높이는 지금 칸의 바닥 높이를 따라갑니다 (0.5, 1.0 단상도 걸어서 오름).
 
 ### 1.3 에셋 (`assets/kenney/`, CC0)
 | 팩 | 크기 기준 | 쓰는 곳 |
 |---|---|---|
-| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 방 던전(BSP, 흩뿌리기)의 바닥, 기둥(`column`), 바위(`rocks`), 잔해(`stones`), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
+| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 방 던전(BSP, 흩뿌리기)의 바닥, 기둥(`column`), 바위(`rocks`), 잔해(`stones`, 동굴은 Nature Kit 바위), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
 | Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
 | Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 방 던전의 벽(`template-wall`, `template-wall-corner`)을 1/4로 줄여 씀 |
 | Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽과 바닥(`template-floor`)을 1/4로 줄여 씀 |
 | Survival Kit | 작은 소품 (모닥불 2.6배, 텐트 1.7배로 키워 씀) | 던전 모닥불(`campfire-pit`), 쉼터 텐트(`tent-canvas`) |
-| Nature Kit | | 아직 안 씀. 이 팩만 GLB가 `Models/GLTF format/`에 들어 있음 |
+| Nature Kit | 작은 소품 (나무 2.0~2.8배, 전투 나무 1.5배) | 동굴의 기둥(`rock_tall*`, 세로 1.7배), 바위(`rock_large*`, 세로 2.6배), 잔해(`rock_small*`). 바깥 장면과 바깥 전투의 나무, 풀, 꽃, 그루터기·버섯·통나무 |
 
 오디오 (`assets/kenney/audio/<팩>/`, OGG). `scripts/sfx.gd`가 그룹별로 파일 하나를 골라 음높이를 ±8% 바꿔 틉니다. 재생기는 트리 루트에 붙여서 장면이 바뀌어도 끝까지 들립니다.
 
