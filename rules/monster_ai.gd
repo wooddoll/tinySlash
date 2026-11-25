@@ -18,6 +18,7 @@ const W_CROWD := -6.0         # 근접: 대상 말고도 옆에 붙은 적 1명�
 const W_COVER := 6.0          # 원거리: 적들에게서 받는 평균 엄폐 AC 1당
 const W_ADJ := -30.0          # 원거리: 바로 옆에 적
 const W_NEAR := -8.0          # 원거리: 적이 3칸 안
+const W_AURA := -15.0         # 적의 Spirit Guardians 안 (들어가면 피해, 속도 절반)
 
 
 static func take_turn(cb: Combat, c: Creature) -> void:
@@ -156,6 +157,8 @@ static func _advance(cb: Combat, c: Creature, foes: Array[Creature], w: WeaponDa
 			for e in foes:
 				if e != f and cb.grid.distance(cell, e.cell) <= 1:
 					score += W_CROWD
+			if cb.grid.in_hostile_guardians(cell, c):
+				score += W_AURA
 			if score > best_score:
 				best_score = score
 				best_cell = cell
@@ -276,6 +279,8 @@ static func _ranged_place_score(cb: Combat, c: Creature, r: Dictionary, cell: Ve
 	elif nearest <= 3:
 		s += W_NEAR
 	s += cover_value(cb, cell, foes) * W_COVER
+	if cb.grid.in_hostile_guardians(cell, c):
+		s += W_AURA
 	return s
 
 

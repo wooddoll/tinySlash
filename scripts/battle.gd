@@ -52,6 +52,12 @@ var party: Array[Creature] = []
 var heroes: Array = []
 ## 대상을 고르는 중인 주문 id
 var pending_spell := ""
+## 대상을 고르는 중인 주문의 슬롯 레벨 (0이면 가장 낮은 것)
+var pending_slot := 0
+## 시전자 → 떠 있는 영적 무기 모델
+var spirit_views := {}
+## 시전자 → Spirit Guardians 범위 표시 {node, cell}
+var aura_views := {}
 var views := {}
 var overlays := {}
 var overlay_mats := {}
@@ -405,6 +411,8 @@ static func effects_of(c: Creature) -> Array:
 		if names.has(e.type) and not seen.has(e.type):
 			seen[e.type] = true
 			out.append(names[e.type])
+	if c.aid_bonus > 0:
+		out.append(["Aid +%d" % c.aid_bonus, "buff", "최대 HP +%d (전투가 끝날 때까지)" % c.aid_bonus])
 	if c.concentration != "":
 		out.append(["집중: " + Spells.spell_name(c.concentration), "info", "피해를 받으면 CON 내성으로 유지"])
 	return out
@@ -568,7 +576,10 @@ func _open_radial(cat: String) -> void:
 
 
 func _on_radial_chosen(id: String) -> void:
-	if Spells.DATA.has(id):
+	if id.begins_with("slot:"):
+		var parts := id.split(":")
+		_pick_spell(parts[1], int(parts[2]))
+	elif Spells.DATA.has(id):
 		_pick_spell(id)
 	else:
 		_do_action(id)
@@ -595,6 +606,8 @@ func _radial_items(cat: String) -> Array:
 				if Spells.DATA[id].level == -1:
 					out.append(_spell_item(id))
 		"spell":
+			if Spells.knows(pc, "spirit_strike"):
+				out.append(_spell_item("spirit_strike"))
 			for id in pc.stats.spells:
 				if Spells.DATA[id].level >= 0:
 					out.append(_spell_item(id))
@@ -614,9 +627,16 @@ func _spell_item(id: String) -> Dictionary:
 	var cost := "소마법"
 	if d.level == -1:
 		cost = "Channel %d" % pc.resources.get("channel", 0)
+	elif d.level == -2:
+		cost = "슬롯 없이"
 	elif d.level >= 1:
-		var slot := Spells.lowest_slot(pc, d.level)
-		cost = "%d레벨 슬롯" % slot if slot > 0 else "슬롯 없음"
+		var levels := Spells.slot_levels(pc, d.level)
+		if levels.is_empty():
+			cost = "슬롯 없음"
+		elif levels.size() == 1:
+			cost = "%d레벨 슬롯" % levels[0]
+		else:
+			cost = "%d~%d레벨 슬롯" % [levels[0], levels[-1]]
 	var sub := "%s · %s" % ["행동" if d.time == "action" else "보너스", cost]
 	return _item(id, Spells.spell_name(id), sub, "%s\n%s" % [Spells.SUMMARY.get(id, ""), _spell_tooltip(id)],
 		Spells.why_not(combat, pc, id))
@@ -624,25 +644,41 @@ func _spell_item(id: String) -> Dictionary:
 
 func _spell_tooltip(id: String) -> String:
 	var d: Dictionary = Spells.DATA[id]
-	var kind := "소마법" if d.level == 0 else ("Channel Divinity" if d.level == -1 else "%d레벨 주문" % d.level)
+	var kind := "소마법" if d.level == 0 else ("Channel Divinity" if d.level == -1 else ("Spiritual Weapon" if d.level == -2 else "%d레벨 주문" % d.level))
 	return "%s · %s · %s · %d칸%s" % [kind, "행동" if d.time == "action" else "보너스 행동",
 		{"enemy": "적 하나", "ally": "아군 하나", "downed": "쓰러진 아군", "any": "누구든 하나", "area": "주변"}[d.target],
 		Spells.range_of(pc, id), " · 집중" if d.get("conc", false) else ""]
 
 
-func _pick_spell(id: String) -> void:
+## slot: 고른 슬롯 레벨. 0이고 쓸 수 있는 슬롯 레벨이 여럿이면 슬롯 고르기 메뉴를 엽니다
+func _pick_spell(id: String, slot := 0) -> void:
 	if not _player_turn():
 		return
-	var why := Spells.why_not(combat, pc, id)
+	var why := Spells.why_not(combat, pc, id, slot)
 	if why != "":
 		_log("[color=gray]%s: %s[/color]" % [Spells.spell_name(id), why])
 		pending_spell = ""
+	elif slot == 0 and Spells.slot_levels(pc, Spells.DATA[id].level).size() > 1 and Spells.DATA[id].level >= 1:
+		_open_slot_radial(id)
+		return
 	elif not Spells.needs_target(id):
 		pending_spell = ""
-		Spells.cast(combat, pc, id)
+		Spells.cast(combat, pc, id, null, slot)
 	else:
-		pending_spell = "" if pending_spell == id else id
+		pending_spell = "" if pending_spell == id and pending_slot == slot else id
+		pending_slot = slot
 	dirty = true
+
+
+func _open_slot_radial(id: String) -> void:
+	var items: Array = []
+	for l in Spells.slot_levels(pc, Spells.DATA[id].level):
+		var n: int = pc.resources.get("slot%d" % l, 0)
+		items.append(_item("slot:%s:%d" % [id, l], "%d레벨 슬롯" % l, "남은 %d개" % n,
+			"%s %d레벨: %s" % [Spells.spell_name(id), l, Spells.upcast_text(pc, id, l)], ""))
+	var b: Button = category_buttons["spell"]
+	radial.open(b.global_position + Vector2(b.size.x / 2.0, 0), "%s\n슬롯" % Spells.spell_name(id), items)
+	Sfx.play(self, "open")
 
 
 func _player_turn() -> bool:
@@ -700,7 +736,8 @@ func _update_status() -> void:
 		category_buttons[id].disabled = not mine
 		category_buttons[id].text = "%s ▴" % {"skill": "스킬", "spell": "주문", "item": "아이템"}[id]
 	if pending_spell != "":
-		category_buttons["spell" if Spells.DATA[pending_spell].level >= 0 else "skill"].text = "▶ " + Spells.spell_name(pending_spell)
+		category_buttons["skill" if Spells.DATA[pending_spell].level == -1 else "spell"].text = "▶ %s%s" % [Spells.spell_name(pending_spell),
+			(" (%d레벨)" % pending_slot) if pending_slot > 0 else ""]
 	_refresh_party_panel()
 	var cur := combat.current()
 	var parts: Array[String] = []
@@ -761,6 +798,8 @@ func _play(ev: Dictionary) -> void:
 			await _anim_attack(ev)
 		"cast":
 			await _anim_cast(ev)
+		"spirit":
+			await _anim_spirit(ev.caster, ev.cell)
 		"hp":
 			if ev.delta > 0:
 				Sfx.play(self, "heal")
@@ -775,6 +814,7 @@ func _play(ev: Dictionary) -> void:
 		"end":
 			pass
 	_refresh_party_panel()
+	_sync_auras()
 	busy = false
 	dirty = true
 
@@ -804,7 +844,43 @@ func _anim_move(c: Creature, from: Vector2i, to: Vector2i) -> void:
 	v.walking = false
 
 
+## 영적 무기: 칸이 (-1, -1)이면 사라짐, 아니면 그 칸 위로 날아감 (처음이면 생김)
+func _anim_spirit(caster: Creature, cell: Vector2i) -> void:
+	var node: Node3D = spirit_views.get(caster)
+	if cell.x < 0:
+		if node:
+			spirit_views.erase(caster)
+			var tw := create_tween()
+			tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.25)
+			await tw.finished
+			node.queue_free()
+		return
+	var pos := cell_pos(cell) + Vector3(0, 1.1, 0)
+	if node == null:
+		node = Node3D.new()
+		var parts := caster.stats.weapon_model.split("/")
+		if parts.size() == 2:
+			var m := Kenney.instance(parts[1], parts[0])
+			m.scale = Vector3.ONE * 4.5
+			node.add_child(m)
+		var light := OmniLight3D.new()
+		light.light_color = Color(1.0, 0.85, 0.4)
+		light.light_energy = 3.0
+		light.omni_range = 2.5
+		node.add_child(light)
+		add_child(node)
+		node.position = views[caster].position + Vector3(0, 1.2, 0)
+		spirit_views[caster] = node
+		Sfx.play(self, "cast")
+	var tw := create_tween()
+	tw.tween_property(node, "position", pos, 0.3).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+
+
 func _anim_attack(ev: Dictionary) -> void:
+	if ev.get("spirit", false) and spirit_views.has(ev.attacker):
+		await _anim_spirit_hit(ev)
+		return
 	var a = views[ev.attacker]
 	var t = views[ev.target]
 	a.set_facing(ev.target.cell - ev.attacker.cell)
@@ -819,6 +895,62 @@ func _anim_attack(ev: Dictionary) -> void:
 		tw.tween_property(a, "position", start, 0.12)
 	else:
 		tw.tween_interval(0.2)
+	await tw.finished
+	if ev.hit:
+		Sfx.play(self, "crit" if ev.crit else "hit")
+		t.hit_flash()
+	else:
+		Sfx.play(self, "miss")
+		_float_text(t.position, "빗나감", Color(0.8, 0.8, 0.8))
+	await get_tree().create_timer(0.25).timeout
+
+
+## Spirit Guardians 범위(시전자에게서 3칸 안)의 칸마다 옅은 금색 판을 깝니다. 시전자가 움직이면 다시 깝니다
+func _sync_auras() -> void:
+	for c in combat.creatures:
+		var on := c.concentration == "spirit_guardians" and c.is_alive()
+		var cur: Dictionary = aura_views.get(c, {})
+		if on and cur.get("cell", Vector2i(-99, -99)) == c.cell:
+			continue
+		if not cur.is_empty():
+			cur.node.queue_free()
+			aura_views.erase(c)
+		if not on:
+			continue
+		var node := MultiMeshInstance3D.new()
+		var plane := PlaneMesh.new()
+		plane.size = Vector2(0.94, 0.94)
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(1.0, 0.85, 0.35, 0.3)
+		plane.material = mat
+		var cells: Array[Vector2i] = []
+		for dy in range(-3, 4):
+			for dx in range(-3, 4):
+				var cell := c.cell + Vector2i(dx, dy)
+				if grid.in_bounds(cell) and not grid.is_wall(cell) and grid.distance(c.cell, cell) <= 3:
+					cells.append(cell)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = plane
+		mm.instance_count = cells.size()
+		for i in cells.size():
+			mm.set_instance_transform(i, Transform3D(Basis(), cell_pos(cells[i]) + Vector3(0, 0.04, 0)))
+		node.multimesh = mm
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+		aura_views[c] = {"node": node, "cell": c.cell}
+
+
+func _anim_spirit_hit(ev: Dictionary) -> void:
+	var node: Node3D = spirit_views[ev.attacker]
+	var t = views[ev.target]
+	var start := node.position
+	Sfx.play(self, "swing")
+	var tw := create_tween()
+	tw.tween_property(node, "position", start.lerp(t.position + Vector3(0, 0.8, 0), 0.6), 0.12)
+	tw.tween_property(node, "position", start, 0.15)
 	await tw.finished
 	if ev.hit:
 		Sfx.play(self, "crit" if ev.crit else "hit")
@@ -1027,7 +1159,7 @@ func _update_hover() -> void:
 			hint_label.text = "%s → %s: %s" % [nm, hover_creature.display_name, err]
 		else:
 			hint_label.text = "%s → %s (HP %d/%d): %s" % [nm, hover_creature.display_name, hover_creature.hp,
-				hover_creature.stats.max_hp, Spells.describe(combat, pc, pending_spell, hover_creature)]
+				hover_creature.stats.max_hp, Spells.describe(combat, pc, pending_spell, hover_creature, pending_slot)]
 			_set_overlay(hover_cell, "hover")
 		return
 	if hover_cell.x < 0:
@@ -1077,7 +1209,7 @@ func _click() -> void:
 		return
 	if pending_spell != "":
 		if hover_creature != null and Spells.target_error(combat, pc, pending_spell, hover_creature) == "":
-			Spells.cast(combat, pc, pending_spell, hover_creature)
+			Spells.cast(combat, pc, pending_spell, hover_creature, pending_slot)
 		pending_spell = ""
 		dirty = true
 		return

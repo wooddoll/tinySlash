@@ -71,7 +71,7 @@ func make_creature() -> Creature:
 ## 전투가 끝났거나 도망쳤을 때 PC 상태를 담고 XP를 더함. 레벨이 오르면 {"level_up": 새 레벨}
 func absorb(c: Creature, xp_gain := 0) -> Dictionary:
 	var before := stats()
-	hp = maxi(c.hp, 1)  # 이겼는데 쓰러져(또는 죽어) 있었으면 1로 일어남 [변경]
+	hp = clampi(c.hp, 1, before.max_hp)  # 이겼는데 쓰러져(또는 죽어) 있었으면 1로 일어남 [변경]. Aid로 늘어난 HP는 사라짐
 	resources = c.resources.duplicate()
 	xp += xp_gain
 	var after := stats()

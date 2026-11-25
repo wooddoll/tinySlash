@@ -113,6 +113,11 @@ func next_turn() -> void:
 		_end_turn(c)
 
 
+## 지금 턴을 가리키는 번호 (턴마다 한 번만 일어나는 효과에 씀)
+func turn_serial() -> int:
+	return round_num * 1000 + turn_index + 1  # 시작 전(-1)에도 0 이상
+
+
 func end_turn(c: Creature) -> void:
 	if current() == c and not over:
 		next_turn()
@@ -132,6 +137,8 @@ func _begin_turn(c: Creature) -> void:
 
 
 func _end_turn(c: Creature) -> void:
+	if c.is_alive() and not c.is_down():
+		Spells.on_turn_end(self, c)
 	for x in creatures:
 		x.process_phase(c, "end")
 
@@ -238,6 +245,9 @@ func move_along(c: Creature, steps: Array) -> bool:
 		if grid.occupant(step) == null:
 			last_free = step
 		event.emit({"type": "move", "creature": c, "from": from, "to": step})
+		Spells.on_step(self, c, from)
+		if over or not c.can_act():
+			break
 	if not c.is_alive():
 		return moved
 	if grid.occupant(c.cell) != null:
@@ -373,7 +383,8 @@ func attack(c: Creature, t: Creature, w: WeaponData) -> bool:
 	return true
 
 
-func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, cleave := false) -> Dictionary:
+## extra: attack 이벤트에 더할 값 (예: {"spirit": true}는 영적 무기가 때림)
+func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, cleave := false, extra := {}) -> Dictionary:
 	var r := dice.d20(info.adv)
 	var nat: int = r.value
 	var total: int = nat + info.bonus
@@ -410,14 +421,14 @@ func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, c
 
 	if not hit:
 		log_msg(line + " → [color=gray]빗나감[/color]")
-		event.emit({"type": "attack", "attacker": c, "target": t, "hit": false, "crit": false, "ranged": info.mode == "ranged"})
+		event.emit({"type": "attack", "attacker": c, "target": t, "hit": false, "crit": false, "ranged": info.mode == "ranged"}.merged(extra))
 		if c.can_use_mastery(w) and w.mastery == "graze" and info.ability_mod > 0:
 			_deal(t, info.ability_mod, w.damage_type, false, "Graze")
 		check_end()
 		return result
 
 	log_msg(line + (" → [color=yellow]치명타![/color]" if crit else " → 명중"))
-	event.emit({"type": "attack", "attacker": c, "target": t, "hit": true, "crit": crit, "ranged": info.mode == "ranged"})
+	event.emit({"type": "attack", "attacker": c, "target": t, "hit": true, "crit": crit, "ranged": info.mode == "ranged"}.merged(extra))
 	var dmg := roll_weapon_damage(c, w, crit, info.adv > 0, info.ability_mod, cleave)
 	var res := _deal(t, dmg, w.damage_type, crit, "")
 	result.damage = res.dealt

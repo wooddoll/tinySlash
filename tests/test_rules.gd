@@ -604,6 +604,82 @@ func test_spare_the_dying() -> void:
 	check(f.stable and f.death_failures == 0, "stable")
 
 
+func test_slot_choice() -> void:
+	var p := _cleric_party(3)  # 슬롯 1레벨 4개, 2레벨 2개
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	eq(Spells.slot_levels(c, 1), [1, 2] as Array[int], "slot levels")
+	check(Spells.why_not(cb, c, "aid", 1) != "", "aid can't use a 1st-level slot")
+	f.hp = 1
+	check(Spells.cast(cb, c, "cure_wounds", f, 2), "cure wounds at 2nd level")
+	eq(c.resources.slot2, 1, "2nd-level slot spent")
+	eq(c.resources.slot1, 4, "1st-level slot kept")
+	eq(Spells.upcast_text(c, "cure_wounds", 2).left(4), "4d8 ", "upcast text")
+
+
+func test_aid() -> void:
+	var p := _cleric_party(3)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var f: Creature = p[2]
+	var base := f.stats.max_hp
+	f.hp = 0
+	f.add_condition("unconscious")
+	check(Spells.cast(cb, c, "aid"), "cast aid")
+	eq(f.stats.max_hp, base + 5, "max hp +5")
+	eq(f.hp, 5, "hp +5 wakes the fighter")
+	check(not f.has_condition("unconscious"), "conscious")
+	eq(c.aid_bonus, 5, "caster too")
+	c.start_turn_reset()
+	Spells.cast(cb, c, "aid", null, 2)
+	eq(f.stats.max_hp, base + 5, "same aid does not stack")
+	var h := HeroState.fresh("fighter")
+	var g := Creature.new(h.stats(), 0)
+	g.hp = g.stats.max_hp + 5
+	h.absorb(g)
+	eq(h.current_hp(), h.max_hp(), "aid hp ends after combat")
+
+
+func test_spiritual_weapon() -> void:
+	var p := _cleric_party(3)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var wolf: Creature = cb.creatures[2]
+	check(not Spells.knows(c, "spirit_strike"), "no strike before casting")
+	check(Spells.cast(cb, c, "spiritual_weapon", wolf), "cast spiritual weapon")
+	eq(cb.grid.distance(c.spirit_cell, wolf.cell), 1, "weapon appears next to the wolf")
+	eq(c.concentration, "spiritual_weapon", "concentration")
+	check(not c.bonus_available, "bonus action used")
+	check(Spells.why_not(cb, c, "spirit_strike") != "", "no strike this turn")
+	c.start_turn_reset()
+	check(Spells.why_not(cb, c, "spirit_strike") == "", "strike next turn")
+	if wolf.is_alive():
+		check(Spells.cast(cb, c, "spirit_strike", wolf), "strike")
+	eq(c.resources.slot2, 1, "strike uses no slot")
+	Spells.end_concentration(cb, c)
+	eq(c.spirit_cell, Vector2i(-1, -1), "weapon gone")
+	check(not Spells.knows(c, "spirit_strike"), "no strike after concentration ends")
+
+
+func test_spirit_guardians() -> void:
+	var p := _cleric_party(5)
+	var cb: Combat = p[0]
+	var c: Creature = p[1]
+	var wolf: Creature = cb.creatures[2]
+	check(Spells.cast(cb, c, "spirit_guardians"), "cast spirit guardians")
+	eq(c.resources.slot3, 1, "3rd-level slot")
+	eq(cb.grid.step_cost(Vector2i(5, 4), Vector2i(4, 4), wolf), 2, "half speed inside")
+	eq(cb.grid.step_cost(Vector2i(7, 5), Vector2i(6, 5), wolf), 1, "normal outside")
+	var hp := wolf.hp
+	check(cb.move(wolf, Vector2i(4, 4)), "wolf walks in")
+	check(wolf.dead or wolf.hp < hp, "entering hurts")
+	if wolf.is_alive():
+		var after := wolf.hp
+		Spells.on_turn_end(cb, wolf)
+		eq(wolf.hp, after, "only once per turn")
+
+
 func test_death_save_bless_bonus() -> void:
 	var f := Creature.new(Catalog.fighter(1), 0)
 	f.hp = 0

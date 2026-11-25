@@ -28,6 +28,14 @@ var effects: Array[Dictionary] = []
 var resources := {}
 ## 집중 중인 주문 id (없으면 빈 문자열)
 var concentration := ""
+## 집중 중인 주문을 쓴 슬롯 레벨 (Spiritual Weapon, Spirit Guardians 피해에 씀)
+var conc_slot := 0
+## Spiritual Weapon이 떠 있는 칸 (없으면 -1, -1)
+var spirit_cell := Vector2i(-1, -1)
+## Aid로 늘어난 최대 HP (전투가 끝나면 사라짐)
+var aid_bonus := 0
+## Spirit Guardians 내성을 마지막으로 굴린 턴 (턴마다 한 번만)
+var guardian_turn := -1
 
 # 턴 자원
 var movement_left := 0

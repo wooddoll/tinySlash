@@ -19,9 +19,9 @@
 | `weapon_data.gd` | `WeaponData` | 무기 데이터 (Resource) | 4.4 |
 | `creature_stats.gd` | `CreatureStats` | 크리처 스탯 블록 (Resource). 화면용 `model`, `weapon_model`, `sprite_scale`(크기)도 여기 | 7, 8장 |
 | `catalog.gd` | `Catalog` | 무기 12종, 파이터·클레릭 레벨 1~5 (`pc(cls, level)`), 몬스터 5종 데이터 | 4.4, 7, 8장 |
-| `spells.gd` | `Spells` | 클레릭 주문과 Channel Divinity: 쓸 수 있는지(`why_not`, `target_error`), 시전(`cast`), 집중, 화면 설명 | 7.5, 7.6 |
+| `spells.gd` | `Spells` | 클레릭 주문과 Channel Divinity: 쓸 수 있는지(`why_not`, `target_error`), 시전(`cast(cb, c, id, t, slot)`), 슬롯 고르기(`slot_levels`, `pick_slot`, `upcast_text`), 집중, Spirit Guardians 범위(`on_step`, `on_turn_end`), 화면 설명 | 7.5, 7.6 |
 | `hero_state.gd` | `HeroState` | 던전 탐험 중 전투 사이에 이어지는 파티원 상태 (`cls`: fighter / cleric) | 5.3, 9 |
-| `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원, 주문 슬롯(`slot1`~), 집중 | 3.3, 6장 |
+| `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원, 주문 슬롯(`slot1`~), 집중(`concentration`, `conc_slot`), 영적 무기 칸(`spirit_cell`), Aid(`aid_bonus`) | 3.3, 6장 |
 | `damage.gd` | `Damage` | 피해 수정, 임시 HP, 회복, 사망 내성, 즉사 | 4.2, 5장 |
 | `combat_grid.gd` | `CombatGrid` | 높이, 벽, 험지, 점유, 이동 비용, 길찾기, 엄폐 | 2장 |
 | `combat.gd` | `Combat` | 이니셔티브, 턴, 행동, 공격 판정, 기회 공격, 무기 숙달, 내성 굴림(`saving_throw`, Bless 포함) | 3, 4장 |
@@ -46,9 +46,10 @@
   - 초상화는 파티원마다 작은 `SubViewport`(따로 쓰는 3D 월드)에 캐릭터 모델과 카메라를 놓고 그 텍스처를 씁니다. 그래서 대기 애니메이션이 움직입니다.
   - 전투에서는 `battle.gd`의 `effects_of(creature)`가 상태(의식 없음, 넘어짐, 사망 내성, 안정)와 효과(Bless, Shield of Faith, 회피, Vex, Guiding Bolt, Sap, Slow, Turn Undead, 집중)를 칩으로 만듭니다. 이벤트를 재생할 때마다 갱신합니다.
   - 던전 탐험 중에도 왼쪽에 뜹니다 (HP가 절반 이하면 "다침").
+- 전투 화면의 주문 표시: 영적 무기는 클레릭의 무기 모델을 크게 띄워 빛나게 하고, 공격할 때 그 무기가 대상에게 날아듭니다. Spirit Guardians는 시전자 3칸 안의 칸마다 옅은 금색 판을 깝니다.
 - `radial_menu.gd`: 원형 선택 메뉴. 항목을 원 위에 늘어놓고, 마우스를 올리면 옆에 설명(쓸 수 없으면 이유)을 보여줍니다. 바깥 클릭, 우클릭, Esc로 닫고 1~9로 고릅니다.
   - 전투 아래 줄: 무기 버튼(일반 공격) | 스킬 · 주문 · 아이템 | 턴 종료.
-  - 스킬: 질주, 이탈, 회피, Second Wind, Action Surge, Channel Divinity. 주문: 소마법과 슬롯 주문. 아이템: 회복 물약. 해당 항목이 없는 분류 버튼은 숨깁니다.
+  - 스킬: 질주, 이탈, 회피, Second Wind, Action Surge, Channel Divinity. 주문: 소마법과 슬롯 주문 (영적 무기가 떠 있으면 "영적 무기 공격"도). 쓸 수 있는 슬롯 레벨이 여럿이면 슬롯 고르기 원형 메뉴가 한 번 더 열립니다. 아이템: 회복 물약. 해당 항목이 없는 분류 버튼은 숨깁니다.
 - `kenney.gd`: `assets/kenney/`의 GLB 모델에서 메시를 꺼내 줍니다. 동굴 소품, 나무, 풀 목록과 칸 좌표로 변형을 고르는 `pick`도 있습니다. Nature Kit은 가져온 색이 한 번 더 밝아져 있어 sRGB→선형으로 되돌리고, 원래 청록색인 잎과 풀(`leafsGreen`, `leafsDark`, `grass`)은 녹색으로 바꿉니다 (`_recolor`).
 - `sfx.gd`: 효과음. 전투(휘두르기, 명중, 치명타, 빗나감, 쓰러짐, 회복, 발소리, 시작 "Fight", 승리·패배·레벨 업 음성), 탐험(발소리 0.6유닛마다, 상자와 금화, 몬스터 발견, 계단, 모닥불 휴식), 모든 버튼 클릭.
 - `dungeon_explorer.gd`: 던전 안을 걷는 플레이어입니다. 물리 엔진 대신 던전 격자로 충돌을 봅니다. 반지름 0.28 원의 네 귀퉁이가 모두 서 있을 수 있는 칸이어야 하고, 축마다 따로 시험해서 벽을 따라 미끄러집니다. 높이는 지금 칸의 바닥 높이를 따라갑니다 (0.5, 1.0 단상도 걸어서 오름).
@@ -103,7 +104,7 @@
 | 격자 이동: 험지, 오르기, 벽 모서리, 적 칸 통과 규칙, 이동 경로의 기회 공격 칸 표시 |
 | 엄폐 (광선 4개 방식), 사거리, 장거리·근접 불리점 |
 | 기회 공격, 이탈, 질주, 회피, Second Wind, Action Surge, 물약 |
-| 동료 클레릭: 주문 7종, Channel Divinity 3종, 집중, Bless, 슬롯 주문 턴당 1개 |
+| 동료 클레릭: 주문 10종(2레벨 Aid, Spiritual Weapon, 3레벨 Spirit Guardians 포함), Channel Divinity 3종, 집중, Bless, 슬롯 주문 턴당 1개, 슬롯 고르기 |
 | 무기 숙달: Graze, Sap, Slow, Vex, Topple, Push, Cleave |
 | 저항·취약·면역, 임시 HP, 사망 내성, 즉사 |
 | 몬스터 5종과 특성 (Pack Tactics, Redirect Attack, Nimble Escape 등), AI |

@@ -88,7 +88,18 @@ func step_cost(from: Vector2i, to: Vector2i, mover: Creature) -> int:
 			return INF
 	if is_difficult:
 		cost += 1
+	# Spirit Guardians 안에서는 속도 절반 = 걸음 비용 두 배 (rules 7.6)
+	if mover != null and in_hostile_guardians(to, mover):
+		cost *= 2
 	return cost
+
+
+func in_hostile_guardians(cell: Vector2i, mover: Creature) -> bool:
+	for x in occupants.values():
+		var g: Creature = x
+		if g.concentration == "spirit_guardians" and g != mover and g.is_hostile_to(mover) and distance(g.cell, cell) <= 3:
+			return true
+	return false
 
 
 ## 다익스트라. 반환: {"start", "cost": {칸: 비용}, "prev": {칸: 이전 칸}}

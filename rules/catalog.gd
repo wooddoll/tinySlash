@@ -98,9 +98,10 @@ static func cleric(level := 1) -> CreatureStats:
 		f.append("channel_divinity")
 		s.channel_divinity = 2
 	if level >= 3:
-		sp.append("preserve_life")
+		sp.append_array(["aid", "spiritual_weapon", "preserve_life"])
 		f.append_array(["disciple_of_life", "preserve_life"])
 	if level >= 5:
+		sp.append("spirit_guardians")
 		f.append("sear_undead")
 	s.spells = PackedStringArray(sp)
 	s.features = PackedStringArray(f)
