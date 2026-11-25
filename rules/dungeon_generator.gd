@@ -1,6 +1,6 @@
 ## 파라미터로 던전을 만듭니다. 같은 시드 + 같은 파라미터 = 같은 던전.
 ## 순서: 방 배치 -> 방 잇기(최소 신장 트리 + 순환로) -> 복도/문 -> 시작·출구 -> 지형 -> 조우 -> 보물
-## 조우 예산은 SRD 5.2.1 "XP Budget per Character" 표를 따릅니다 (docs/rules.md 12장).
+## 조우 예산은 SRD 5.2.1 "XP Budget per Character" 표를 따릅니다 (docs/rules.md 9.2, 생성 방식은 docs/implementation.md 4장).
 class_name DungeonGenerator
 extends RefCounted
 
