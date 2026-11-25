@@ -49,6 +49,8 @@ enum Difficulty { LOW, MODERATE, HIGH }
 @export_range(0.0, 1.0) var treasure_ratio := 0.3
 ## 출구 방에 높은 난이도 조우
 @export var boss_room := true
+## 몇 층인지. 깊을수록 조우 예산이 늘어남 (층마다 +15%, 최대 2배) [변경: rules 9.2]
+@export_range(1, 20) var floor_depth := 1
 ## 모닥불(짧은 휴식) 수. 몬스터 없는 방에 놓음 [변경: rules 5.3]
 @export_range(0, 4) var campfire_count := 1
 

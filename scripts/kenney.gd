@@ -44,11 +44,14 @@ static func _first_mesh(n: Node) -> MeshInstance3D:
 
 ## 바닥 칸과 벽 칸 사이 모서리마다 얇은 벽판을 세웁니다 (Modular Dungeon/Cave Kit, 4유닛 조각을 1/4로 줄여 씀).
 ## floors: 바닥 칸 목록, is_floor(c) -> bool, height(c) -> float. 볼록한 모서리에는 기둥 조각을 놓습니다.
-static func build_edge_walls(parent: Node3D, floors: Array, is_floor: Callable, height: Callable, cave := false) -> void:
+## 돌려주는 값: [[MultiMesh, 칸들, 변환들], ...] (조각마다 어느 바닥 칸에 붙었는지. 전장의 안개에 씀)
+static func build_edge_walls(parent: Node3D, floors: Array, is_floor: Callable, height: Callable, cave := false) -> Array:
 	var pack := "modular-cave-kit" if cave else "modular-dungeon-kit"
 	var s := Basis.from_scale(Vector3.ONE * 0.25)
 	var walls: Array[Transform3D] = []
 	var corners: Array[Transform3D] = []
+	var wall_cells: Array = []
+	var corner_cells: Array = []
 	for c in floors:
 		var h: float = height.call(c)
 		var center := Vector3(c.x + 0.5, h, c.y + 0.5)
@@ -57,13 +60,21 @@ static func build_edge_walls(parent: Node3D, floors: Array, is_floor: Callable, 
 				# 조각의 -Z(벽 두께 방향)가 벽 칸 쪽을 보게
 				var yaw := atan2(-float(d.x), -float(d.y))
 				walls.append(Transform3D(Basis(Vector3.UP, yaw) * s, center + Vector3(d.x, 0, d.y) * 0.5))
+				wall_cells.append(c)
 		for dx in [-1, 1]:
 			for dy in [-1, 1]:
 				if is_floor.call(c + Vector2i(dx, 0)) and is_floor.call(c + Vector2i(0, dy)) \
 						and not is_floor.call(c + Vector2i(dx, dy)):
 					corners.append(Transform3D(_corner_basis(dx, dy) * s, center + Vector3(dx, 0, dy) * 0.5))
-	_multimesh(parent, mesh("template-wall", pack), walls)
-	_multimesh(parent, mesh("template-wall-corner", pack), corners)
+					corner_cells.append(c)
+	var out: Array = []
+	var a := _multimesh(parent, mesh("template-wall", pack), walls)
+	if a:
+		out.append([a.multimesh, wall_cells, walls])
+	var b := _multimesh(parent, mesh("template-wall-corner", pack), corners)
+	if b:
+		out.append([b.multimesh, corner_cells, corners])
+	return out
 
 
 ## 모서리 조각은 원점에서 (-X, -Z) 쪽으로 놓여 있음 -> 그 방향이 (dx, dy)를 보게 돌림
@@ -76,9 +87,9 @@ static func _corner_basis(dx: int, dy: int) -> Basis:
 	return Basis.IDENTITY
 
 
-static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D]) -> void:
+static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D]) -> MultiMeshInstance3D:
 	if xfs.is_empty() or m == null:
-		return
+		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = m
@@ -88,3 +99,4 @@ static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D]) -> void
 	var inst := MultiMeshInstance3D.new()
 	inst.multimesh = mm
 	parent.add_child(inst)
+	return inst

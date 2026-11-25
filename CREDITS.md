@@ -16,3 +16,11 @@ Mini Dungeon, Mini Characters, Modular Dungeon Kit, Modular Cave Kit, Survival K
 and Nature Kit by Kenney (www.kenney.nl),
 licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
 Files are in `assets/kenney/<pack>/` with each pack's `License.txt`.
+
+## Audio
+
+Interface Sounds, Impact Sounds, RPG Audio, UI Audio, Voiceover Pack,
+and Voiceover Pack: Fighter by Kenney (www.kenney.nl),
+licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
+Files are in `assets/kenney/audio/<pack>/` with each pack's `License.txt`.
+Voiceover Pack voices: Jeffrey M. Smith (male) and Giselle (female), see `voiceover-pack/Credits.txt`.

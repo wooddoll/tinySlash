@@ -586,7 +586,7 @@ func _encounters() -> void:
 			boss = true
 		elif p.difficulty_ramp and r.depth > 0.66:
 			diff = mini(diff + 1, DungeonParams.Difficulty.HIGH)
-		var budget: int = XP_BUDGET[lvl - 1][diff] * p.party_size
+		var budget: int = int(XP_BUDGET[lvl - 1][diff] * p.party_size * depth_multiplier(p.floor_depth))
 		var free := _free_cells(r)
 		var cap := clampi(free.size() / 4, 1, MAX_FOES)
 		var ids := _pick_monsters(budget, pool, boss, cap)
@@ -720,6 +720,11 @@ func _treasure() -> void:
 		if r.kind == "exit":
 			gold *= 2
 		(r.treasure as Array).append({"cell": best, "gold": gold})
+
+
+## 층이 깊을수록 조우 예산을 늘림: 1층 1.0배, 층마다 +0.15, 최대 2배
+static func depth_multiplier(floor_depth: int) -> float:
+	return minf(1.0 + 0.15 * maxi(floor_depth - 1, 0), 2.0)
 
 
 ## 모닥불: 몬스터 없는 보통 방 중 깊이가 고르게 퍼지게 고르고, 방 가운데에 가까운 빈 칸에 놓음.

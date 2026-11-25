@@ -8,6 +8,9 @@ const CharacterModel = preload("res://scripts/character_model.gd")
 signal entered_cell(from: Vector2i, to: Vector2i)
 
 const RADIUS := 0.28
+## 발소리 간격 (유닛)
+const STEP := 0.6
+const Sfx = preload("res://scripts/sfx.gd")
 
 @export var speed := 4.5
 var dungeon: Dungeon
@@ -16,6 +19,7 @@ var camera_rig: Node3D
 var active := true
 var cell := Vector2i(-1, -1)
 var body: CharacterModel
+var _stride := 0.0
 
 
 func setup(d: Dungeon, at: Vector2i, model := "mini-characters/character-knight",
@@ -58,6 +62,10 @@ func _physics_process(delta: float) -> void:
 			p.x += step.x
 		if can_stand(dungeon, p + Vector2(0, step.z)):
 			p.y += step.z
+		_stride += Vector2(position.x, position.z).distance_to(p)
+		if _stride >= STEP:
+			_stride = 0.0
+			Sfx.play(self, "step")
 		position.x = p.x
 		position.z = p.y
 	body.set_base("sprint" if moving else "idle")

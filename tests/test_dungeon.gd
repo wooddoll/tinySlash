@@ -348,3 +348,41 @@ func test_short_and_long_rest() -> void:
 	eq(h.make_creature().resources.get("potion", 0), 1, "long rest keeps potion count")
 	var full := HeroState.fresh()
 	eq(full.spend_hit_die(dice), {}, "cannot spend at full hp")
+
+
+func test_sfx_files_exist() -> void:
+	const Sfx = preload("res://scripts/sfx.gd")
+	for g in Sfx.GROUPS:
+		for f in Sfx.GROUPS[g][0]:
+			check(ResourceLoader.exists(Sfx.path_of(f)), "sound %s: %s" % [g, f])
+
+
+func test_deeper_floor_bigger_budget() -> void:
+	eq(DungeonGenerator.depth_multiplier(1), 1.0, "floor 1 x1")
+	check(is_equal_approx(DungeonGenerator.depth_multiplier(3), 1.3), "floor 3 x1.3")
+	eq(DungeonGenerator.depth_multiplier(20), 2.0, "capped at x2")
+	var p1 := params(DungeonParams.Algorithm.BSP, 9)
+	var p5 := params(DungeonParams.Algorithm.BSP, 9)
+	p5.floor_depth = 5
+	var a := DungeonGenerator.generate(p1)
+	var b := DungeonGenerator.generate(p5)
+	for i in a.rooms.size():
+		if a.rooms[i].encounter.is_empty() or b.rooms[i].encounter.is_empty():
+			continue
+		eq(b.rooms[i].encounter.budget, int(a.rooms[i].encounter.budget * 1.6), "room %d budget x1.6" % i)
+		check(b.rooms[i].encounter.xp <= b.rooms[i].encounter.budget, "within deeper budget")
+
+
+func test_fog_visible_cells() -> void:
+	const DV = preload("res://scripts/dungeon_view.gd")
+	var d := DungeonGenerator.generate(params(DungeonParams.Algorithm.BSP, 4))
+	var r: Dictionary = d.rooms[d.start_room]
+	eq(DV.visible_from(d, r.center).size(), (r.cells as Array).size(), "room shows whole room")
+	for c in d.flood(d.start).dist:
+		if d.room_at(c) == -1:
+			var v := DV.visible_from(d, c)
+			check(v.has(c), "corridor sees itself")
+			for n in v:
+				check(d.is_floor(n), "only floor cells")
+				check(maxi(absi(n.x - c.x), absi(n.y - c.y)) <= 3, "within 3 steps")
+			break

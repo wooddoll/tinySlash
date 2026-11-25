@@ -6,6 +6,7 @@ const SpriteFactory = preload("res://scripts/sprite_factory.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
+const Sfx = preload("res://scripts/sfx.gd")
 
 ## . 평지  1/2/3 높이 0.5/1.0/1.5  , 험지(덤불)  T 나무(완전 엄폐)  # 바위(낮은 벽)
 ## 던전용: X 던전 벽(통과 불가, 완전 엄폐)  P 돌기둥(완전 엄폐)
@@ -72,6 +73,8 @@ func _ready() -> void:
 	_spawn_units()
 	combat.event.connect(func(ev: Dictionary) -> void: queue.append(ev))
 	_log("[color=gray]%s[/color]" % _encounter_label())
+	Sfx.wire_buttons(self)
+	Sfx.play(self, "fight")
 	combat.start()
 
 
@@ -523,11 +526,15 @@ func _play(ev: Dictionary) -> void:
 		"attack":
 			await _anim_attack(ev)
 		"hp":
+			if ev.delta > 0:
+				Sfx.play(self, "heal")
 			views[ev.creature].set_hp(ev.hp)
 			_popup(ev.creature, ev.delta, ev.crit)
 		"condition":
 			views[ev.creature].refresh()
 		"death", "fled":
+			if ev.type == "death":
+				Sfx.play(self, "death")
 			await _anim_vanish(ev.creature)
 		"end":
 			pass
@@ -549,6 +556,7 @@ func _anim_move(c: Creature, from: Vector2i, to: Vector2i) -> void:
 	var v = views[c]
 	v.set_facing(to - from)
 	v.walking = true
+	Sfx.play(self, "step", 4.0)
 	var tw := create_tween()
 	tw.tween_property(v, "position", cell_pos(to), 0.16)
 	await tw.finished
@@ -561,6 +569,7 @@ func _anim_attack(ev: Dictionary) -> void:
 	a.set_facing(ev.target.cell - ev.attacker.cell)
 	var ranged: bool = ev.get("ranged", false)
 	a.attack(ranged)
+	Sfx.play(self, "shoot" if ranged else "swing")
 	var start: Vector3 = a.position
 	var tw := create_tween()
 	if not ranged:
@@ -571,8 +580,10 @@ func _anim_attack(ev: Dictionary) -> void:
 		tw.tween_interval(0.2)
 	await tw.finished
 	if ev.hit:
+		Sfx.play(self, "crit" if ev.crit else "hit")
 		t.hit_flash()
 	else:
+		Sfx.play(self, "miss")
 		_float_text(t.position, "빗나감", Color(0.8, 0.8, 0.8))
 	await get_tree().create_timer(0.25).timeout
 
@@ -633,9 +644,12 @@ func _show_result() -> void:
 			combat.xp_earned, hero.xp, hero.level(), "\n레벨 업!" if up.has("level_up") else ""]
 		if up.has("level_up"):
 			custom["level_up"] = up.level_up
+		Sfx.play(self, "level_up" if up.has("level_up") else "win")
 	elif combat.winner == 0:
+		Sfx.play(self, "win")
 		result_label.text = "승리!\n경험치 %d · 레벨 %d\n%s" % [combat.xp_earned, Rules.level_for_xp(combat.xp_earned), keys]
 	else:
+		Sfx.play(self, "lose")
 		result_label.text = "패배...\n%s" % keys
 	result_label.visible = true
 

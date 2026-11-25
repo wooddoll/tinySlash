@@ -14,6 +14,7 @@ const THEME_NAMES := ["섞어서", "고블린", "언데드", "야수"]
 const KIND_NAMES := {"start": "시작 방", "exit": "출구 방", "normal": "방"}
 
 const Explorer = preload("res://scripts/dungeon_explorer.gd")
+const Sfx = preload("res://scripts/sfx.gd")
 
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
@@ -34,6 +35,8 @@ static var checkpoint: HeroState = null
 static var _pending_toast := ""
 ## 짧은 휴식을 한 모닥불 (꺼짐)
 static var used_fires := {}
+## 전장의 안개: 탐험 중 본 칸
+static var seen := {}
 
 @onready var focus: Node3D = $Focus
 @onready var rig: Node3D = $CameraRig
@@ -64,6 +67,8 @@ var explorer: Explorer
 var chests := {}
 var _leaving := false
 var fires := {}  # 칸 -> 불꽃 노드들
+## 칸 -> 그 칸에 속한 것들 ([MultiMesh, 번호, 원래 변환] 또는 [노드])
+var _fog_index := {}
 var rest_panel: PanelContainer
 var rest_label: RichTextLabel
 var rest_roll: Button
@@ -80,6 +85,7 @@ func _ready() -> void:
 	params = saved
 	_take_battle_result()
 	_build_ui()
+	Sfx.wire_buttons(self)
 	_generate()
 
 
@@ -114,6 +120,7 @@ func _generate() -> void:
 	explorer = null
 	chests.clear()
 	fires.clear()
+	_fog_index.clear()
 	world = Node3D.new()
 	world.name = "World"
 	add_child(world)
@@ -139,11 +146,12 @@ func _build_world() -> void:
 	var floors: Array = []
 	var cave := params.algorithm == DungeonParams.Algorithm.CAVE
 	var quarter := Basis.from_scale(Vector3.ONE * 0.25)
-	var model_xf := {}  # 모델 이름 -> [Transform3D]
-	var add := func(model: String, xf: Transform3D) -> void:
+	var model_xf := {}  # 모델 이름 -> [[Transform3D, 칸]]
+	var add := func(model: String, xf: Transform3D, cell: Vector2i) -> void:
 		if not model_xf.has(model):
 			model_xf[model] = []
-		model_xf[model].append(xf)
+		model_xf[model].append([xf, cell])
+	var base_cells: Array = []
 	var spin := func() -> Basis:
 		return Basis(Vector3.UP, rng.randi_range(0, 3) * PI / 2.0)
 
@@ -157,23 +165,28 @@ func _build_world() -> void:
 				if h > 0.0:
 					base_xf.append([Transform3D(Basis.from_scale(Vector3(1, h, 1)), pos - Vector3(0, h / 2.0, 0)),
 							Color(0.45, 0.33, 0.27) if cave else Color(0.42, 0.4, 0.45)])
+					base_cells.append(c)
 				floors.append(c)
 				if cave:
 					# Cave Kit 바닥 (4x4 조각을 1/4로)
-					add.call("modular-cave-kit/template-floor", Transform3D(spin.call() * quarter, pos))
+					add.call("modular-cave-kit/template-floor", Transform3D(spin.call() * quarter, pos), c)
 				else:
-					add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos))
+					add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos), c)
 				if d.difficult.has(c):
-					add.call("stones", Transform3D(spin.call(), pos))
+					add.call("stones", Transform3D(spin.call(), pos), c)
 	_fill(bases, base_xf)
-	Kenney.build_edge_walls(world, floors, d.is_floor, d.get_height, cave)
+	for i in base_cells.size():
+		_fog_add(base_cells[i], [bases.multimesh, i, base_xf[i][0]])
+	for part in Kenney.build_edge_walls(world, floors, d.is_floor, d.get_height, cave):
+		for i in (part[1] as Array).size():
+			_fog_add(part[1][i], [part[0], i, part[2][i]])
 
 	for c in d.obstacles:
 		if d.obstacles[c] >= 2.0:
-			add.call("column", Transform3D(Basis.IDENTITY, _top(c)))
+			add.call("column", Transform3D(Basis.IDENTITY, _top(c)), c)
 		else:
-			add.call("rocks", Transform3D(spin.call(), _top(c)))
-	add.call("stairs", Transform3D(Basis.IDENTITY, _top(d.exit)))
+			add.call("rocks", Transform3D(spin.call(), _top(c)), c)
+	add.call("stairs", Transform3D(Basis.IDENTITY, _top(d.exit)), d.exit)
 
 	for model in model_xf:
 		var parts: PackedStringArray = model.split("/")
@@ -183,10 +196,11 @@ func _build_world() -> void:
 		var list: Array = model_xf[model]
 		mm.instance_count = list.size()
 		for i in list.size():
-			mm.set_instance_transform(i, list[i])
+			mm.set_instance_transform(i, list[i][0])
+			_fog_add(list[i][1], [mm, i, list[i][0]])
 
 	# 시작 지점 (파란 원판)
-	_marker_disc(d.start, Color(0.3, 0.6, 1.0))
+	_fog_add(d.start, [_marker_disc(d.start, Color(0.3, 0.6, 1.0))])
 
 	# 몬스터, 보물, 방 번호
 	for r in d.rooms:
@@ -199,12 +213,14 @@ func _build_world() -> void:
 				m.setup(st.model, st.sprite_scale, st.weapon_model)
 				m.position = _top(f[1])
 				m.face(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)), true)
+				_fog_add(f[1], [m])
 		for t in r.treasure:
 			var chest := Kenney.instance("chest")
 			chest.position = _top(t.cell)
 			chest.rotation.y = rng.randi_range(0, 3) * PI / 2.0
 			world.add_child(chest)
 			chests[t.cell] = chest
+			_fog_add(t.cell, [chest])
 			if opened.has(t.cell):
 				_open_chest_anim(chest, true)
 		var lbl := Label3D.new()
@@ -218,6 +234,7 @@ func _build_world() -> void:
 		var rc: Rect2i = r.rect
 		lbl.position = Vector3(rc.position.x + rc.size.x / 2.0, 2.2, rc.position.y + rc.size.y / 2.0)
 		world.add_child(lbl)
+		_fog_add(r.center, [lbl])
 
 	for c in d.campfires:
 		_add_campfire(c)
@@ -285,7 +302,7 @@ func _overlay_layer(col: Color) -> MultiMeshInstance3D:
 	return inst
 
 
-func _marker_disc(c: Vector2i, col: Color) -> void:
+func _marker_disc(c: Vector2i, col: Color) -> Node3D:
 	var disc := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = 0.4
@@ -295,6 +312,7 @@ func _marker_disc(c: Vector2i, col: Color) -> void:
 	disc.material_override = _mat(col, true)
 	disc.position = _top(c) + Vector3(0, 0.04, 0)
 	world.add_child(disc)
+	return disc
 
 
 func _show_room(inst: MultiMeshInstance3D, room: int) -> void:
@@ -375,6 +393,7 @@ func _build_ui() -> void:
 	_slider(box, "encounter_ratio", "몬스터 방 비율", 0.0, 1.0, 0.05)
 	_slider(box, "treasure_ratio", "보물 방 비율", 0.0, 1.0, 0.05)
 	_check(box, "boss_room", "출구 방에 보스")
+	_slider(box, "floor_depth", "층 (깊이)", 1, 20, 1)
 	_slider(box, "campfire_count", "모닥불", 0, 4, 1)
 
 	var copy := Button.new()
@@ -529,6 +548,7 @@ func _set_param(prop: String, value: Variant) -> void:
 	cleared.clear()
 	opened.clear()
 	used_fires.clear()
+	seen.clear()
 	explore_cell = Vector2i(-1, -1)
 	retreat_cell = Vector2i(-1, -1)
 	selected = -1
@@ -625,10 +645,11 @@ func _set_exploring(on: bool) -> void:
 	if on == exploring:
 		return
 	exploring = on
+	Sfx.play(self, "switch")
 	if on:
 		# 생성기에서 새로 시작하면 금화, 층 수, 파이터 상태를 처음부터
 		gold = 0
-		floor_no = 1
+		floor_no = params.floor_depth
 		hero = HeroState.fresh()
 		checkpoint = hero.duplicate_state()
 	else:
@@ -660,6 +681,8 @@ func _apply_mode() -> void:
 			explorer.setup(dungeon, at)
 			explorer.camera_rig = rig
 			explorer.entered_cell.connect(_on_entered_cell)
+		_reveal(explorer.cell)
+		_fog_apply_all()
 		rig.target = explorer
 		rig.ortho_size = 13.0
 		help_label.text = "WASD: 이동 · Q/E: 카메라 회전 · 휠: 줌 · Tab/Esc: 생성기로"
@@ -669,12 +692,14 @@ func _apply_mode() -> void:
 			explorer.queue_free()
 			explorer = null
 		rig.target = focus
+		_fog_apply_all()
 		help_label.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Tab: 탐험 · Esc: 바깥으로"
 		_update_info()
 		_update_selection()
 
 
 func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
+	_reveal(to)
 	# 상자는 옆 칸(대각선 포함)에 서면 열림
 	for c in chests:
 		if not opened.has(c) and maxi(absi(c.x - to.x), absi(c.y - to.y)) <= 1:
@@ -696,6 +721,7 @@ func _start_battle(room: int, from: Vector2i, to: Vector2i) -> void:
 	explore_cell = to
 	retreat_cell = from if dungeon.is_walkable(from) else dungeon.start
 	_toast("몬스터 발견! — " + str(dungeon.rooms[room].encounter.label))
+	Sfx.play(self, "alert")
 	Battle.custom = dungeon.battle_setup(room, to)
 	Battle.custom["hero"] = hero
 	await get_tree().create_timer(0.8).timeout
@@ -711,6 +737,8 @@ func _open_chest(c: Vector2i) -> void:
 				amount = int(t.gold)
 	gold += amount
 	_open_chest_anim(chests[c], false)
+	Sfx.play(self, "chest")
+	get_tree().create_timer(0.35).timeout.connect(func() -> void: Sfx.play(self, "coins"))
 	_toast("보물 상자: %d골드" % amount)
 
 
@@ -726,16 +754,73 @@ func _open_chest_anim(chest: Node3D, instant: bool) -> void:
 func _next_floor() -> void:
 	var keep_gold := gold
 	floor_no += 1
+	Sfx.play(self, "stairs")
 	checkpoint = hero.duplicate_state()
-	# 몬스터 예산을 파이터 레벨에 맞춤
-	if params.party_level != hero.level():
-		params.party_level = hero.level()
-		_syncing = true
-		(controls["party_level"] as HSlider).value = hero.level()
-		_syncing = false
+	# 몬스터 예산을 파이터 레벨과 층 깊이에 맞춤
+	params.party_level = hero.level()
+	params.floor_depth = floor_no
+	_syncing = true
+	(controls["party_level"] as HSlider).value = hero.level()
+	(controls["floor_depth"] as HSlider).value = floor_no
+	_syncing = false
 	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
 	gold = keep_gold
 	_toast("%d층" % floor_no)
+
+
+# --- 전장의 안개: 탐험 중에는 본 칸만 그림 ---
+
+func _fog_add(c: Vector2i, entry: Array) -> void:
+	if not _fog_index.has(c):
+		_fog_index[c] = []
+	_fog_index[c].append(entry)
+
+
+func _fog_show(entry: Array, on: bool) -> void:
+	if entry.size() == 1:
+		(entry[0] as Node3D).visible = on
+		return
+	var xf: Transform3D = entry[2]
+	(entry[0] as MultiMesh).set_instance_transform(entry[1], xf if on else Transform3D(Basis.from_scale(Vector3.ZERO), xf.origin))
+
+
+func _fog_apply_all() -> void:
+	for c in _fog_index:
+		var on := not exploring or seen.has(c)
+		for e in _fog_index[c]:
+			_fog_show(e, on)
+
+
+## 들어선 칸에서 보이는 칸: 방이면 방 전체, 통로면 바닥을 따라 3걸음까지
+static func visible_from(d: Dungeon, c: Vector2i) -> Array:
+	var room := d.room_at(c)
+	if room >= 0:
+		return (d.rooms[room].cells as Array).duplicate()
+	var out: Array = [c]
+	var dist := {c: 0}
+	var q: Array = [c]
+	while not q.is_empty():
+		var cur: Vector2i = q.pop_front()
+		if dist[cur] >= 3:
+			continue
+		for dd in Dungeon.DIRS4:
+			var n: Vector2i = cur + dd
+			if dist.has(n) or not d.is_floor(n):
+				continue
+			dist[n] = dist[cur] + 1
+			out.append(n)
+			q.append(n)
+	return out
+
+
+func _reveal(c: Vector2i) -> void:
+	for n in visible_from(dungeon, c):
+		if seen.has(n):
+			continue
+		seen[n] = true
+		if exploring:
+			for e in _fog_index.get(n, []):
+				_fog_show(e, true)
 
 
 # --- 모닥불과 짧은 휴식 (rules 5.3) ---
@@ -783,6 +868,7 @@ func _add_campfire(c: Vector2i) -> void:
 	light.visible = lit
 	root.add_child(light)
 	fires[c] = {"flame": flame, "light": light}
+	_fog_add(c, [root])
 
 
 ## 옆 칸(대각선 포함)에 아직 안 쓴 모닥불이 있으면 그 칸
@@ -798,6 +884,7 @@ func _open_rest(fire: Vector2i) -> void:
 	rest_log = PackedStringArray()
 	explorer.active = false
 	rest_panel.visible = true
+	Sfx.play(self, "open")
 	_update_rest()
 
 
@@ -805,6 +892,7 @@ func _rest_roll() -> void:
 	var r := hero.spend_hit_die(rest_dice)
 	if r.is_empty():
 		return
+	Sfx.play(self, "dice")
 	rest_log.append("d%d → %d + CON %d = HP +%d" % [hero.hit_die(), r.roll, hero.con_mod(), r.heal])
 	_update_rest()
 	_update_explore_info()
@@ -818,6 +906,7 @@ func _finish_rest() -> void:
 	(f.light as OmniLight3D).visible = false
 	rest_panel.visible = false
 	explorer.active = true
+	Sfx.play(self, "confirm")
 	_toast("짧은 휴식을 마쳤어요 — Second Wind 1회%s 회복" % (", Action Surge" if hero.level() >= 2 else ""))
 	_update_explore_info()
 
