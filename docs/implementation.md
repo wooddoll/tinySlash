@@ -25,7 +25,7 @@
 | `damage.gd` | `Damage` | 피해 수정, 임시 HP, 회복, 사망 내성, 즉사 | 4.2, 5장 |
 | `combat_grid.gd` | `CombatGrid` | 높이, 벽, 험지, 점유, 이동 비용, 길찾기, 엄폐 | 2장 |
 | `combat.gd` | `Combat` | 이니셔티브, 턴, 행동, 공격 판정, 기회 공격, 무기 숙달, 내성 굴림(`saving_throw`, Bless 포함) | 3, 4장 |
-| `monster_ai.gd` | `MonsterAI` | 몬스터 행동 결정 | 8.1 |
+| `monster_ai.gd` | `MonsterAI` | 몬스터 행동 결정 (점수 방식: `target_value`, `priority`, `cover_value`) | 8.1 |
 | `dungeon_params.gd` | `DungeonParams` | 던전 생성 파라미터 (Resource) | 9.2 |
 | `dungeon_generator.gd` | `DungeonGenerator` | 던전 생성 | 9.2, 9.3 |
 | `dungeon.gd` | `Dungeon` | 생성된 던전 데이터, 텍스트 지도, 전투용 지도 잘라내기 | |

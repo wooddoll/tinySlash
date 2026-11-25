@@ -380,6 +380,56 @@ func test_monster_ai_runs_full_combat() -> void:
 
 # --- 7.4~7.6: 동료 클레릭과 주문 ---
 
+## 늑대가 똑같이 3칸 떨어진 두 전사 중 어디로 가는지. setup_b로 B 쪽을 매력 있게 만듭니다.
+func _wolf_choice(setup_b: Callable) -> Array:
+	var cb := setup()
+	var a := spawn(cb, Catalog.fighter(1), 0, Vector2i(2, 1))
+	var b := spawn(cb, Catalog.fighter(1), 0, Vector2i(6, 1))
+	var w := spawn(cb, Catalog.monster("wolf"), 1, Vector2i(4, 4))
+	setup_b.call(a, b)
+	MonsterAI.take_turn(cb, w)
+	return [cb.grid.distance(w.cell, a.cell), cb.grid.distance(w.cell, b.cell)]
+
+
+func test_ai_focuses_hurt_target() -> void:
+	var d := _wolf_choice(func(_a: Creature, b: Creature) -> void: b.hp = 3)
+	eq(d[1], 1, "wolf goes to the hurt fighter")
+	check(d[0] > 1, "not to the healthy one")
+
+
+func test_ai_targets_concentration() -> void:
+	var d := _wolf_choice(func(_a: Creature, b: Creature) -> void: b.concentration = "bless")
+	eq(d[1], 1, "wolf goes to the concentrating one")
+
+
+func test_ai_avoids_blessed() -> void:
+	var d := _wolf_choice(func(a: Creature, b: Creature) -> void: a.add_effect("blessed", b, "never"))
+	eq(d[1], 1, "wolf skips the blessed fighter")
+
+
+func test_ai_priority() -> void:
+	var cb := setup()
+	var cl := spawn(cb, Catalog.cleric(1), 0, Vector2i(1, 1))
+	var f := spawn(cb, Catalog.fighter(1), 0, Vector2i(2, 1))
+	check(MonsterAI.priority(cl) > MonsterAI.priority(f), "caster first")
+	var before := MonsterAI.priority(cl)
+	cl.concentration = "bless"
+	check(MonsterAI.priority(cl) > before, "concentration raises priority")
+
+
+func test_ai_archer_takes_cover() -> void:
+	var cb := setup()
+	var f := spawn(cb, Catalog.fighter(1), 0, Vector2i(0, 2))
+	var g := spawn(cb, Catalog.monster("goblin_warrior"), 1, Vector2i(6, 5))
+	for y in 6:
+		if y != 2:
+			cb.grid.walls[Vector2i(4, y)] = 1.0  # 낮은 담 (절반 엄폐), 가운데만 비움
+	MonsterAI.take_turn(cb, g)
+	check(cb.grid.distance(g.cell, f.cell) > 1, "archer keeps distance")
+	check(MonsterAI.cover_value(cb, g.cell, [f] as Array[Creature]) > 0.0,
+		"archer stands behind the wall (at %s)" % g.cell)
+
+
 func _cleric_party(level := 1) -> Array:
 	var cb := setup()
 	var c := spawn(cb, Catalog.cleric(level), 0, Vector2i(1, 1))
