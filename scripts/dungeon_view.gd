@@ -13,10 +13,21 @@ const THEME_IDS := ["mixed", "goblin", "undead", "beast"]
 const THEME_NAMES := ["섞어서", "고블린", "언데드", "야수"]
 const KIND_NAMES := {"start": "시작 방", "exit": "출구 방", "normal": "방"}
 
+const Explorer = preload("res://scripts/dungeon_explorer.gd")
+
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
 static var selected := -1
 static var cleared := {}
+## 탐험 모드 상태 (전투에 다녀와도 이어짐)
+static var exploring := false
+## 탐험을 다시 시작할 칸 (-1이면 시작 지점)
+static var explore_cell := Vector2i(-1, -1)
+## 방에 들어서기 직전 칸. 전투에서 도망치면(Esc) 여기로 돌아옴
+static var retreat_cell := Vector2i(-1, -1)
+static var opened := {}
+static var gold := 0
+static var floor_no := 1
 
 @onready var focus: Node3D = $Focus
 @onready var rig: Node3D = $CameraRig
@@ -38,6 +49,14 @@ var info_label: RichTextLabel
 var room_label: RichTextLabel
 var fight_button: Button
 var seed_box: SpinBox
+var left_panel: Control
+var help_label: Label
+var toast: Label
+
+# 탐험
+var explorer: Explorer
+var chests := {}
+var _leaving := false
 
 
 func _ready() -> void:
@@ -52,8 +71,14 @@ func _ready() -> void:
 
 
 func _take_battle_result() -> void:
-	if Battle.custom.get("result", "") == "win":
-		cleared[int(Battle.custom.room_id)] = true
+	if Battle.custom.has("room_id"):
+		match Battle.custom.get("result", ""):
+			"win":
+				cleared[int(Battle.custom.room_id)] = true  # 들어선 칸에서 계속
+			"lose":
+				explore_cell = Vector2i(-1, -1)  # 시작 지점으로 [임시: 체크포인트 대신]
+			_:
+				explore_cell = retreat_cell  # 도망침
 	Battle.custom = {}
 
 
@@ -67,6 +92,8 @@ func _generate() -> void:
 		selected = -1
 	if world:
 		world.queue_free()
+	explorer = null
+	chests.clear()
 	world = Node3D.new()
 	world.name = "World"
 	add_child(world)
@@ -79,6 +106,7 @@ func _generate() -> void:
 		rig.ortho_size = clampf(maxf(sz.x, sz.y) * 0.72, rig.min_ortho_size, rig.max_ortho_size)
 	_update_info()
 	_update_selection()
+	_apply_mode()
 
 
 func _build_world() -> void:
@@ -156,6 +184,9 @@ func _build_world() -> void:
 			chest.position = _top(t.cell)
 			chest.rotation.y = rng.randi_range(0, 3) * PI / 2.0
 			world.add_child(chest)
+			chests[t.cell] = chest
+			if opened.has(t.cell):
+				_open_chest_anim(chest, true)
 		var lbl := Label3D.new()
 		lbl.text = str(r.id) + (" ✓" if done else "")
 		lbl.font_size = 64
@@ -264,6 +295,7 @@ func _build_ui() -> void:
 	panel.offset_right = 300
 	panel.add_theme_stylebox_override("panel", _panel_style())
 	layer.add_child(panel)
+	left_panel = panel
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
@@ -273,6 +305,10 @@ func _build_ui() -> void:
 	scroll.add_child(box)
 
 	_title(box, "던전 생성기")
+	var go := Button.new()
+	go.text = "이 던전 탐험하기 (Tab)"
+	go.pressed.connect(func() -> void: _set_exploring(true))
+	box.add_child(go)
 	_option(box, "algorithm", "방식", ALGO_NAMES)
 
 	var seed_row := HBoxContainer.new()
@@ -341,8 +377,19 @@ func _build_ui() -> void:
 	fight_button.pressed.connect(_fight)
 	rbox.add_child(fight_button)
 
+	toast = Label.new()
+	toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	toast.offset_top = 140
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_font_size_override("font_size", 28)
+	toast.add_theme_constant_override("outline_size", 8)
+	toast.add_theme_color_override("font_outline_color", Color.BLACK)
+	toast.modulate.a = 0.0
+	layer.add_child(toast)
+
 	var help := Label.new()
-	help.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Esc: 탐험으로"
+	help_label = help
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	help.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	help.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -455,6 +502,9 @@ func _set_param(prop: String, value: Variant) -> void:
 		return
 	params.set(prop, value)
 	cleared.clear()
+	opened.clear()
+	explore_cell = Vector2i(-1, -1)
+	retreat_cell = Vector2i(-1, -1)
 	selected = -1
 	_regen_in = 0.2  # 슬라이더를 끄는 동안 너무 자주 만들지 않게
 
@@ -505,22 +555,161 @@ func _update_selection() -> void:
 # =====================================================================
 
 func _process(delta: float) -> void:
-	# 왼쪽 패널(300px)에 가리지 않게 화면 중심을 오른쪽으로 옮김
-	camera.h_offset = -150.0 * camera.size / get_viewport().get_visible_rect().size.y
 	if _regen_in > 0.0:
 		_regen_in -= delta
 		if _regen_in <= 0.0:
 			_generate()
+	if exploring:
+		camera.h_offset = 0.0
+		if _leaving:
+			return
+		if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+			_set_exploring(false)
+		elif Input.is_action_just_pressed("end_turn") and explorer and explorer.cell == dungeon.exit:
+			_next_floor()
+		return
+	# 왼쪽 패널(300px)에 가리지 않게 화면 중심을 오른쪽으로 옮김
+	camera.h_offset = -150.0 * camera.size / get_viewport().get_visible_rect().size.y
 	var v := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if v != Vector2.ZERO:
 		focus.position += Vector3(v.x, 0, v.y).rotated(Vector3.UP, rig.rotation.y) * 14.0 * delta
 	if Input.is_action_just_pressed("start_battle"):
 		_fight()
+	elif Input.is_action_just_pressed("explore"):
+		_set_exploring(true)
 	elif Input.is_action_just_pressed("back"):
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
+# =====================================================================
+# 탐험 모드: 던전 안을 걸어 다니다가 몬스터 방에 들어서면 전투
+# =====================================================================
+
+func _set_exploring(on: bool) -> void:
+	if on == exploring:
+		return
+	exploring = on
+	if on:
+		# 생성기에서 새로 시작하면 금화와 층 수를 처음부터
+		gold = 0
+		floor_no = 1
+	else:
+		if explorer:
+			explore_cell = explorer.cell
+			focus.position = explorer.position
+		rig.ortho_size = clampf(maxf(dungeon.width, dungeon.height) * 0.72, rig.min_ortho_size, rig.max_ortho_size)
+	get_viewport().gui_release_focus()
+	_apply_mode()
+
+
+## 지금 모드에 맞게 플레이어, 카메라, UI를 맞춤
+func _apply_mode() -> void:
+	left_panel.visible = not exploring
+	fight_button.visible = not exploring
+	_show_room(hover_mesh, -1)
+	if exploring:
+		_show_room(select_mesh, -1)
+		if explorer == null:
+			var at := explore_cell if dungeon.is_walkable(explore_cell) else dungeon.start
+			explorer = Explorer.new()
+			world.add_child(explorer)
+			explorer.setup(dungeon, at)
+			explorer.camera_rig = rig
+			explorer.entered_cell.connect(_on_entered_cell)
+		rig.target = explorer
+		rig.ortho_size = 13.0
+		help_label.text = "WASD: 이동 · Q/E: 카메라 회전 · 휠: 줌 · Tab/Esc: 생성기로"
+		_update_explore_info()
+	else:
+		if explorer:
+			explorer.queue_free()
+			explorer = null
+		rig.target = focus
+		help_label.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Tab: 탐험 · Esc: 바깥으로"
+		_update_info()
+		_update_selection()
+
+
+func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
+	# 상자는 옆 칸(대각선 포함)에 서면 열림
+	for c in chests:
+		if not opened.has(c) and maxi(absi(c.x - to.x), absi(c.y - to.y)) <= 1:
+			_open_chest(c)
+	var r := dungeon.room_at(to)
+	if r >= 0 and not cleared.has(r) and not dungeon.rooms[r].encounter.is_empty():
+		_start_battle(r, from, to)
+		return
+	if to == dungeon.exit:
+		_toast("출구 계단 — Enter: 다음 층으로")
+	_update_explore_info()
+
+
+func _start_battle(room: int, from: Vector2i, to: Vector2i) -> void:
+	_leaving = true
+	explorer.active = false
+	explore_cell = to
+	retreat_cell = from if dungeon.is_walkable(from) else dungeon.start
+	_toast("몬스터 발견! — " + str(dungeon.rooms[room].encounter.label))
+	Battle.custom = dungeon.battle_setup(room, to)
+	await get_tree().create_timer(0.8).timeout
+	get_tree().change_scene_to_file("res://scenes/battle.tscn")
+
+
+func _open_chest(c: Vector2i) -> void:
+	opened[c] = true
+	var amount := 0
+	for r in dungeon.rooms:
+		for t in r.treasure:
+			if t.cell == c:
+				amount = int(t.gold)
+	gold += amount
+	_open_chest_anim(chests[c], false)
+	_toast("보물 상자: %d골드" % amount)
+
+
+func _open_chest_anim(chest: Node3D, instant: bool) -> void:
+	var ap := chest.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap == null or not ap.has_animation("open"):
+		return
+	ap.play("open")
+	if instant:
+		ap.seek(ap.current_animation_length, true)
+
+
+func _next_floor() -> void:
+	var keep_gold := gold
+	floor_no += 1
+	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
+	gold = keep_gold
+	_toast("%d층" % floor_no)
+
+
+func _toast(text: String) -> void:
+	toast.text = text
+	var tw := create_tween()
+	toast.modulate.a = 1.0
+	tw.tween_interval(1.6)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.5)
+
+
+func _update_explore_info() -> void:
+	var left := 0
+	for r in dungeon.rooms:
+		if not r.encounter.is_empty() and not cleared.has(r.id):
+			left += 1
+	info_label.text = "[b]탐험 중[/b]  %d층 · 시드 %d\n금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물" % [
+		floor_no, dungeon.seed_used, gold, left]
+	var here := dungeon.room_at(explorer.cell) if explorer else -1
+	if here < 0:
+		room_label.text = "[color=gray]통로[/color]"
+	else:
+		var r: Dictionary = dungeon.rooms[here]
+		room_label.text = "%s %d%s" % [KIND_NAMES[r.kind], here, "  [color=#6d6]정리함 ✓[/color]" if cleared.has(here) else ""]
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if exploring:
+		return
 	if event is InputEventMouseMotion:
 		var room := _room_under(event.position)
 		if room != hover_room:

@@ -154,7 +154,8 @@ func to_ascii(show_contents := true) -> String:
 
 ## 방 하나를 전투 장면용 지도로 잘라냅니다 (scripts/battle.gd의 MAP 기호).
 ## X 던전 벽  P 기둥  # 바위  , 험지  1/2 높이  . 바닥
-func battle_setup(room_id: int) -> Dictionary:
+## entry: 탐험 중 플레이어가 방에 들어선 칸. 주면 그 칸에서 전투를 시작합니다.
+func battle_setup(room_id: int, entry := Vector2i(-1, -1)) -> Dictionary:
 	var room: Dictionary = rooms[room_id]
 	var rect: Rect2i = (room.rect as Rect2i).grow(2).intersection(Rect2i(0, 0, width, height))
 	var map: Array[String] = []
@@ -186,7 +187,9 @@ func battle_setup(room_id: int) -> Dictionary:
 
 	# 시작 지점에서 이 방까지 걸어온 길이 처음 지도 안으로 들어오는 칸에서 시작
 	var pc_cell: Vector2i = room.center
-	if room_id != start_room:
+	if rect.has_point(entry) and is_walkable(entry) and not taken.has(entry):
+		pc_cell = entry
+	elif room_id != start_room:
 		var fl := flood(start)
 		var trail: Array[Vector2i] = []
 		var c: Vector2i = room.center

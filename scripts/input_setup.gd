@@ -11,6 +11,7 @@ const MAP := {
 	"cam_right": [KEY_E],
 	"start_battle": [KEY_B],
 	"open_dungeon": [KEY_G],
+	"explore": [KEY_TAB],
 	"end_turn": [KEY_ENTER, KEY_KP_ENTER],
 	"back": [KEY_ESCAPE],
 }

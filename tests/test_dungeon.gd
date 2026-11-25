@@ -216,3 +216,34 @@ func test_tiny_and_extreme_params_do_not_crash() -> void:
 		var d := DungeonGenerator.generate(p)
 		check(d.rooms.size() >= 1, "algo %d has a room" % algo)
 		check(d.is_walkable(d.start), "algo %d start walkable" % algo)
+
+
+func test_battle_setup_uses_entry_cell() -> void:
+	for algo in ALGOS:
+		var d := DungeonGenerator.generate(params(algo, 7))
+		for r in d.rooms:
+			if r.encounter.is_empty():
+				continue
+			var taken := {}
+			for f in r.encounter.foes:
+				taken[f[1]] = true
+			var entry: Vector2i = Vector2i(-1, -1)
+			for c in r.cells:
+				if d.is_walkable(c) and not taken.has(c):
+					entry = c
+					break
+			var b := d.battle_setup(r.id, entry)
+			var rect: Rect2i = (r.rect as Rect2i).grow(2).intersection(Rect2i(0, 0, d.width, d.height))
+			eq(b.pc_start, entry - rect.position, "algo %d room %d starts at entry" % [algo, r.id])
+
+
+func test_explorer_collision() -> void:
+	const Explorer = preload("res://scripts/dungeon_explorer.gd")
+	var d := DungeonGenerator.generate(params(DungeonParams.Algorithm.BSP, 3))
+	var s := d.start
+	check(Explorer.can_stand(d, Vector2(s.x + 0.5, s.y + 0.5)), "can stand at start")
+	# 벽 칸 한가운데는 못 섬
+	var wall := Vector2i(0, 0)
+	check(not Explorer.can_stand(d, Vector2(wall.x + 0.5, wall.y + 0.5)), "cannot stand in wall")
+	for c in d.obstacles:
+		check(not Explorer.can_stand(d, Vector2(c.x + 0.5, c.y + 0.5)), "cannot stand on obstacle")
