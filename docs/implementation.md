@@ -17,7 +17,7 @@
 | `rules.gd` | `Rules` | 능력 수정치, 숙련 보너스, 이점·불리점 상쇄, 내성 DC, XP → 레벨 | 1장 |
 | `dice.gd` | `Dice` | 모든 주사위 굴림. 시드 고정, 테스트용 `forced` 값 | 1.3 |
 | `weapon_data.gd` | `WeaponData` | 무기 데이터 (Resource) | 4.4 |
-| `creature_stats.gd` | `CreatureStats` | 크리처 스탯 블록 (Resource) | 7, 8장 |
+| `creature_stats.gd` | `CreatureStats` | 크리처 스탯 블록 (Resource). 화면용 `model`, `weapon_model`, `sprite_scale`(크기)도 여기 | 7, 8장 |
 | `catalog.gd` | `Catalog` | 무기 11종, 파이터 레벨 1~5, 몬스터 5종 데이터 | 4.4, 7, 8장 |
 | `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원 | 3.3, 6장 |
 | `damage.gd` | `Damage` | 피해 수정, 임시 HP, 회복, 사망 내성, 즉사 | 4.2, 5장 |
@@ -37,8 +37,19 @@
 
 공통:
 - `camera_rig.gd`: 아이소메트릭 카메라입니다. 직교 투영, 30° 내려다보기, 45° 회전이고, `isometric`을 끄면 원근 시점이 됩니다.
-- `sprite_factory.gd`: 캐릭터 시트, 나무, 풀 텍스처를 코드로 그립니다. 캐릭터 시트는 5방향 × 4프레임이고, 나머지 3방향은 좌우 반전으로 만듭니다 (8방향).
+- `character_model.gd`: Kenney 3D 캐릭터 하나. 기본 동작(idle, walk, sprint, crouch)은 반복하고, 공격 같은 동작은 한 번 하고 돌아옵니다. 쓰러지면 die 자세로 멈춥니다. 맞으면 붉게 번쩍이고, 오른팔 뼈에 무기 모델을 붙입니다 (위치는 손을 따라가고 방향은 몸 기준으로 고정).
+- `sprite_factory.gd`: 나무와 풀 텍스처를 코드로 그립니다. 예전 8방향 캐릭터 시트 함수도 남아 있지만 지금은 쓰지 않습니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다.
+- `kenney.gd`: `assets/kenney/`의 GLB 모델에서 메시를 꺼내 줍니다.
+
+### 1.3 에셋 (`assets/kenney/`, CC0)
+| 팩 | 크기 기준 | 쓰는 곳 |
+|---|---|---|
+| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 던전 생성기와 던전 전투의 바닥, 벽, 기둥(`column`), 바위(`rocks`), 잔해(`stones`), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
+| Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
+| Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 아직 안 씀 |
+
+팩마다 GLB 모델, `Textures/colormap.png`, `License.txt`, `Preview.png`만 넣었습니다 (FBX, OBJ는 뺌).
 
 ## 2. 설계
 
@@ -70,7 +81,7 @@
 | 몬스터 5종과 특성 (Pack Tactics, Redirect Attack, Nimble Escape 등), AI |
 | 이니셔티브 동점 처리, 승리·패배, XP |
 | 던전 생성기 (BSP / 흩뿌리기 / 동굴), SRD XP 예산 조우, 보물, 방에서 전투 시작 |
-| 아이소메트릭 카메라, 8방향 스프라이트 |
+| 아이소메트릭 카메라, Kenney 3D 모델 (지형, 캐릭터 애니메이션) |
 
 아직 안 된 것은 [todo.md](todo.md)를 보세요.
 

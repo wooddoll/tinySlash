@@ -9,3 +9,9 @@ Changes were made: rules were adapted for a grid-based, turn-based video game
 (see `docs/rules.md`, entries marked [변경]).
 
 This project is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.
+
+## 3D models
+
+Mini Dungeon, Mini Characters, and Modular Dungeon Kit by Kenney (www.kenney.nl),
+licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
+Files are in `assets/kenney/<pack>/` with each pack's `License.txt`.

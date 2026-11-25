@@ -1,39 +1,29 @@
-## 전투 격자 위 크리처 한 명의 모습 (8방향 스프라이트 + 이름/HP 표시)
+## 전투 격자 위 크리처 한 명의 모습 (Kenney 3D 모델 + 이름/HP 표시)
 extends Node3D
 
-const SpriteFactory = preload("res://scripts/sprite_factory.gd")
-const Player = preload("res://scripts/player.gd")
+const CharacterModel = preload("res://scripts/character_model.gd")
 
 var creature: Creature
-var sprite: Sprite3D
+var body: CharacterModel
 var label: Label3D
 var marker: Label3D
-var facing := Vector3(0, 0, 1)
-var walking := false
 var shown_hp := 0
-var _anim := 0.0
-var _base_y := 0.0
+## 이동 중이면 걷기 동작
+var walking := false:
+	set(v):
+		walking = v
+		_update_pose()
 
 
-func setup(c: Creature, tex: Texture2D) -> void:
+func setup(c: Creature) -> void:
 	creature = c
 	var s := c.stats.sprite_scale
-	sprite = Sprite3D.new()
-	sprite.texture = tex
-	sprite.hframes = SpriteFactory.FRAMES
-	sprite.vframes = SpriteFactory.DIRECTIONS
-	sprite.pixel_size = 0.0625 * s
-	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.shaded = true
-	sprite.modulate = c.stats.tint
-	_base_y = 0.75 * s
-	sprite.position.y = _base_y
-	add_child(sprite)
+	body = CharacterModel.new()
+	add_child(body)
+	body.setup(c.stats.model, s, c.stats.weapon_model)
 
 	label = _make_label(40)
-	label.position.y = 1.5 * s + 0.25
+	label.position.y = body.height + 0.35
 	add_child(label)
 	marker = _make_label(64)
 	marker.text = "▼"
@@ -43,19 +33,19 @@ func setup(c: Creature, tex: Texture2D) -> void:
 	add_child(marker)
 
 	# 마우스로 고를 수 있게 충돌체를 붙입니다
-	var body := StaticBody3D.new()
-	body.set_meta("creature", c)
+	var col := StaticBody3D.new()
+	col.set_meta("creature", c)
 	var shape := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.35
-	cap.height = 1.4 * s
+	cap.height = maxf(body.height, 0.8)
 	shape.shape = cap
-	shape.position.y = 0.7 * s
-	body.add_child(shape)
-	add_child(body)
+	shape.position.y = cap.height / 2.0
+	col.add_child(shape)
+	add_child(col)
 
 	shown_hp = c.hp
-	set_facing(c.facing)
+	set_facing(c.facing, true)
 	refresh()
 
 
@@ -70,9 +60,9 @@ func _make_label(size: int) -> Label3D:
 	return l
 
 
-func set_facing(d: Vector2i) -> void:
+func set_facing(d: Vector2i, instant := false) -> void:
 	if d != Vector2i.ZERO:
-		facing = Vector3(d.x, 0, d.y).normalized()
+		body.face(Vector3(d.x, 0, d.y), instant)
 
 
 func set_hp(hp: int) -> void:
@@ -84,6 +74,15 @@ func set_active(active: bool) -> void:
 	marker.visible = active
 
 
+## 공격 동작. 원거리면 쏘는 자세
+func attack(ranged: bool) -> void:
+	body.play_once("holding-right-shoot" if ranged else "attack-melee-right")
+
+
+func hit_flash() -> void:
+	body.flash()
+
+
 func refresh() -> void:
 	var state := ""
 	if creature.has_condition("unconscious"):
@@ -92,31 +91,18 @@ func refresh() -> void:
 		state = " (넘어짐)"
 	label.text = "%s%s\n%d/%d" % [creature.display_name, state, shown_hp, creature.stats.max_hp]
 	label.modulate = Color(1, 0.5, 0.45) if shown_hp * 2 <= creature.stats.max_hp else Color.WHITE
-	# 넘어지면 몸을 낮춰서 보여줍니다
-	sprite.position.y = _base_y * (0.55 if creature.has_condition("prone") else 1.0)
+	_update_pose()
 
 
-func _process(delta: float) -> void:
-	if sprite == null:
+## 쓰러짐 > 넘어짐(웅크림) > 걷기 > 서 있기
+func _update_pose() -> void:
+	if body == null or creature == null:
 		return
-	var col := 0
-	if walking:
-		_anim += delta * 10.0
-		col = int(_anim) % SpriteFactory.FRAMES
-	var row := 0
-	var flip := false
-	var cam := get_viewport().get_camera_3d()
-	if cam:
-		var entry: Array = Player.DIR_TO_ROW[_view_dir(cam)]
-		row = entry[0]
-		flip = entry[1]
-	sprite.frame_coords = Vector2i(col, row)
-	sprite.flip_h = flip
-
-
-func _view_dir(cam: Camera3D) -> int:
-	var b := cam.global_basis
-	var right := Vector3(b.x.x, 0.0, b.x.z).normalized()
-	var forward := Vector3(-b.z.x, 0.0, -b.z.z).normalized()
-	var angle := atan2(facing.dot(right), -facing.dot(forward))
-	return posmod(roundi(angle / (PI / 4.0)), 8)
+	if creature.dead or creature.has_condition("unconscious"):
+		body.hold("die")
+	elif creature.has_condition("prone"):
+		body.set_base("crouch")
+	elif walking:
+		body.set_base("walk")
+	else:
+		body.set_base("idle")

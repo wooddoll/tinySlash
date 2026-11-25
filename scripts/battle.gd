@@ -5,6 +5,7 @@ extends Node3D
 const SpriteFactory = preload("res://scripts/sprite_factory.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
+const Kenney = preload("res://scripts/kenney.gd")
 
 ## . 평지  1/2/3 높이 0.5/1.0/1.5  , 험지(덤불)  T 나무(완전 엄폐)  # 바위(낮은 벽)
 ## 던전용: X 던전 벽(통과 불가, 완전 엄폐)  P 돌기둥(완전 엄폐)
@@ -145,13 +146,8 @@ func _build_world() -> void:
 			if ch == "X":
 				# 바닥과 맞닿은 벽만 그립니다 (안쪽 벽은 격자에만 있음)
 				if _touches_floor(map, x, y):
-					var wall := MeshInstance3D.new()
-					var wb := BoxMesh.new()
-					wb.size = Vector3(1, 1.0, 1)  # 보기 편하게 낮게 그림 (규칙상 높이는 3.0)
-					wall.mesh = wb
-					wall.material_override = mats["wall"]
-					wall.position = Vector3(x + 0.5, 0.0, y + 0.5)
-					terrain.add_child(wall)
+					# 보기 편하게 1칸 높이 벽으로 그림 (규칙상 높이는 3.0)
+					_kenney(terrain, "wall", Vector3(x + 0.5, 0.0, y + 0.5), 0.0)
 				continue
 
 			var body := StaticBody3D.new()
@@ -169,6 +165,10 @@ func _build_world() -> void:
 			elif ch == ",":
 				mat_key = "brush"
 			mesh.material_override = mats[mat_key]
+			if _dungeon():
+				mesh.material_override = mats["wall"]
+				var tile := "floor-detail" if (x * 7 + y * 13) % 9 == 0 else "floor"
+				_kenney(terrain, tile, Vector3(x + 0.5, th + 0.002, y + 0.5), ((x * 3 + y) % 4) * PI / 2.0)
 			body.add_child(mesh)
 			var shape := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
@@ -183,6 +183,12 @@ func _build_world() -> void:
 				var tree := _billboard(tree_tex, 1.0 / 12.0)
 				tree.position = top + Vector3(0, 2.0, 0)
 				terrain.add_child(tree)
+			elif ch == "P" and _dungeon():
+				_kenney(terrain, "column", top, 0.0)
+			elif ch == "#" and _dungeon():
+				_kenney(terrain, "rocks", top, (x % 4) * PI / 2.0)
+			elif ch == "," and _dungeon():
+				_kenney(terrain, "stones", top, (y % 4) * PI / 2.0)
 			elif ch == "P":
 				var pillar := MeshInstance3D.new()
 				var cyl := CylinderMesh.new()
@@ -216,6 +222,15 @@ func _build_world() -> void:
 			terrain.add_child(ov)
 			overlays[cell] = ov
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
+
+
+## Kenney Mini Dungeon 모델 하나를 칸 위에 놓습니다 (그림자만 있고 충돌은 칸 상자가 맡음)
+func _kenney(parent: Node3D, model: String, pos: Vector3, yaw: float) -> void:
+	var m := MeshInstance3D.new()
+	m.mesh = Kenney.mesh(model)
+	m.position = pos
+	m.rotation.y = yaw
+	parent.add_child(m)
 
 
 func _touches_floor(map: Array, x: int, y: int) -> bool:
@@ -276,14 +291,13 @@ func _spawn_units() -> void:
 		var to_pc: Vector2i = pc.cell - (entry[1] as Vector2i)
 		c.facing = Vector2i(signi(to_pc.x), signi(to_pc.y)) if to_pc != Vector2i.ZERO else Vector2i(-1, 0)
 		combat.add(c, entry[1])
-	var tex := SpriteFactory.make_character_sheet()
 	var units := Node3D.new()
 	units.name = "Units"
 	add_child(units)
 	for c in combat.creatures:
 		var v := UnitView.new()
 		units.add_child(v)
-		v.setup(c, tex)
+		v.setup(c)
 		v.position = cell_pos(c.cell)
 		views[c] = v
 
@@ -525,29 +539,32 @@ func _anim_attack(ev: Dictionary) -> void:
 	var a = views[ev.attacker]
 	var t = views[ev.target]
 	a.set_facing(ev.target.cell - ev.attacker.cell)
+	var ranged: bool = ev.get("ranged", false)
+	a.attack(ranged)
 	var start: Vector3 = a.position
-	var lunge: Vector3 = start + (t.position - start).normalized() * 0.3
 	var tw := create_tween()
-	tw.tween_property(a, "position", lunge, 0.08)
-	tw.tween_property(a, "position", start, 0.1)
+	if not ranged:
+		var lunge: Vector3 = start + (t.position - start).normalized() * 0.25
+		tw.tween_property(a, "position", lunge, 0.1)
+		tw.tween_property(a, "position", start, 0.12)
+	else:
+		tw.tween_interval(0.2)
+	await tw.finished
 	if ev.hit:
-		var sp: Sprite3D = t.sprite
-		var base: Color = ev.target.stats.tint
-		var flash := create_tween()
-		flash.tween_property(sp, "modulate", Color(1, 0.2, 0.2), 0.06)
-		flash.tween_property(sp, "modulate", base, 0.2)
+		t.hit_flash()
 	else:
 		_float_text(t.position, "빗나감", Color(0.8, 0.8, 0.8))
-	await tw.finished
-	await get_tree().create_timer(0.2).timeout
+	await get_tree().create_timer(0.25).timeout
 
 
 func _anim_vanish(c: Creature) -> void:
 	var v = views[c]
 	v.set_active(false)
 	v.label.visible = false
+	v.body.hold("die")
+	await get_tree().create_timer(0.5).timeout
 	var tw := create_tween()
-	tw.tween_property(v.sprite, "modulate:a", 0.0, 0.4)
+	tw.tween_property(v, "scale", Vector3(1, 0.01, 1), 0.3)
 	await tw.finished
 	v.visible = false
 

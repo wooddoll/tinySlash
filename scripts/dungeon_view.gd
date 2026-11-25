@@ -2,9 +2,10 @@
 ## 방을 클릭해서 고른 뒤 B(또는 버튼)로 그 방에서 전투를 시작합니다.
 extends Node3D
 
-const SpriteFactory = preload("res://scripts/sprite_factory.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Battle = preload("res://scripts/battle.gd")
+const Kenney = preload("res://scripts/kenney.gd")
+const CharacterModel = preload("res://scripts/character_model.gd")
 
 const ALGO_NAMES := ["BSP (고르게 나눈 방)", "흩뿌린 방", "동굴"]
 const DIFF_NAMES := ["낮음 (Low)", "보통 (Moderate)", "높음 (High)"]
@@ -82,104 +83,69 @@ func _generate() -> void:
 
 func _build_world() -> void:
 	var d := dungeon
-	var tiles := _multimesh(BoxMesh.new())
-	var walls := _multimesh(BoxMesh.new())
-	var rubble_box := BoxMesh.new()
-	rubble_box.size = Vector3(0.22, 0.12, 0.22)
-	var rubble := _multimesh(rubble_box)
-	var tile_xf: Array = []
-	var wall_xf: Array = []
-	var rub_xf: Array = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = d.seed_used
+	# 높은 칸의 옆면만 상자로, 윗면과 나머지는 Kenney Mini Dungeon 모델
+	var bases := _multimesh(BoxMesh.new())
+	var base_xf: Array = []
+	var model_xf := {}  # 모델 이름 -> [Transform3D]
+	var add := func(model: String, xf: Transform3D) -> void:
+		if not model_xf.has(model):
+			model_xf[model] = []
+		model_xf[model].append(xf)
+	var spin := func() -> Basis:
+		return Basis(Vector3.UP, rng.randi_range(0, 3) * PI / 2.0)
 
 	for y in d.height:
 		for x in d.width:
 			var c := Vector2i(x, y)
+			var pos := Vector3(x + 0.5, 0.0, y + 0.5)
 			if d.is_floor(c):
 				var h := d.get_height(c)
-				var col := Color(0.47, 0.45, 0.43) if (x + y) % 2 == 0 else Color(0.43, 0.41, 0.4)
-				if d.get_tile(c) == Dungeon.Tile.DOOR:
-					col = Color(0.5, 0.36, 0.22)
-				elif d.room_at(c) == -1:
-					col = col.darkened(0.15)
+				pos.y = h
 				if h > 0.0:
-					col = Color(0.56, 0.53, 0.49) if h < 1.0 else Color(0.63, 0.6, 0.55)
+					base_xf.append([Transform3D(Basis.from_scale(Vector3(1, h, 1)), pos - Vector3(0, h / 2.0, 0)),
+							Color(0.42, 0.4, 0.45)])
+				add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos))
 				if d.difficult.has(c):
-					col = col.darkened(0.12)
-					for i in 3:
-						rub_xf.append([Transform3D(Basis.IDENTITY.rotated(Vector3.UP, rng.randf() * TAU),
-								Vector3(x + rng.randf_range(0.2, 0.8), h + 0.06, y + rng.randf_range(0.2, 0.8))),
-								Color(0.4, 0.37, 0.34)])
-				var bh := h + 0.5
-				tile_xf.append([Transform3D(Basis.from_scale(Vector3(1, bh, 1)),
-						Vector3(x + 0.5, h - bh / 2.0, y + 0.5)), col])
+					add.call("stones", Transform3D(spin.call(), pos))
 			elif _touches_floor(c):
-				wall_xf.append([Transform3D(Basis.from_scale(Vector3(1, 1.2, 1)),
-						Vector3(x + 0.5, 0.1, y + 0.5)), Color(0.3, 0.29, 0.33)])
-	_fill(tiles, tile_xf)
-	_fill(walls, wall_xf)
-	_fill(rubble, rub_xf)
+				add.call("wall", Transform3D(Basis.IDENTITY, pos))
+	_fill(bases, base_xf)
 
-	# 기둥과 바위
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.3
-	cyl.bottom_radius = 0.36
-	cyl.height = 1.8
-	var pillars := _multimesh(cyl)
-	var rock_box := BoxMesh.new()
-	rock_box.size = Vector3(0.75, 0.6, 0.75)
-	var rocks := _multimesh(rock_box)
-	var p_xf: Array = []
-	var r_xf: Array = []
 	for c in d.obstacles:
-		var top := Vector3(c.x + 0.5, d.get_height(c), c.y + 0.5)
 		if d.obstacles[c] >= 2.0:
-			p_xf.append([Transform3D(Basis.IDENTITY, top + Vector3(0, 0.9, 0)), Color(0.62, 0.6, 0.56)])
+			add.call("column", Transform3D(Basis.IDENTITY, _top(c)))
 		else:
-			r_xf.append([Transform3D(Basis.IDENTITY.rotated(Vector3.UP, rng.randf()), top + Vector3(0, 0.3, 0)),
-					Color(0.5, 0.48, 0.45)])
-	_fill(pillars, p_xf)
-	_fill(rocks, r_xf)
+			add.call("rocks", Transform3D(spin.call(), _top(c)))
+	add.call("stairs", Transform3D(Basis.IDENTITY, _top(d.exit)))
 
-	# 시작(파란 원판), 출구(계단)
+	for model in model_xf:
+		var inst := _multimesh(Kenney.mesh(model), false)
+		var mm := inst.multimesh
+		var list: Array = model_xf[model]
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i])
+
+	# 시작 지점 (파란 원판)
 	_marker_disc(d.start, Color(0.3, 0.6, 1.0))
-	for i in 3:
-		var step := MeshInstance3D.new()
-		var sb := BoxMesh.new()
-		sb.size = Vector3(0.8 - i * 0.22, 0.18, 0.8 - i * 0.22)
-		step.mesh = sb
-		step.material_override = _mat(Color(0.35, 0.85, 0.45), true)
-		step.position = _top(d.exit) + Vector3(0, 0.09 + i * 0.18, 0)
-		world.add_child(step)
 
 	# 몬스터, 보물, 방 번호
-	var sheet := SpriteFactory.make_character_sheet()
 	for r in d.rooms:
 		var done: bool = cleared.has(r.id)
 		if not r.encounter.is_empty() and not done:
 			for f in r.encounter.foes:
 				var st := Catalog.monster(f[0])
-				var s := Sprite3D.new()
-				s.texture = sheet
-				s.hframes = SpriteFactory.FRAMES
-				s.vframes = SpriteFactory.DIRECTIONS
-				s.frame = 0
-				s.pixel_size = 0.0625 * st.sprite_scale
-				s.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-				s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-				s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-				s.shaded = true
-				s.modulate = st.tint
-				s.position = _top(f[1]) + Vector3(0, 0.75 * st.sprite_scale, 0)
-				world.add_child(s)
+				var m := CharacterModel.new()
+				world.add_child(m)
+				m.setup(st.model, st.sprite_scale, st.weapon_model)
+				m.position = _top(f[1])
+				m.face(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)), true)
 		for t in r.treasure:
-			var chest := MeshInstance3D.new()
-			var cb := BoxMesh.new()
-			cb.size = Vector3(0.55, 0.38, 0.4)
-			chest.mesh = cb
-			chest.material_override = _mat(Color(0.95, 0.75, 0.2), true)
-			chest.position = _top(t.cell) + Vector3(0, 0.19, 0)
+			var chest := Kenney.instance("chest")
+			chest.position = _top(t.cell)
+			chest.rotation.y = rng.randi_range(0, 3) * PI / 2.0
 			world.add_child(chest)
 		var lbl := Label3D.new()
 		lbl.text = str(r.id) + (" ✓" if done else "")
@@ -218,18 +184,20 @@ func _mat(c: Color, glow := false) -> StandardMaterial3D:
 	return m
 
 
-func _multimesh(mesh: Mesh) -> MultiMeshInstance3D:
+func _multimesh(mesh: Mesh, colored := true) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
+	mm.use_colors = colored
 	mm.mesh = mesh
 	var inst := MultiMeshInstance3D.new()
 	inst.multimesh = mm
+	world.add_child(inst)
+	if not colored:
+		return inst  # 모델 자체 재질(colormap 텍스처)을 그대로 씀
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.vertex_color_is_srgb = true
 	inst.material_override = m
-	world.add_child(inst)
 	return inst
 
 
@@ -495,7 +463,7 @@ func _update_info() -> void:
 			gold += int(t.gold)
 	var floor_pct := 100.0 * d.floor_count() / (d.width * d.height)
 	info_label.text = ("[b]%s[/b]  %d x %d · 시드 %d\n방 %d · 통로 연결 %d · 바닥 %.0f%%\n"
-			+ "몬스터 %d (XP 합계 %d) · 보물 %d골드\n[color=#6af]●[/color] 시작  [color=#5d7]▲[/color] 출구  [color=#fc4]■[/color] 보물") % [
+			+ "몬스터 %d (XP 합계 %d) · 보물 %d골드\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물") % [
 		ALGO_NAMES[params.algorithm], d.width, d.height, d.seed_used,
 		d.rooms.size(), d.edges.size(), floor_pct, tot.foes, tot.xp, gold]
 

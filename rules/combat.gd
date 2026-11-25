@@ -391,14 +391,14 @@ func resolve_attack(c: Creature, t: Creature, w: WeaponData, info: Dictionary, c
 
 	if not hit:
 		log_msg(line + " → [color=gray]빗나감[/color]")
-		event.emit({"type": "attack", "attacker": c, "target": t, "hit": false, "crit": false})
+		event.emit({"type": "attack", "attacker": c, "target": t, "hit": false, "crit": false, "ranged": info.mode == "ranged"})
 		if c.can_use_mastery(w) and w.mastery == "graze" and info.ability_mod > 0:
 			_deal(t, info.ability_mod, w.damage_type, false, "Graze")
 		check_end()
 		return result
 
 	log_msg(line + (" → [color=yellow]치명타![/color]" if crit else " → 명중"))
-	event.emit({"type": "attack", "attacker": c, "target": t, "hit": true, "crit": crit})
+	event.emit({"type": "attack", "attacker": c, "target": t, "hit": true, "crit": crit, "ranged": info.mode == "ranged"})
 	var dmg := roll_weapon_damage(c, w, crit, info.adv > 0, info.ability_mod, cleave)
 	var res := _deal(t, dmg, w.damage_type, crit, "")
 	result.damage = res.dealt

@@ -53,6 +53,8 @@ static func fighter(level := 1) -> CreatureStats:
 	s.save_proficiencies = [STR, CON]
 	s.weapons = [weapon("greatsword"), weapon("javelin"), weapon("flail")]
 	s.weapon_masteries = PackedStringArray(["greatsword", "javelin", "flail"])
+	s.model = "mini-characters/character-knight"
+	s.weapon_model = "mini-characters/weapon-sword"
 	var f := ["second_wind", "weapon_mastery", "savage_attacker", "defense"]
 	if level >= 2:
 		f.append_array(["action_surge", "tactical_mind"])
@@ -75,6 +77,8 @@ static func monster(id: String) -> CreatureStats:
 			s.ai_style = "skirmisher"
 			s.tint = Color(0.55, 0.95, 0.45)
 			s.sprite_scale = 0.75
+			s.model = "mini-dungeon/character-orc"
+			s.weapon_model = "mini-dungeon/weapon-sword"
 		"goblin_warrior":
 			_m(s, "고블린 전사", 0.25, 50, [8, 15, 10, 10, 8, 8], 15, 10, 6, Rules.Size.SMALL, 2)
 			s.weapons = [_goblin(weapon("scimitar")), _goblin(weapon("shortbow"))]
@@ -82,6 +86,8 @@ static func monster(id: String) -> CreatureStats:
 			s.ai_style = "ranged"
 			s.tint = Color(0.4, 0.8, 0.35)
 			s.sprite_scale = 0.8
+			s.model = "mini-dungeon/character-orc"
+			s.weapon_model = "mini-characters/weapon-bow"
 		"goblin_boss":
 			_m(s, "고블린 대장", 1.0, 200, [10, 15, 10, 10, 8, 10], 17, 21, 6, Rules.Size.SMALL, 2)
 			s.weapons = [_goblin(weapon("scimitar")), _goblin(weapon("shortbow"))]
@@ -89,7 +95,9 @@ static func monster(id: String) -> CreatureStats:
 			s.features = PackedStringArray(["nimble_escape", "redirect_attack"])
 			s.ai_style = "melee"
 			s.tint = Color(0.85, 0.75, 0.35)
-			s.sprite_scale = 0.9
+			s.sprite_scale = 0.95
+			s.model = "mini-dungeon/character-orc"
+			s.weapon_model = "mini-dungeon/weapon-spear"
 		"skeleton":
 			_m(s, "스켈레톤", 0.25, 50, [10, 16, 15, 6, 8, 5], 14, 13, 6, Rules.Size.MEDIUM, 3)
 			s.weapons = [weapon("shortsword"), weapon("shortbow")]
@@ -98,6 +106,8 @@ static func monster(id: String) -> CreatureStats:
 			s.condition_immunities = PackedStringArray(["exhaustion", "poisoned"])
 			s.ai_style = "melee"
 			s.tint = Color(0.8, 0.8, 0.95)
+			s.model = "mini-characters/character-zombie"
+			s.weapon_model = "mini-dungeon/weapon-sword"
 		"wolf":
 			_m(s, "늑대", 0.25, 50, [14, 15, 12, 3, 12, 6], 12, 11, 8, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("bite")]
@@ -105,6 +115,7 @@ static func monster(id: String) -> CreatureStats:
 			s.ai_style = "melee"
 			s.tint = Color(0.55, 0.55, 0.6)
 			s.sprite_scale = 0.85
+			s.model = "mini-characters/character-raider"  # 임시: 팩에 동물 모델이 없음
 		_:
 			push_error("알 수 없는 몬스터: " + id)
 	return s

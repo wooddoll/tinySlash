@@ -35,6 +35,10 @@ extends Resource
 ## 화면 표시용
 @export var tint := Color.WHITE
 @export var sprite_scale := 1.0
+## 3D 모델 "팩/이름" (assets/kenney/). 크기는 sprite_scale을 씀
+@export var model := "mini-characters/character-male-a"
+## 손에 드는 무기 모델 (없으면 빈 문자열)
+@export var weapon_model := ""
 
 
 func ability_mod(a: int) -> int:
