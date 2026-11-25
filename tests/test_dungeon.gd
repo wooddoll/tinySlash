@@ -400,3 +400,17 @@ func test_shelter_floors_and_cell() -> void:
 			check(d.is_walkable(c) and c != d.start, "shelter walkable and not on start")
 			eq(d.room_at(c), d.start_room, "shelter in start room")
 			check(not d.campfires.has(c), "shelter not on campfire")
+
+
+func test_buy_potion() -> void:
+	var h := HeroState.fresh()
+	eq(h.potions(), 1, "start with one potion")
+	eq(h.buy_potion(40), 40, "not enough gold")
+	eq(h.potions(), 1, "still one")
+	eq(h.buy_potion(120), 70, "paid 50")
+	eq(h.potions(), 2, "two potions")
+	for i in 10:
+		h.buy_potion(1000)
+	eq(h.potions(), HeroState.MAX_POTIONS, "capped")
+	check(not h.can_buy_potion(1000), "cannot buy past cap")
+	eq(h.make_creature().resources.potion, HeroState.MAX_POTIONS, "potions reach battle")

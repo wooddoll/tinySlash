@@ -20,6 +20,8 @@ var active := true
 var cell := Vector2i(-1, -1)
 var body: CharacterModel
 var _stride := 0.0
+## 지나갈 수 없는 칸 (텐트, 상인 등). 칸 -> true
+var blocked := {}
 
 
 func setup(d: Dungeon, at: Vector2i, model := "mini-characters/character-knight",
@@ -34,10 +36,11 @@ func setup(d: Dungeon, at: Vector2i, model := "mini-characters/character-knight"
 
 
 ## 반지름 r인 원이 p(월드 x, z)에 설 수 있는지: 원을 감싼 네 귀퉁이가 모두 서 있을 수 있는 칸이어야 함
-static func can_stand(d: Dungeon, p: Vector2, r := RADIUS) -> bool:
+static func can_stand(d: Dungeon, p: Vector2, r := RADIUS, blocked := {}) -> bool:
 	for sx in [-r, r]:
 		for sy in [-r, r]:
-			if not d.is_walkable(Vector2i(floori(p.x + sx), floori(p.y + sy))):
+			var c := Vector2i(floori(p.x + sx), floori(p.y + sy))
+			if not d.is_walkable(c) or blocked.has(c):
 				return false
 	return true
 
@@ -58,9 +61,9 @@ func _physics_process(delta: float) -> void:
 		var step := dir * speed * delta
 		# 축마다 따로 시험해서 벽을 따라 미끄러지게
 		var p := Vector2(position.x, position.z)
-		if can_stand(dungeon, p + Vector2(step.x, 0)):
+		if can_stand(dungeon, p + Vector2(step.x, 0), RADIUS, blocked):
 			p.x += step.x
-		if can_stand(dungeon, p + Vector2(0, step.z)):
+		if can_stand(dungeon, p + Vector2(0, step.z), RADIUS, blocked):
 			p.y += step.z
 		_stride += Vector2(position.x, position.z).distance_to(p)
 		if _stride >= STEP:

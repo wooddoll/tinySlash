@@ -81,6 +81,11 @@ var rest_fire := Vector2i(-1, -1)
 var rest_log := PackedStringArray()
 var rest_dice := Dice.new()
 var shelter := Vector2i(-1, -1)
+var merchant := Vector2i(-1, -1)
+var shop_panel: PanelContainer
+var shop_label: RichTextLabel
+var shop_rest: Button
+var shop_buy: Button
 
 
 func _ready() -> void:
@@ -242,10 +247,14 @@ func _build_world() -> void:
 	for c in d.campfires:
 		_add_campfire(c)
 	shelter = Vector2i(-1, -1)
+	merchant = Vector2i(-1, -1)
 	if is_save_floor(params.floor_depth):
 		shelter = shelter_cell(d)
 		if shelter != Vector2i(-1, -1):
 			_add_shelter(shelter)
+			merchant = shelter_cell(d, {shelter: true})
+			if merchant != Vector2i(-1, -1):
+				_add_merchant(merchant)
 
 	select_mesh = _overlay_layer(Color(1.0, 0.85, 0.2, 0.4))
 	hover_mesh = _overlay_layer(Color(1, 1, 1, 0.18))
@@ -429,6 +438,7 @@ func _build_ui() -> void:
 	rbox.add_child(fight_button)
 
 	_build_rest_panel(layer)
+	_build_shop_panel(layer)
 	toast = Label.new()
 	toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -623,14 +633,18 @@ func _process(delta: float) -> void:
 			elif Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
 				_finish_rest()
 			return
+		if shop_panel.visible:
+			if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+				_close_shop()
+			return
 		if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
 			_set_exploring(false)
 		elif Input.is_action_just_pressed("end_turn") and explorer:
 			var fire := _fire_near(explorer.cell)
 			if fire != Vector2i(-1, -1):
 				_open_rest(fire)
-			elif _near(shelter, explorer.cell):
-				_long_rest()
+			elif _near(shelter, explorer.cell) or _near(merchant, explorer.cell):
+				_open_shop()
 			elif explorer.cell == dungeon.exit:
 				_next_floor()
 		return
@@ -692,6 +706,9 @@ func _apply_mode() -> void:
 			world.add_child(explorer)
 			explorer.setup(dungeon, at)
 			explorer.camera_rig = rig
+			for c in [shelter, merchant]:
+				if c != Vector2i(-1, -1):
+					explorer.blocked[c] = true
 			explorer.entered_cell.connect(_on_entered_cell)
 		_reveal(explorer.cell)
 		_fog_apply_all()
@@ -724,8 +741,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		_toast("출구 계단 — Enter: 다음 층으로")
 	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
 		_toast("모닥불 — Enter: 짧은 휴식")
-	elif _near(shelter, to) and not _near(shelter, from):
-		_toast("이미 쉬었어요" if rested_here else "쉼터 — Enter: 긴 휴식")
+	elif (_near(shelter, to) or _near(merchant, to)) and not (_near(shelter, from) or _near(merchant, from)):
+		_toast("쉼터 — Enter: 휴식과 상점")
 	_update_explore_info()
 
 
@@ -847,9 +864,11 @@ static func is_save_floor(n: int) -> bool:
 	return (n - 1) % SAVE_EVERY == 0
 
 
-## 시작 방에서 시작 칸에 가장 가까운 빈 칸 (시작 칸, 모닥불, 상자, 몬스터 칸은 피함)
-static func shelter_cell(d: Dungeon) -> Vector2i:
-	var taken := {d.start: true, d.exit: true}
+## 시작 방에서 시작 칸에 가장 가까운 빈 칸 (시작 칸, 모닥불, 상자, 몬스터 칸, exclude는 피함)
+static func shelter_cell(d: Dungeon, exclude := {}) -> Vector2i:
+	var taken := exclude.duplicate()
+	taken[d.start] = true
+	taken[d.exit] = true
 	for c in d.campfires:
 		taken[c] = true
 	for r in d.rooms:
@@ -881,6 +900,98 @@ func _add_shelter(c: Vector2i) -> void:
 	tent.scale = Vector3.ONE * 1.7
 	root.add_child(tent)
 	_fog_add(c, [root])
+
+
+func _add_merchant(c: Vector2i) -> void:
+	var m := CharacterModel.new()
+	world.add_child(m)
+	m.setup("mini-characters/character-worker", 1.0)
+	m.position = _top(c)
+	m.face(Vector3(_top(dungeon.start) - _top(c)).normalized() if c != dungeon.start else Vector3(0, 0, 1), true)
+	var lbl := Label3D.new()
+	lbl.text = "상인"
+	lbl.font_size = 48
+	lbl.pixel_size = 0.006
+	lbl.outline_size = 10
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.position = Vector3(0, m.height + 0.3, 0)
+	m.add_child(lbl)
+	_fog_add(c, [m])
+
+
+# 쉼터 창: 긴 휴식과 상점
+func _open_shop() -> void:
+	explorer.active = false
+	shop_panel.visible = true
+	Sfx.play(self, "open")
+	_update_shop()
+
+
+func _close_shop() -> void:
+	shop_panel.visible = false
+	explorer.active = true
+	Sfx.play(self, "close")
+
+
+func _buy_potion() -> void:
+	if not hero.can_buy_potion(gold):
+		Sfx.play(self, "click")
+		return
+	gold = hero.buy_potion(gold)
+	_write_save()  # 쉼터에서 한 일은 저장
+	Sfx.play(self, "coins")
+	_update_shop()
+	_update_explore_info()
+
+
+func _update_shop() -> void:
+	shop_rest.disabled = rested_here
+	shop_buy.disabled = not hero.can_buy_potion(gold)
+	var lines := PackedStringArray()
+	lines.append("[b]쉼터[/b] (%d층 · 여기서 한 일은 저장돼요)" % floor_no)
+	lines.append("HP %d/%d · 히트 다이스 %d/%d · 물약 %d/%d · 금화 %d" % [
+		hero.current_hp(), hero.max_hp(), hero.hit_dice_left(), hero.level(),
+		hero.potions(), HeroState.MAX_POTIONS, gold])
+	lines.append("긴 휴식: HP, 히트 다이스, 기능 사용 횟수를 모두 회복 (쉼터마다 한 번)%s" % (
+		" [color=gray]— 이미 쉬었어요[/color]" if rested_here else ""))
+	lines.append("상인: 회복 물약 (2d4+2 회복) %d골드%s" % [HeroState.POTION_PRICE,
+		" [color=gray]— 가득 찼어요[/color]" if hero.potions() >= HeroState.MAX_POTIONS
+		else (" [color=gray]— 금화가 모자라요[/color]" if gold < HeroState.POTION_PRICE else "")])
+	shop_label.text = "\n".join(lines)
+
+
+func _build_shop_panel(layer: CanvasLayer) -> void:
+	shop_panel = PanelContainer.new()
+	shop_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	shop_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	shop_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	shop_panel.offset_bottom = -40
+	shop_panel.add_theme_stylebox_override("panel", _panel_style())
+	shop_panel.visible = false
+	layer.add_child(shop_panel)
+	var box := VBoxContainer.new()
+	shop_panel.add_child(box)
+	shop_label = _rich(box)
+	shop_label.custom_minimum_size.x = 460
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	shop_rest = Button.new()
+	shop_rest.text = "긴 휴식"
+	shop_rest.focus_mode = Control.FOCUS_NONE
+	shop_rest.pressed.connect(func() -> void:
+		_long_rest()
+		_update_shop())
+	row.add_child(shop_rest)
+	shop_buy = Button.new()
+	shop_buy.text = "물약 사기 (%d골드)" % HeroState.POTION_PRICE
+	shop_buy.focus_mode = Control.FOCUS_NONE
+	shop_buy.pressed.connect(_buy_potion)
+	row.add_child(shop_buy)
+	var done := Button.new()
+	done.text = "닫기 (Esc)"
+	done.focus_mode = Control.FOCUS_NONE
+	done.pressed.connect(_close_shop)
+	row.add_child(done)
 
 
 func _write_save() -> void:
@@ -1070,7 +1181,7 @@ func _update_explore_info() -> void:
 	info_label.text = ("[b]탐험 중[/b]  %d층 · 시드 %d · 저장 %d층\n"
 			+ "[b]파이터[/b] %d레벨 · [color=%s]HP %d/%d[/color] · XP %d/%s\n"
 			+ "히트 다이스 %d/%d · 물약 %d · Second Wind %d%s\n"
-			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작  계단 출구 · 상자 보물 · 불 모닥불 · 텐트 쉼터") % [
+			+ "금화 %d · 남은 몬스터 방 %d\n[color=#6af]●[/color] 시작 · 계단=출구 · 상자 · 모닥불 · 텐트=쉼터") % [
 		floor_no, dungeon.seed_used, int(save.get("floor", floor_no)), lv, hp_col, hp, hero.max_hp(), hero.xp, next_xp,
 		hero.hit_dice_left(), lv, probe.resources.get("potion", 0), probe.resources.get("second_wind", 0),
 		(" · Action Surge %d" % probe.resources.action_surge) if probe.resources.has("action_surge") else "",

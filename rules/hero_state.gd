@@ -6,6 +6,9 @@ extends RefCounted
 const NAME := "파이터"
 ## v1 파이터는 5레벨까지 (rules 1)
 const MAX_LEVEL := 5
+## 회복 물약 값 [SRD: Potion of Healing 50 GP]과 들고 다닐 수 있는 수 [변경]
+const POTION_PRICE := 50
+const MAX_POTIONS := 5
 
 var xp := 0
 ## -1이면 최대 HP
@@ -74,6 +77,24 @@ func absorb(c: Creature, xp_gain := 0) -> Dictionary:
 		if gain > 0:
 			resources[k] = resources.get(k, 0) + gain
 	return {"level_up": after.level}
+
+
+# --- 상점 ---
+
+func potions() -> int:
+	return resources.get("potion", 0)
+
+
+func can_buy_potion(gold: int) -> bool:
+	return gold >= POTION_PRICE and potions() < MAX_POTIONS
+
+
+## 물약 하나를 사고 남은 금화를 돌려줌. 못 사면 금화 그대로
+func buy_potion(gold: int) -> int:
+	if not can_buy_potion(gold):
+		return gold
+	resources["potion"] = potions() + 1
+	return gold - POTION_PRICE
 
 
 # --- 휴식 (rules 5.3) ---

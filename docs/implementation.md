@@ -34,7 +34,7 @@
 | `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, B 전투, G 던전 생성기 |
 | `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 좌클릭 이동·공격, 1~3 무기, Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
 | `dungeon.tscn` 던전 생성기 | `dungeon_view.gd` | 왼쪽 패널 파라미터, 좌클릭 방 고르기, B 그 방에서 전투, Tab 탐험 모드, Esc 바깥으로 |
-| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트 옆에서 Enter 긴 휴식, 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
+| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트·상인 옆에서 Enter 쉼터 창(긴 휴식, 물약 사기), 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
 
 공통:
 - `camera_rig.gd`: 아이소메트릭 카메라입니다. 직교 투영, 30° 내려다보기, 45° 회전이고, `isometric`을 끄면 원근 시점이 됩니다.
@@ -106,6 +106,7 @@
 | 효과음 (Kenney 오디오) |
 | 전장의 안개, 층이 깊을수록 조우 예산 증가 |
 | 쉼터: 긴 휴식, 저장, 지면 마지막 저장으로 돌아가기 |
+| 쉼터 상인: 금화로 회복 물약 사기 |
 | 아이소메트릭 카메라, Kenney 3D 모델 (지형, 캐릭터 애니메이션) |
 
 아직 안 된 것은 [todo.md](todo.md)를 보세요.
@@ -157,7 +158,8 @@
   - Esc나 Tab으로 마치면 Second Wind 1회와 Action Surge가 돌아오고(`finish_short_rest`), 모닥불이 꺼집니다.
 - 쉼터(세이브 지점): 1, 4, 7…층(`SAVE_EVERY = 3`) 시작 방에서 시작 칸에 가장 가까운 빈 칸에 텐트(Survival Kit `tent-canvas`)를 놓습니다 (`shelter_cell`).
   - 저장(`save`): 생성 파라미터(시드 포함), 층, 파이터 상태, 금화, 긴 휴식 여부. 탐험을 시작할 때, 쉼터 층에 도착할 때, 긴 휴식을 할 때 씁니다.
-  - 텐트 옆에서 Enter: 긴 휴식(`HeroState.long_rest`)과 저장. 쉼터마다 한 번입니다.
+  - 텐트 옆에 상인(Mini Characters `character-worker`)이 섭니다. 텐트와 상인 칸은 지나갈 수 없습니다 (`Explorer.blocked`).
+  - 텐트나 상인 옆에서 Enter: 쉼터 창. 긴 휴식(`HeroState.long_rest`, 쉼터마다 한 번)과 물약 사기(50골드, 최대 5개, `HeroState.buy_potion`). 둘 다 하고 나면 저장합니다.
   - 지면(`_load_save`): 저장한 파라미터로 그 층을 다시 만들고, 정리한 방·연 상자·쓴 모닥불·본 칸을 지우고, 파이터 상태와 금화를 되돌립니다. 생성기 슬라이더도 그 값으로 바뀝니다.
 - 전장의 안개: 탐험 중에는 본 칸만 그립니다.
   - 방에 들어서면 방 전체가, 통로에서는 바닥을 따라 3걸음 안의 칸이 보입니다 (`visible_from`).
@@ -174,6 +176,6 @@ Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/r
 ```
 
 - `tests/test_rules.gd`: 규칙 엔진 31개 (수정치, 치명타, 피해 순서, 엄폐, 기회 공격, 무기 숙달, AI 전투 등)
-- `tests/test_dungeon.gd`: 던전 생성기와 탐험 26개 (같은 시드 재현, 모든 방 도달 가능, XP 예산, 높이차, 전투 지도, 들어선 칸에서 전투 시작, 탐험 충돌, 전투 사이 상태와 레벨업, 모닥불 배치, 짧은·긴 휴식, 효과음 파일 존재, 층 깊이 예산, 안개 시야, 쉼터 위치 등)
+- `tests/test_dungeon.gd`: 던전 생성기와 탐험 27개 (같은 시드 재현, 모든 방 도달 가능, XP 예산, 높이차, 전투 지도, 들어선 칸에서 전투 시작, 탐험 충돌, 전투 사이 상태와 레벨업, 모닥불 배치, 짧은·긴 휴식, 효과음 파일 존재, 층 깊이 예산, 안개 시야, 쉼터 위치, 물약 사기 등)
 - 실행기는 테스트 중 생긴 스크립트 오류도 실패로 셉니다.
 - 새로 만든 `class_name`이 인식되지 않으면 먼저 `--headless --path . --import`를 한 번 실행합니다.
