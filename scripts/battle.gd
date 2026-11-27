@@ -279,7 +279,8 @@ func _build_world() -> void:
 		var is_cave: bool = custom.get("style", "") == "cave"
 		Kenney.build_edge_walls(terrain, floors, open_cell, grid.get_height, is_cave)
 		Kenney.decorate(terrain, floors, open_cell, grid.get_height, is_cave,
-				func(c: Vector2i) -> bool: return grid.walls.has(c) or grid.difficult.has(c))
+				func(c: Vector2i) -> bool: return grid.walls.has(c) or grid.difficult.has(c),
+				func(_c: Vector2i) -> String: return str(custom.get("room_theme", "")))
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
 
 

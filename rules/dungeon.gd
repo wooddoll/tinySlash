@@ -75,6 +75,12 @@ func room_at(c: Vector2i) -> int:
 	return room_index.get(c, -1)
 
 
+## 이 칸이 속한 방의 주제 (통로나 주제 없는 방은 "")
+func theme_at(c: Vector2i) -> String:
+	var i := room_at(c)
+	return str(rooms[i].get("theme", "")) if i >= 0 else ""
+
+
 func floor_count() -> int:
 	var n := 0
 	for t in tiles:
@@ -211,7 +217,7 @@ func battle_setup(room_id: int, entry := Vector2i(-1, -1)) -> Dictionary:
 	if not room.encounter.is_empty():
 		label += " — %s (XP %d)" % [room.encounter.label, room.encounter.xp]
 	return {"map": map, "pc_start": pc_cell - rect.position, "foes": foes, "label": label,
-			"theme": "dungeon", "room_id": room_id,
+			"theme": "dungeon", "room_id": room_id, "room_theme": str(room.get("theme", "")),
 			"style": "cave" if params and params.algorithm == DungeonParams.Algorithm.CAVE else "rooms"}
 
 

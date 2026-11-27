@@ -12,6 +12,8 @@ const DIFF_NAMES := ["낮음 (Low)", "보통 (Moderate)", "높음 (High)"]
 const THEME_IDS := ["mixed", "goblin", "undead", "beast"]
 const THEME_NAMES := ["섞어서", "고블린", "언데드", "야수"]
 const KIND_NAMES := {"start": "시작 방", "exit": "출구 방", "normal": "방"}
+## 방 주제 보기 이름 (생성기 THEMES + 보물창고)
+const ROOM_THEME_NAMES := {"library": "서재", "smithy": "대장간", "alchemy": "연금술실", "storage": "창고", "barracks": "막사", "treasury": "보물창고"}
 
 const Explorer = preload("res://scripts/dungeon_explorer.gd")
 const Sfx = preload("res://scripts/sfx.gd")
@@ -223,7 +225,7 @@ func _build_world() -> void:
 	for c in d.campfires:
 		busy[c] = true
 	var deco := Kenney.decorate(world, floors, d.is_floor, d.get_height, cave,
-			func(c: Vector2i) -> bool: return busy.has(c) or d.obstacles.has(c) or d.difficult.has(c))
+			func(c: Vector2i) -> bool: return busy.has(c) or d.obstacles.has(c) or d.difficult.has(c), d.theme_at)
 	for part in deco.parts:
 		for i in (part[1] as Array).size():
 			_fog_add(part[1][i], [part[0], i, part[2][i]])
@@ -684,6 +686,8 @@ func _update_selection() -> void:
 	var rc: Rect2i = r.rect
 	var lines := PackedStringArray()
 	lines.append("[b]%s %d[/b]  (%d x %d, 깊이 %.0f%%)" % [KIND_NAMES[r.kind], r.id, rc.size.x, rc.size.y, r.depth * 100.0])
+	if ROOM_THEME_NAMES.has(r.get("theme", "")):
+		lines.append("[color=#c9a]%s[/color]" % ROOM_THEME_NAMES[r.theme])
 	if cleared.has(r.id):
 		lines.append("[color=#6d6]정리함 ✓[/color]")
 	elif r.encounter.is_empty():
@@ -1535,7 +1539,8 @@ func _update_explore_info() -> void:
 		room_label.text = "[color=gray]통로[/color]"
 	else:
 		var r: Dictionary = dungeon.rooms[here]
-		room_label.text = "%s %d%s" % [KIND_NAMES[r.kind], here, "  [color=#6d6]정리함 ✓[/color]" if cleared.has(here) else ""]
+		var th: String = ROOM_THEME_NAMES.get(r.get("theme", ""), "")
+		room_label.text = "%s %d%s%s" % [KIND_NAMES[r.kind], here, (" · " + th) if th != "" else "", "  [color=#6d6]정리함 ✓[/color]" if cleared.has(here) else ""]
 
 
 func _unhandled_input(event: InputEvent) -> void:

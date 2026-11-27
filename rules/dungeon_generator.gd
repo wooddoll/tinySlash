@@ -73,7 +73,29 @@ func _run(params: DungeonParams) -> Dungeon:
 	_encounters()
 	_treasure()
 	_campfires()
+	_themes()
 	return d
+
+
+# =====================================================================
+# 방 주제 (꾸미기용: 서재·대장간 등. 규칙에는 영향 없음)
+## 주제 → 보기 이름
+const ROOM_THEMES := {"library": "서재", "smithy": "대장간", "alchemy": "연금술실", "storage": "창고", "barracks": "막사"}
+
+## 돌로 된 방에 주제를 붙임. 보물 상자가 있는 방은 보물창고, 시작 방과 동굴은 주제 없음.
+## 나머지 방은 셋 중 하나 꼴로 주제 없이 둠. 다른 무작위 결과가 바뀌지 않게 따로 만든 난수를 씀
+func _themes() -> void:
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = d.seed_used * 7919 + 13
+	var names := ROOM_THEMES.keys()
+	for r in d.rooms:
+		r["theme"] = ""
+		if p.algorithm == DungeonParams.Algorithm.CAVE or r.kind == "start":
+			continue
+		if not r.treasure.is_empty():
+			r["theme"] = "treasury"
+		elif r2.randf() < 0.7:
+			r["theme"] = names[r2.randi_range(0, names.size() - 1)]
 
 
 # =====================================================================
