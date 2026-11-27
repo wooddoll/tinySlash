@@ -625,8 +625,8 @@ static func monster(id: String) -> CreatureStats:
 			s.condition_immunities = PackedStringArray(["exhaustion", "poisoned"])
 			s.ai_style = "melee"
 			s.tint = Color(0.8, 0.8, 0.95)
-			s.model = "kaykit/Skeleton_Minion"
-			s.weapon_model = "Skeleton_Blade"
+			s.model = "dark/skeleton"
+			s.weapon_model = ""
 		"wolf":
 			_m(s, "늑대", 0.25, 50, [14, 15, 12, 3, 12, 6], 12, 11, 8, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("bite")]
@@ -668,7 +668,7 @@ static func monster(id: String) -> CreatureStats:
 			s.immunities = PackedStringArray(["necrotic", "poison"])
 			s.vulnerabilities = PackedStringArray(["radiant"])
 			s.tint = Color(0.15, 0.15, 0.2)
-			s.model = "quaternius/ghost"
+			s.model = "dark/ghost"
 		"specter":
 			_m(s, "스펙터", 1.0, 200, [1, 14, 11, 10, 10, 11], 12, 22, 10, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("life_drain")]
@@ -677,7 +677,7 @@ static func monster(id: String) -> CreatureStats:
 			s.resistances = PackedStringArray(["acid", "cold", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing"])
 			s.immunities = PackedStringArray(["necrotic", "poison"])
 			s.tint = Color(0.6, 0.8, 1.0)
-			s.model = "quaternius/ghost_skull"
+			s.model = "dark/ghost"
 		"animated_armor":
 			_m(s, "움직이는 갑옷", 1.0, 200, [14, 11, 13, 1, 3, 1], 18, 33, 5, Rules.Size.MEDIUM, 0)
 			s.weapons = [weapon("slam")]

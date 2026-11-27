@@ -54,6 +54,7 @@
 - `tools/bake_boss.gd`: 보스 모델(Bento "The Eightfold Archive" Hadal 셋 3종은 LOD2 + 512px, Glasshouse 셋 5종은 LOD1 + 256px 텍스처)과 엔진 이름으로 바꾼 동작을 `assets/dark/<이름>/<이름>.scn`에 굽습니다. 원본은 프로젝트 밖 `F:/workspace/fab_downloads/bosses`.
 - `tools/retarget.gd`: 쉬는 자세가 다른 뼈대로 동작을 옮기는 도구. 뼈마다 '자식 관절을 향하는 방향'을 원본과 같게 돌리고, 골반은 위·옆 방향으로 몸통 방향을 맞춥니다(좌우 회전은 뺌). 두 모델이 바라보는 방향이 달라도 align 회전으로 맞춥니다. 트리 밖 뼈대는 전역 자세가 갱신되지 않으므로 지역 자세로 직접 계산합니다.
 - `tools/bake_zombie.gd`: `assets/dark/zombie/szombie.glb`(CC 뼈대, 동작 없음)에 고블린 동작을 옮겨 `zombie.scn`으로 굽습니다. 좀비·구울·가스트가 색만 바꿔 씁니다.
+- `tools/bake_undead.gd`: 해골(Hotstrike, CC 뼈대)에 기사 동작과 장검을 옮기고, 유령(SR Studios)의 동작 2개를 게임 동작으로 나눠 `assets/dark/skeleton`, `assets/dark/ghost`에 굽습니다. 해골은 스켈레톤, 유령은 섀도·스펙터가 씁니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다. 키보드와 Xbox 배치 게임패드(버튼, 왼쪽 스틱 데드존 0.2).
 - `action_layer.gd`: 탐험 중 실시간 전투 화면. 입력을 카메라 기준으로 읽어 `ActionCombat`에 넘기고, 모델 위치·동작, HP 막대, 몬스터 준비 고리, 피해 숫자, 투사체, 효과음을 맞춥니다. 싸움이 끝나면 `fight_over(xp)`, 모두 쓰러지면 `defeated`.
 - `party_panel.gd`: 화면 왼쪽 파티 창. 파티원마다 초상화, HP 바(숫자 `현재/최대`, 임시 HP), 버프·디버프 칩(초록 버프, 빨강 디버프, 회색 정보, 마우스를 올리면 설명). 지금 차례인 파티원은 금색 테두리, 쓰러지면 초상화가 어두워집니다.
@@ -81,9 +82,9 @@
 | 팩 | 받은 곳 | 쓰는 곳 |
 |---|---|---|
 | KayKit Adventurers 1.0 (Kay Lousberg) | GitHub KayKit-Game-Assets | 파이터(`Knight`, `2H_Sword`), 클레릭(`Mage`, `2H_Staff`), 움직이는 갑옷(어둡게 칠한 `Knight`), NPC |
-| KayKit Skeletons 1.0 | GitHub KayKit-Game-Assets | 스켈레톤(`Skeleton_Minion` + `Skeleton_Blade`), 좀비(초록으로 칠한 `Skeleton_Minion`, 맨손), 하르발(`Skeleton_Warrior`) |
+| KayKit Skeletons 1.0 | GitHub KayKit-Game-Assets | (스켈레톤은 이제 dark 모델) 좀비(초록으로 칠한 `Skeleton_Minion`, 맨손), 하르발(`Skeleton_Warrior`) |
 | KayKit Dungeon Remastered 1.0 | GitHub KayKit-Game-Assets | 동굴 흙바닥, 벽 장식(횃불, 깃발, 촛불 선반), 바닥 잡동사니(촛대, 병, 접시), 방 던전의 바닥 타일, 벽, 벽 기둥, 문, 기둥(`pillar`), 가구(`table_small`, `barrel_small`, `chair`, `keg`, `box_large`), 잔해(`rubble_half` 납작하게), 상자(`chest`), 계단, 깃발, 함정 가시 (`kenney.gd`의 `SWAP`) |
-| Quaternius Ultimate Monsters (45개) | poly.pizza 묶음 (glb) | (고블린·좀비·구울·가스트는 이제 dark 모델) 섀도(`ghost`), 스펙터(`ghost_skull`), 박쥐 떼(`demon*3`), 벌레 떼(`armabee*3`) |
+| Quaternius Ultimate Monsters (45개) | poly.pizza 묶음 (glb) | (고블린·좀비·구울·가스트·섀도·스펙터는 이제 dark 모델) 박쥐 떼(`demon*3`), 벌레 떼(`armabee*3`) |
 | Quaternius Animated Animal Pack + Rat | poly.pizza (glb, CC0) | 늑대(`wolf`, 걷기·질주·물기·피격·쓰러짐), 쥐 떼(`rat*3`). 여우·허스키도 받아 둠 |
 
 던전, 소품, 효과음 (`assets/kenney/`):

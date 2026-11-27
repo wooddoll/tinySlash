@@ -28,6 +28,14 @@ license; check the listing before any release). The goblin's animations were mov
 skeleton by `tools/retarget.gd` and baked into `assets/dark/zombie/zombie.scn` by
 `tools/bake_zombie.gd`. Used for the zombie, ghoul and ghast.
 
+Stylized Dark Fantasy Skeleton by Hotstrike Studio, from Fab, licensed under Creative Commons
+Attribution (CC-BY). The knight's animations and longsword were moved onto it and baked into
+`assets/dark/skeleton/skeleton.scn` by `tools/bake_undead.gd`. Used for the skeleton.
+
+Dark Big Ghost (LITE) by SR Studios Kerala, from Fab under the Fab Standard License. Hat removed and
+its two clips split into game animations by `tools/bake_undead.gd` (`assets/dark/ghost/`). Used for the
+shadow and specter. The original downloads stay outside the project and must not be shared publicly.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.

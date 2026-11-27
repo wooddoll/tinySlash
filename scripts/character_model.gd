@@ -32,6 +32,8 @@ const RAW_HEIGHT := {
 	"quaternius/blue_demon": 2.1,
 	"animals/rat": 4.0,
 	"dark/zombie": 1.81,
+	"dark/skeleton": 1.8,
+	"dark/ghost": 0.028,
 	# 보스는 키 대신 너비로 크기를 맞춤 (대형 = 약 2칸 너비)
 	"dark/bellwarden": 4.5,
 	"dark/cantor": 2.4,
