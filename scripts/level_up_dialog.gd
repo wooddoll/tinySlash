@@ -72,6 +72,8 @@ func _ready() -> void:
 	ok_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ok_button.pressed.connect(_confirm)
 	box.add_child(ok_button)
+	var hint := _rich(box, 13)
+	hint.text = "[color=gray]게임패드: 십자·스틱으로 옮기기 · A 고르기 · B 목록 닫기   키보드: 화살표 · Enter · Esc[/color]"
 
 
 ## 고를 것이 남은 파티원이 있으면 창을 띄우고 true

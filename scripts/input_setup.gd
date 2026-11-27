@@ -23,6 +23,9 @@ const MAP := {
 	"skill2": [KEY_L],
 	"potion": [KEY_1],
 	"interact": [KEY_F, KEY_ENTER],
+	# 시나리오: 방 수색, 일지
+	"search": [KEY_R],
+	"journal": [KEY_J],
 }
 
 ## 게임패드 버튼
@@ -38,7 +41,11 @@ const JOY := {
 	"cam_right": [JOY_BUTTON_RIGHT_SHOULDER],
 	"explore": [JOY_BUTTON_BACK],
 	"back": [JOY_BUTTON_START],
+	"search": [JOY_BUTTON_DPAD_DOWN],
+	"journal": [JOY_BUTTON_BACK],
 }
+## Godot 기본 창 조작에 패드 버튼을 더함: A 확인, B 취소 (프로젝트 입력 맵에는 키만 있음)
+const UI_JOY := {"ui_accept": JOY_BUTTON_A, "ui_cancel": JOY_BUTTON_B}
 
 ## 왼쪽 스틱 (축, 방향)
 const STICK := {
@@ -51,6 +58,15 @@ const DEADZONE := 0.2
 
 
 static func register() -> void:
+	for action in UI_JOY:
+		var has := false
+		for e in InputMap.action_get_events(action):
+			if e is InputEventJoypadButton and (e as InputEventJoypadButton).button_index == UI_JOY[action]:
+				has = true
+		if not has:
+			var jb := InputEventJoypadButton.new()
+			jb.button_index = UI_JOY[action]
+			InputMap.action_add_event(action, jb)
 	for action in MAP:
 		if InputMap.has_action(action):
 			continue

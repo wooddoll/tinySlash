@@ -12,7 +12,7 @@ const Sfx = preload("res://scripts/sfx.gd")
 const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
-const HELP_EXPLORE := "WASD: 이동 · F: 조사/문/대화 · R: 방 수색 · J: 일지 · Q/E: 카메라 회전 · 휠: 줌 · Esc: 바깥으로"
+const HELP_EXPLORE := "이동: 스틱/WASD · 조사/문/대화: Y/F · 방 수색: 십자↓/R · 일지: Select/J · 카메라: LB·RB/Q·E · 바깥으로: Start/Esc"
 const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · 물러나기: 적에게서 멀리 달아나 방 밖으로"
 
 const SCENE := "res://scenes/scenario.tscn"
@@ -184,10 +184,14 @@ func _show_picker(error := "") -> void:
 			if _open_pack(str(p.path)):
 				_start())
 		box.add_child(b)
+		if i == 0:
+			b.call_deferred("grab_focus")  # 게임패드: 십자로 옮기고 A로 시작
 	var back := Button.new()
-	back.text = "나가기"
+	back.text = "나가기 (B / Esc)"
 	back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main.tscn"))
 	box.add_child(back)
+	if packs.is_empty():
+		back.call_deferred("grab_focus")
 	Sfx.wire_buttons(layer)
 
 
@@ -825,12 +829,16 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if log_box == null:
-		if event is InputEventKey and event.pressed and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+		if event.is_pressed() and (event.is_action("ui_cancel") or event.is_action("back")):
 			get_tree().change_scene_to_file("res://scenes/main.tscn")
 		return
-	if not (event is InputEventKey and event.pressed and not event.echo):
+	if event.is_echo() or not event.is_pressed():
 		return
-	var key: Key = (event as InputEventKey).physical_keycode
+	# 키와 게임패드를 같은 뜻으로: 계속(Space·F·Enter / A·Y), 닫기(Esc / B), 일지(J / Select), 수색(R / 십자↓)
+	var key: Key = (event as InputEventKey).physical_keycode if event is InputEventKey else KEY_NONE
+	var go := key in [KEY_SPACE, KEY_F, KEY_ENTER, KEY_KP_ENTER] or event.is_action("ui_accept") or event.is_action("interact")
+	var cancel := key == KEY_ESCAPE or event.is_action("ui_cancel") or event.is_action("back")
+	var journal := event.is_action("journal")
 	if end_panel.visible:
 		return
 	if msg_panel.visible and choice_box.get_child_count() > 0:
@@ -838,36 +846,38 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pick_choice(key - KEY_1)
 		return
 	if msg_panel.visible:
-		if key in [KEY_SPACE, KEY_F, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE]:
+		if go or cancel:
 			_close_msg()
+			get_viewport().set_input_as_handled()
 		return
 	if doc_panel.visible:
-		if key in [KEY_SPACE, KEY_F, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE, KEY_J]:
+		if go or cancel or journal:
 			doc_panel.visible = false
 			Sfx.play(self, "close")
+			get_viewport().set_input_as_handled()
 			_pump()
 		return
 	if journal_panel.visible:
-		if key in [KEY_ESCAPE, KEY_J]:
+		if cancel or journal:
 			journal_panel.visible = false
+			get_viewport().set_input_as_handled()
 			_pump()
 		return
 	if _busy:
 		return
-	match key:
-		KEY_F:
-			if _prompt_key != "":
-				Sfx.play(self, "click")
-				scn.interact(_prompt_key)
-				_pump()
-		KEY_R:
-			Sfx.play(self, "dice")
-			scn.search()
+	if event.is_action("interact"):
+		if _prompt_key != "":
+			Sfx.play(self, "click")
+			scn.interact(_prompt_key)
 			_pump()
-		KEY_J:
-			_open_journal()
-		KEY_ESCAPE:
-			get_tree().change_scene_to_file("res://scenes/main.tscn")
+	elif event.is_action("search"):
+		Sfx.play(self, "dice")
+		scn.search()
+		_pump()
+	elif journal:
+		_open_journal()
+	elif key == KEY_ESCAPE or (event is InputEventJoypadButton and event.is_action("back")):
+		get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
 func _update_prompt() -> void:
@@ -878,7 +888,7 @@ func _update_prompt() -> void:
 	_prompt_key = k
 	prompt_label.visible = k != ""
 	if k != "":
-		prompt_label.text = "F: " + scn.prompt(k)
+		prompt_label.text = "F / Y: " + scn.prompt(k)
 
 
 # =====================================================================
@@ -978,7 +988,7 @@ func _build_ui() -> void:
 	choice_box.add_theme_constant_override("separation", 4)
 	mv.add_child(choice_box)
 	msg_hint = Label.new()
-	msg_hint.text = "Space / F: 계속"
+	msg_hint.text = "Space / F (패드 A): 계속"
 	msg_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	msg_hint.add_theme_font_size_override("font_size", 13)
 	msg_hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
@@ -1015,7 +1025,7 @@ func _build_ui() -> void:
 	doc_text.add_theme_font_size_override("italics_font_size", 17)
 	dsc.add_child(doc_text)
 	var dh := Label.new()
-	dh.text = "Space: 닫기 · J: 일지에서 다시 읽기"
+	dh.text = "Space (패드 A): 닫기 · J (패드 Select): 일지에서 다시 읽기"
 	dh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	dh.add_theme_font_size_override("font_size", 13)
 	dh.add_theme_color_override("font_color", Color(0.4, 0.3, 0.2))
@@ -1103,7 +1113,7 @@ func _show_msg(title: String, text: String) -> void:
 	msg_title.text = title
 	msg_title.visible = title != ""
 	msg_text.text = text
-	msg_hint.text = "Space / F: 계속"
+	msg_hint.text = "Space / F (패드 A): 계속"
 	msg_panel.offset_top = -350
 	msg_panel.visible = true
 	Sfx.play(self, "open")
@@ -1127,7 +1137,9 @@ func _show_dialogue(o: Dictionary) -> void:
 		var idx := i
 		b.pressed.connect(func() -> void: _pick_choice(idx))
 		choice_box.add_child(b)
-	msg_hint.text = "숫자 키나 클릭으로 고르기"
+	msg_hint.text = "숫자 키나 클릭으로 고르기 · 게임패드: 십자로 옮기고 A"
+	if choice_box.get_child_count() > 0:
+		(choice_box.get_child(0) as Control).call_deferred("grab_focus")
 	# 선택지 수만큼 창을 키움 (본문 영역은 최소 96px)
 	msg_panel.offset_top = -100 - (130 + 96 + 38 * _choices.size())
 	msg_panel.visible = true
@@ -1187,11 +1199,15 @@ func _open_journal() -> void:
 			_show_doc(t, body))
 		journal_list.add_child(b)
 	var close := Label.new()
-	close.text = "J / Esc: 닫기"
+	close.text = "J / Esc (패드 Select / B): 닫기"
 	close.add_theme_font_size_override("font_size", 13)
 	close.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
 	journal_list.add_child(close)
 	journal_panel.visible = true
+	for ch in journal_list.get_children():
+		if ch is Button:
+			(ch as Button).call_deferred("grab_focus")  # 게임패드: 첫 문서에 포커스
+			break
 	if explorer:
 		explorer.active = false
 	Sfx.play(self, "open")
@@ -1204,6 +1220,11 @@ func _show_end(o: Dictionary) -> void:
 	end_text.text = str(o.text)
 	(end_panel.find_child("retry", true, false) as Button).visible = _end_result != "win"
 	end_panel.visible = true
+	for n in ["retry", "restart", "quit"]:
+		var b := end_panel.find_child(n, true, false) as Button
+		if b and b.visible:
+			b.call_deferred("grab_focus")  # 게임패드: 십자로 옮기고 A
+			break
 	Sfx.play(self, "win" if _end_result == "win" else "lose")
 
 

@@ -1298,19 +1298,19 @@ func _build_shop_panel(layer: CanvasLayer) -> void:
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	shop_rest = Button.new()
-	shop_rest.text = "긴 휴식"
+	shop_rest.text = "긴 휴식 (Y / Enter)"
 	shop_rest.focus_mode = Control.FOCUS_NONE
 	shop_rest.pressed.connect(func() -> void:
 		_long_rest()
 		_update_shop())
 	row.add_child(shop_rest)
 	shop_buy = Button.new()
-	shop_buy.text = "물약 사기 (%d골드)" % HeroState.POTION_PRICE
+	shop_buy.text = "물약 사기 %d골드 (X / J)" % HeroState.POTION_PRICE
 	shop_buy.focus_mode = Control.FOCUS_NONE
 	shop_buy.pressed.connect(_buy_potion)
 	row.add_child(shop_buy)
 	var done := Button.new()
-	done.text = "닫기 (Esc)"
+	done.text = "닫기 (B / Esc)"
 	done.focus_mode = Control.FOCUS_NONE
 	done.pressed.connect(_close_shop)
 	row.add_child(done)
@@ -1468,7 +1468,7 @@ func _update_rest() -> void:
 	if not can:
 		lines.append("[color=gray]더 굴릴 수 없어요 (HP가 가득 찼거나 히트 다이스가 없음)[/color]")
 	else:
-		lines.append("[color=gray]Enter: 가장 많이 다친 파티원이 굴려요[/color]")
+		lines.append("[color=gray]Y / Enter: 가장 많이 다친 파티원이 굴려요[/color]")
 	lines.append("마치면 Second Wind 1회, Action Surge, Channel Divinity 1회가 돌아와요 (주문 슬롯은 긴 휴식에)")
 	rest_label.text = "\n".join(lines)
 
@@ -1490,12 +1490,12 @@ func _build_rest_panel(layer: CanvasLayer) -> void:
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	rest_roll = Button.new()
-	rest_roll.text = "히트 다이스 굴리기 (Enter)"
+	rest_roll.text = "히트 다이스 굴리기 (Y / Enter)"
 	rest_roll.focus_mode = Control.FOCUS_NONE
 	rest_roll.pressed.connect(_rest_roll)
 	row.add_child(rest_roll)
 	var done := Button.new()
-	done.text = "휴식 마치기 (Esc)"
+	done.text = "휴식 마치기 (B / Esc)"
 	done.focus_mode = Control.FOCUS_NONE
 	done.pressed.connect(_finish_rest)
 	row.add_child(done)
