@@ -1,16 +1,16 @@
-## 보스 몬스터(Fab, Bento Models "The Eightfold Archive" Hadal)를 게임용으로 굽습니다.
-## 원본(glTF, LOD0~2, 동작 12~15개)은 프로젝트 밖 F:/workspace/fab_downloads/bosses 에 두고,
-## LOD2 메시 + 줄인 텍스처 + 엔진 이름으로 바꾼 동작만 res://assets/dark/<이름>/<이름>.scn 에 씁니다 (공개 저장소에 올리지 않음).
+## 보스 몬스터(Fab, Bento Models "The Eightfold Archive" Hadal·Glasshouse)를 게임용으로 굽습니다.
+## 원본(glTF, LOD0~2, 동작 7~15개)은 프로젝트 밖 F:/workspace/fab_downloads/bosses 에 두고,
+## 가장 가벼운 LOD 메시 + 줄인 텍스처 + 엔진 이름으로 바꾼 동작만 res://assets/dark/<이름>/<이름>.scn 에 씁니다 (공개 저장소에 올리지 않음).
 ##   godot --headless --path . -s tools/bake_boss.gd [-- 이름]
 extends SceneTree
 
-const SRC := "F:/workspace/fab_downloads/bosses/x/The_Eightfold_Archive/Hadal/Models/"
+const SRC := "F:/workspace/fab_downloads/bosses/x/The_Eightfold_Archive/"
 const OUT := "res://assets/dark/%s/"
 const TEX_SIZE := 512
 ## 이름 → 원본 glTF, 동작 (엔진 이름: [원본 동작, 길이 초(0이면 그대로)])
 const BOSSES := {
 	"bellwarden": {
-		"file": "drowned_bellwarden/01_Foundry_Warden/01_Tarnished_Iron_LOD2.gltf",
+		"file": "Hadal/Models/drowned_bellwarden/01_Foundry_Warden/01_Tarnished_Iron_LOD2.gltf",
 		"anims": {
 			"idle": ["Watch", 0.0],
 			"walk": ["Tripod_March", 1.6],
@@ -26,7 +26,7 @@ const BOSSES := {
 		},
 	},
 	"cantor": {
-		"file": "hadal_cantor/01_Survey_Brass/03_Midnight_Survey_LOD2.gltf",
+		"file": "Hadal/Models/hadal_cantor/01_Survey_Brass/03_Midnight_Survey_LOD2.gltf",
 		"anims": {
 			"idle": ["Suspended", 0.0],
 			"walk": ["Jet_Swim", 0.0],
@@ -42,7 +42,7 @@ const BOSSES := {
 		},
 	},
 	"regent": {
-		"file": "ossuary_regent/01_Ossuary_Sovereign/01_Ivory_and_Oxblood_LOD2.gltf",
+		"file": "Hadal/Models/ossuary_regent/01_Ossuary_Sovereign/01_Ivory_and_Oxblood_LOD2.gltf",
 		"anims": {
 			"idle": ["Glide", 0.0],
 			"walk": ["Glide", 2.4],
@@ -55,6 +55,92 @@ const BOSSES := {
 			"dodge": ["Caudal_Feint", 0.6],
 			"cast": ["Eclipse_Mantle", 1.5],
 			"wake": ["Unseal", 1.5],
+		},
+	},
+	# Glasshouse 셋 (LOD1이 가장 가벼움)
+	"burrwheel": {
+		"tex": 256,
+		"file": "Glasshouse/Models/Burr_Wheel/01_Burdock_Husk/01_Original_LOD1.gltf",
+		"anims": {
+			"idle": ["Flywheel Governor", 0.0],
+			"walk": ["Roll", 1.2],
+			"sprint": ["Roll", 0.9],
+			"crouch": ["Dormant", 0.0],
+			"die": ["Dormant", 1.8],
+			"hit": ["Unlatch", 0.6],
+			"attack-melee-right": ["Ratchet Breakaway", 1.3],
+			"holding-right-shoot": ["Chamber Proof", 1.3],
+			"dodge": ["Scatter Roll", 0.6],
+			"cast": ["Scatter Roll", 1.4],
+			"wake": ["Unlatch", 1.5],
+		},
+	},
+	"heron": {
+		"tex": 256,
+		"file": "Glasshouse/Models/Rain_Heron/01_Rain_Keeper/01_Original_LOD1.gltf",
+		"anims": {
+			"idle": ["Keep Watch", 0.0],
+			"walk": ["Wade", 0.0],
+			"sprint": ["Wade", 1.2],
+			"crouch": ["Listen", 0.0],
+			"die": ["Cistern Salute", 1.8],
+			"hit": ["Listen", 0.6],
+			"attack-melee-right": ["Plume Rattle", 1.3],
+			"holding-right-shoot": ["Measure the Rain", 1.3],
+			"dodge": ["Bank Survey", 0.6],
+			"cast": ["Measure the Rain", 1.4],
+			"wake": ["Cistern Salute", 1.5],
+		},
+	},
+	"silkgrafter": {
+		"tex": 256,
+		"file": "Glasshouse/Models/Silk_Grafter/01_Silk_Grafter/01_Original_LOD1.gltf",
+		"anims": {
+			"idle": ["Watch", 0.0],
+			"walk": ["Threadwalk", 0.0],
+			"sprint": ["Threadwalk", 0.9],
+			"crouch": ["Inspect", 0.0],
+			"die": ["Recoil", 1.8],
+			"hit": ["Recoil", 0.6],
+			"attack-melee-right": ["Selvedge Riposte", 1.3],
+			"holding-right-shoot": ["Cross Stitch", 1.3],
+			"dodge": ["Antenna Parallax", 0.6],
+			"cast": ["Warp Tension", 1.4],
+			"wake": ["Antenna Parallax", 1.5],
+		},
+	},
+	"winterscion": {
+		"tex": 256,
+		"file": "Glasshouse/Models/Winter_Scion/01_Winter_Orchid/01_Original_LOD1.gltf",
+		"anims": {
+			"idle": ["Suspended", 0.0],
+			"walk": ["Suspended", 2.4],
+			"sprint": ["Suspended", 1.6],
+			"crouch": ["Fold", 0.0],
+			"die": ["Fold", 1.8],
+			"hit": ["Pollen Chime", 0.6],
+			"attack-melee-right": ["Rime Bell", 1.3],
+			"holding-right-shoot": ["Heliotrope Spiral", 1.3],
+			"dodge": ["Fold", 0.6],
+			"cast": ["Frost Veil", 1.4],
+			"wake": ["Winter Bloom", 1.5],
+		},
+	},
+	"aurochs": {
+		"tex": 256,
+		"file": "Glasshouse/Models/Graft_Aurochs/01_Graft_Aurochs/01_Original_LOD1.gltf",
+		"anims": {
+			"idle": ["Graze Watch", 0.0],
+			"walk": ["Tread", 0.0],
+			"sprint": ["Tread", 1.0],
+			"crouch": ["Scent the Air", 0.0],
+			"die": ["Orchard Shudder", 1.8],
+			"hit": ["Orchard Shudder", 0.6],
+			"attack-melee-right": ["Antler Reap", 1.3],
+			"holding-right-shoot": ["Windbreak", 1.3],
+			"dodge": ["Orchard Charge", 0.6],
+			"cast": ["Orchard Charge", 1.0],
+			"wake": ["Scent the Air", 1.5],
 		},
 	},
 }
@@ -90,7 +176,7 @@ func _bake(name: String) -> void:
 			for p in ["albedo_texture", "normal_texture", "orm_texture", "roughness_texture", "metallic_texture", "emission_texture", "ao_texture"]:
 				var t = mat.get(p)
 				if t is Texture2D and not done.has(t):
-					done[t] = _shrink(t)
+					done[t] = _shrink(t, int(def.get("tex", TEX_SIZE)))
 				if t is Texture2D:
 					mat.set(p, done[t])
 	# 동작: 엔진 이름으로 새 묶음
@@ -121,14 +207,14 @@ func _bake(name: String) -> void:
 	root.free()
 
 
-func _shrink(t: Texture2D) -> Texture2D:
+func _shrink(t: Texture2D, size: int) -> Texture2D:
 	var img := t.get_image()
 	if img == null:
 		return t
 	if img.is_compressed():
 		img.decompress()
-	if img.get_width() > TEX_SIZE:
-		img.resize(TEX_SIZE, TEX_SIZE * img.get_height() / img.get_width(), Image.INTERPOLATE_LANCZOS)
+	if img.get_width() > size:
+		img.resize(size, size * img.get_height() / img.get_width(), Image.INTERPOLATE_LANCZOS)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 

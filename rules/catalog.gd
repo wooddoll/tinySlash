@@ -41,6 +41,11 @@ static func weapon(id: String) -> WeaponData:
 		"insect_bites": return _w(id, "물어뜯기", 2, 4, "piercing", {"finesse": true})
 		# 던전 보스 [변경: SRD에 없는 자작 몬스터]
 		"bell_toll": return _w(id, "종 내려치기", 2, 6, "bludgeoning", {"heavy": true, "reach": true})
+		"burr_spikes": return _w(id, "가시 바퀴살", 2, 6, "piercing", {})
+		"heron_beak": return _w(id, "부리", 1, 10, "piercing", {"finesse": true, "reach": true})
+		"silk_claws": return _w(id, "갈고리 발", 1, 8, "slashing", {"finesse": true})
+		"scion_vine": return _w(id, "얼음 덩굴", 2, 8, "bludgeoning", {"reach": true})
+		"aurochs_gore": return _w(id, "뿔 들이받기", 2, 10, "piercing", {"heavy": true, "reach": true})
 		"cantor_tentacle": return _w(id, "촉수", 1, 6, "bludgeoning", {"finesse": true, "reach": true})
 		"regent_sting": return _w(id, "꼬리 침", 2, 6, "piercing", {"finesse": true, "reach": true, "on_hit_save": CON, "on_hit_dc": 12, "on_hit_effect": "poisoned"})
 	push_error("알 수 없는 무기: " + id)
@@ -709,6 +714,46 @@ static func monster(id: String) -> CreatureStats:
 			s.resistances = PackedStringArray(["necrotic"])
 			s.features = PackedStringArray(["flying"])
 			s.model = "dark/regent"
+			s.weapon_model = ""
+		"burrwheel":
+			_m(s, "가시 바퀴", 2.0, 450, [16, 14, 15, 3, 10, 4], 15, 42, 8, Rules.Size.LARGE, 2)
+			s.weapons = [weapon("burr_spikes")]
+			s.creature_type = "construct"
+			s.immunities = PackedStringArray(["poison", "psychic"])
+			s.condition_immunities = PackedStringArray(["charmed", "frightened", "paralyzed", "poisoned"])
+			s.model = "dark/burrwheel"
+			s.weapon_model = ""
+		"heron":
+			_m(s, "비 지킴이 왜가리", 3.0, 700, [14, 16, 13, 6, 14, 8], 14, 50, 8, Rules.Size.LARGE, 3)
+			s.weapons = [weapon("heron_beak")]
+			s.multiattack = 2
+			s.creature_type = "monstrosity"
+			s.resistances = PackedStringArray(["cold"])
+			s.features = PackedStringArray(["flying"])
+			s.model = "dark/heron"
+			s.weapon_model = ""
+		"silkgrafter":
+			_m(s, "비단 접목자", 4.0, 1100, [16, 16, 14, 10, 12, 6], 15, 66, 8, Rules.Size.LARGE, 3)
+			s.weapons = [weapon("silk_claws")]
+			s.multiattack = 3
+			s.creature_type = "monstrosity"
+			s.model = "dark/silkgrafter"
+			s.weapon_model = ""
+		"winterscion":
+			_m(s, "겨울 접순", 5.0, 1800, [18, 10, 18, 12, 14, 14], 15, 90, 6, Rules.Size.LARGE, 0)
+			s.weapons = [weapon("scion_vine")]
+			s.multiattack = 2
+			s.creature_type = "plant"
+			s.resistances = PackedStringArray(["cold"])
+			s.vulnerabilities = PackedStringArray(["fire"])
+			s.features = PackedStringArray(["flying"])
+			s.model = "dark/winterscion"
+			s.weapon_model = ""
+		"aurochs":
+			_m(s, "접붙인 들소", 5.0, 1800, [21, 10, 19, 3, 12, 6], 14, 95, 8, Rules.Size.HUGE, 0)
+			s.weapons = [weapon("aurochs_gore")]
+			s.creature_type = "beast"
+			s.model = "dark/aurochs"
 			s.weapon_model = ""
 		"swarm_rats":
 			_m(s, "쥐 떼", 0.25, 50, [9, 11, 9, 2, 10, 3], 10, 14, 6, Rules.Size.MEDIUM, 0)

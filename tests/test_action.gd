@@ -486,7 +486,8 @@ func p_dummy(ac: ActionCombat) -> ActionCombat.Actor:
 func test_bosses_exist() -> void:
 	for id in DungeonGenerator.BOSSES:
 		var s := Catalog.monster(id)
-		check(s.size == Rules.Size.LARGE and s.model.begins_with("dark/"), "%s is large with a model" % id)
+		check(s.size >= Rules.Size.LARGE and s.model.begins_with("dark/"), "%s is large with a model" % id)
+		check(ActionCombat.BOSS_SKILLS.has(id), "%s has a skill" % id)
 
 
 ## 보스를 세우고 기술 예고 → 끝까지 돌림. 대상들은 움직이지 않음 (brain player는 생각하지 않음)
@@ -576,3 +577,14 @@ func test_boss_uses_skill_in_fight() -> void:
 	p.c.hp = 999
 	run(ac, 12.0)
 	check(used[0] >= 1, "boss uses its skill within a fight")
+
+
+func test_boss_web_at_target_stuns() -> void:
+	# 실 그물: 돌진 없이 대상 발밑 둘레. 보스 자신 둘레가 아님
+	var r := boss_skill_run("silkgrafter", [Vector2(8.0, 4.0), Vector2(4.5, 4.0)])
+	var ac: ActionCombat = r[0]
+	var b: ActionCombat.Actor = r[1]
+	check(ac.skill_area_has(b, Vector2(8.0, 4.0), 0.3) and not ac.skill_area_has(b, Vector2(4.5, 4.0), 0.3), "area at target")
+	run(ac, 1.2)
+	check(b.pos.distance_to(Vector2(3.5, 4.0)) < 0.3, "grafter stays put")
+	check(r[2][0].c.hp < 999 and r[2][1].c.hp == 999, "only the target spot is hit")

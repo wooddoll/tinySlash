@@ -2,7 +2,7 @@
 ## 실제 던전 생성기로 만든 방의 조우를 파티(플레이어 봇 + 동료 AI)가 싸워 보고 통계를 냅니다.
 ## 플레이어 봇은 몬스터 공격 예고를 보고 정해진 확률(skill)로 구릅니다 (반응 0.3초).
 ## 실행: Godot --headless --path . -s tools/sim_action.gd -- [던전 수] [파티 클래스들] [boss] (예: 20 fighter,cleric)
-## boss를 붙이면 출구 보스 방만 싸우고, 레벨 2~4로 봅니다
+## boss를 붙이면 출구 보스 방만 싸우고, 레벨 2~5로 봅니다
 extends SceneTree
 
 const DT := 1.0 / 60.0
@@ -18,7 +18,7 @@ func _init() -> void:
 	var classes := (args[1] if args.size() > 1 else "fighter,cleric").split(",")
 	var boss_only := args.size() > 2 and args[2] == "boss"
 	if boss_only:
-		LEVELS = [2, 3, 4]
+		LEVELS = [2, 3, 4, 5]
 	for lvl in LEVELS:
 		for skill in SKILLS:
 			var st := {"fights": 0, "wins": 0, "time": 0.0, "lost": 0.0, "downs": 0, "worst": 0.0, "dealt": 0, "taken": 0,

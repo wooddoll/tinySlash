@@ -21,8 +21,10 @@ const THEMES := {
 }
 ## 한 조우에 한 마리만 나오는 몬스터
 const UNIQUE := ["goblin_boss", "bellwarden", "cantor", "regent"]
-## [변경] 보스 방 전용 몬스터 (XP 순). 예산의 BOSS_STRETCH배 안에서 가장 비싼 것 하나를 먼저 넣음
-const BOSSES := ["bellwarden", "cantor", "regent"]
+## [변경] 보스 방 전용 몬스터 (XP 순). 예산의 BOSS_MIN~BOSS_STRETCH배 사이 보스 중 하나를 무작위로 먼저 넣음
+## (그 사이에 없으면 BOSS_STRETCH배 안에서 가장 비싼 것)
+const BOSSES := ["bellwarden", "burrwheel", "cantor", "heron", "regent", "silkgrafter", "winterscion", "aurochs"]
+const BOSS_MIN := 0.5
 const BOSS_STRETCH := 1.2
 const MAX_FOES := 8
 
@@ -611,9 +613,14 @@ func _pick_monsters(budget: int, pool: Array, boss: bool, cap: int) -> Array[Str
 	var left := budget
 	if boss:
 		var best := ""
+		var fits: Array = []
 		for id in BOSSES:
 			if _xp(id) <= budget * BOSS_STRETCH and (best == "" or _xp(id) > _xp(best)):
 				best = id
+			if _xp(id) <= budget * BOSS_STRETCH and _xp(id) >= budget * BOSS_MIN:
+				fits.append(id)
+		if not fits.is_empty():
+			best = fits[rng.randi_range(0, fits.size() - 1)]
 		if best == "":  # 보스를 감당할 예산이 아니면 예전처럼 무리에서 가장 비싼 것
 			for id in pool:
 				if _xp(id) <= left and (best == "" or _xp(id) > _xp(best)):

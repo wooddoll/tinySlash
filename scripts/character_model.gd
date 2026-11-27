@@ -36,6 +36,11 @@ const RAW_HEIGHT := {
 	"dark/bellwarden": 4.5,
 	"dark/cantor": 2.4,
 	"dark/regent": 4.8,
+	"dark/burrwheel": 1.6,
+	"dark/heron": 2.2,
+	"dark/silkgrafter": 2.4,
+	"dark/winterscion": 2.1,
+	"dark/aurochs": 1.9,
 }
 ## 옛 Kenney 캐릭터 이름 → 새 모델 (예전 시나리오 팩도 그대로 돌아가게)
 const ALIASES := {

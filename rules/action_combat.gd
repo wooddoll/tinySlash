@@ -958,7 +958,8 @@ func revive_party() -> void:
 
 ## 보스 몬스터 id → 기술. 예고 동안 바닥에 범위가 보이고, 끝나면 범위 안 모두가 내성 굴림.
 ## 실패하면 전부 + 추가 효과, 성공하면 절반. 구르기 무적이거나 범위 밖이면 안 맞음.
-##   shape: circle(center 둘레 radius) / cone(앞쪽 length, cos 이상). dash: 대상 자리로 돌진한 뒤 그 둘레를 침
+##   shape: circle(center 둘레 radius) / cone(앞쪽 length, cos 이상). dash: 대상 자리로 돌진한 뒤 그 둘레를 침.
+##   at_target: 자기 둘레 대신 대상 발밑 둘레 (돌진 없이)
 const BOSS_SKILLS := {
 	"bellwarden": {"id": "toll", "name": "종소리", "shape": "circle", "radius": 2.6, "windup": 1.2, "cooldown": 8.0,
 		"range": 2.2, "save": CON, "dc": 12, "dice": [2, 8], "type": "thunder", "push": 5.0, "anim": "cast"},
@@ -966,6 +967,18 @@ const BOSS_SKILLS := {
 		"range": 4.5, "save": WIS, "dc": 12, "dice": [2, 6], "type": "psychic", "stun": 1.5, "anim": "holding-right-shoot"},
 	"regent": {"id": "dive", "name": "급강하", "shape": "circle", "radius": 1.3, "windup": 1.0, "cooldown": 9.0,
 		"range": 7.0, "min_range": 2.0, "save": DEX, "dc": 13, "dice": [3, 6], "type": "piercing", "dash": true, "anim": "cast"},
+	"burrwheel": {"id": "roll", "name": "굴러 들이받기", "shape": "circle", "radius": 1.2, "windup": 1.0, "cooldown": 8.0,
+		"range": 6.0, "min_range": 2.0, "save": DEX, "dc": 12, "dice": [2, 8], "type": "bludgeoning", "dash": true, "push": 4.0,
+		"anim": "cast"},
+	"heron": {"id": "rain", "name": "빗줄기", "shape": "cone", "length": 4.5, "cos": 0.7, "windup": 1.0, "cooldown": 8.0,
+		"range": 4.0, "save": DEX, "dc": 12, "dice": [2, 8], "type": "cold", "anim": "cast"},
+	"silkgrafter": {"id": "web", "name": "실 그물", "shape": "circle", "radius": 1.5, "windup": 1.1, "cooldown": 9.0,
+		"range": 6.0, "save": DEX, "dc": 13, "dice": [2, 6], "type": "slashing", "at_target": true, "stun": 2.0, "anim": "cast"},
+	"winterscion": {"id": "frost", "name": "서리 장막", "shape": "circle", "radius": 3.0, "windup": 1.3, "cooldown": 9.0,
+		"range": 2.6, "save": CON, "dc": 14, "dice": [3, 8], "type": "cold", "stun": 1.0, "anim": "cast"},
+	"aurochs": {"id": "charge", "name": "돌진", "shape": "circle", "radius": 1.6, "windup": 1.1, "cooldown": 8.0,
+		"range": 7.0, "min_range": 2.5, "save": DEX, "dc": 14, "dice": [3, 10], "type": "piercing", "dash": true, "push": 6.0,
+		"anim": "cast"},
 }
 ## 깨어난 뒤 첫 기술까지
 const BOSS_FIRST_CD := 3.0
@@ -993,7 +1006,7 @@ func start_boss_skill(a: Actor, t: Actor) -> void:
 	a.facing = (t.pos - a.pos).normalized()
 	a.state = "ability"
 	a.t = sk.windup
-	a.ab = {"sk": sk, "center": t.pos if sk.has("dash") else a.pos, "dir": a.facing}
+	a.ab = {"sk": sk, "center": t.pos if sk.has("dash") or sk.has("at_target") else a.pos, "dir": a.facing}
 	a.ability_cd = sk.cooldown
 	a.cooldown = maxf(a.cooldown, sk.windup + MONSTER_RECOVER)
 	a.move = Vector2.ZERO
