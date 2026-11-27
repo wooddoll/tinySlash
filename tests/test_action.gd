@@ -443,3 +443,16 @@ func test_ghost_walks_through_wall() -> void:
 	run(ac, 6.0)
 	check(sp.pos.distance_to(p.pos) < 2.0, "specter came through the wall (dist %.2f)" % sp.pos.distance_to(p.pos))
 	check(g.pos.x < 5.0, "walker stays behind the wall")
+
+
+func test_monster_hp_scaled_in_action() -> void:
+	# 실시간 전투의 몬스터 HP는 1.5배, 파티와 원래 능력치는 그대로
+	var ac := arena()
+	var st := Catalog.monster("goblin_warrior")
+	var base := st.max_hp
+	var g := ac.add(Creature.new(st, 1), Vector2(3.5, 3.5), "monster")
+	var p := ac.add(pc("fighter"), Vector2(6.5, 3.5), "player")
+	eq(g.c.stats.max_hp, ceili(base * ActionCombat.MONSTER_HP_K), "monster max hp scaled")
+	eq(g.c.hp, g.c.stats.max_hp, "monster starts full")
+	eq(st.max_hp, base, "shared stats untouched")
+	eq(p.c.hp, Catalog.pc("fighter", 1).max_hp, "party hp unchanged")

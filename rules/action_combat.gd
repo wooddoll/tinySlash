@@ -129,6 +129,8 @@ var _shot_id := 0
 var _flow := {}
 var _stench_t := 0.0
 const FLOW_LIMIT := 40
+## [변경] 실시간 전투의 몬스터 HP 배율 (D&D 그대로면 싸움이 3~4초로 너무 짧음). XP는 그대로
+const MONSTER_HP_K := 1.5
 
 
 func _init(d: Dungeon, dc: Dice = null) -> void:
@@ -142,6 +144,10 @@ func add(c: Creature, p: Vector2, brain: String, room := -1) -> Actor:
 	a.room = room
 	a.weapon = primary_weapon(c)
 	a.awake = brain != "monster"
+	if brain == "monster" and not c.stats.is_pc:
+		c.stats = c.stats.duplicate()  # 다른 크리처와 나눠 쓰는 능력치는 건드리지 않음
+		c.stats.max_hp = ceili(c.stats.max_hp * MONSTER_HP_K)
+		c.hp = ceili(c.hp * MONSTER_HP_K)
 	a.fly = c.stats.has_feature("flying")
 	a.ghost = c.stats.has_feature("incorporeal")
 	actors.append(a)
