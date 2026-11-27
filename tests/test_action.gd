@@ -683,3 +683,79 @@ func test_burning_hands_cone() -> void:
 	check(a1.c.hp < a1.c.stats.max_hp or a1.state == "dead", "front burned")
 	eq(back.c.hp, hp_back, "behind safe")
 	a2.pos = a2.pos
+
+
+func test_reckless_gives_advantage_both_ways() -> void:
+	var ac := arena()
+	var b := ac.add(pc("barbarian", 2), Vector2(3.5, 3.5), "player")
+	var g := ac.add(foe("goblin_warrior"), Vector2(4.4, 3.5), "monster")
+	eq(ac.use_skill2(b), "", "reckless on")
+	check(b.c.has_effect("reckless"), "effect")
+	# 이점이면 굴림 두 개: 높은 쪽이 평균적으로 높음
+	var hits := [0, 0]
+	g.c.hp = 9999
+	b.c.hp = 9999
+	for i in 200:
+		var r1 := ac.strike(b, g, b.weapon)
+		if r1.get("damage", 0) > 0 and not r1.get("blocked", false):
+			hits[0] += 1
+		var r2 := ac.strike(g, b, g.weapon)
+		b.iframe = 0.0
+		if r2.get("damage", 0) > 0:
+			hits[1] += 1
+	check(hits[0] > 120 and hits[1] > 100, "both sides hit more often (%d, %d)" % hits)
+
+
+func test_divine_smite_adds_radiant() -> void:
+	var ac := arena()
+	var p := ac.add(pc("paladin", 2), Vector2(3.5, 3.5), "player")
+	var z := ac.add(foe("skeleton"), Vector2(4.4, 3.5), "monster")
+	z.c.hp = 9999
+	eq(ac.use_skill2(p), "", "smite ready")
+	var got := [false]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "text" and str(ev.text).begins_with("강타"):
+			got[0] = true)
+	for i in 30:
+		ac.strike(p, z, p.weapon)
+		if got[0]:
+			break
+	check(got[0] and not p.c.has_effect("smite_ready"), "smite lands once and is spent")
+
+
+func test_thunderwave_pushes() -> void:
+	var ac := arena()
+	var d := ac.add(pc("druid", 1), Vector2(5.5, 3.5), "player")
+	var g1 := ac.add(foe("goblin_minion"), Vector2(6.4, 3.5), "monster")
+	var g2 := ac.add(foe("goblin_minion"), Vector2(4.6, 3.5), "monster")
+	var far := ac.add(foe("goblin_minion"), Vector2(9.5, 3.5), "monster")
+	var hp_far := far.c.hp
+	eq(ac.use_skill2(d), "", "thunderwave")
+	check((g1.c.hp < g1.c.stats.max_hp or g1.state == "dead") and (g2.c.hp < g2.c.stats.max_hp or g2.state == "dead"), "both near hit")
+	eq(far.c.hp, hp_far, "far untouched")
+
+
+func test_hellish_rebuke_burns_attacker() -> void:
+	var ac := arena()
+	var w := ac.add(pc("warlock", 1), Vector2(3.5, 3.5), "player")
+	var g := ac.add(foe("goblin_warrior"), Vector2(4.4, 3.5), "monster")
+	g.c.hp = 999
+	w.c.hp = 999
+	eq(ac.use_skill2(w), "", "rebuke ready")
+	for i in 40:
+		ac.strike(g, w, g.weapon)
+		if not w.c.has_effect("rebuke"):
+			break
+	check(not w.c.has_effect("rebuke") and g.c.hp < 999, "attacker burned")
+
+
+func test_ranger_cure_and_monk_patient() -> void:
+	var ac := arena()
+	var r := ac.add(pc("ranger", 2), Vector2(3.5, 3.5), "player")
+	var f := ac.add(pc("fighter", 2), Vector2(4.5, 3.5), "ally")
+	f.c.hp = 3
+	eq(ac.use_skill2(r), "", "cure wounds")
+	check(f.c.hp > 3, "ally healed")
+	var m := ac.add(pc("monk", 2), Vector2(6.5, 3.5), "ally")
+	eq(ac.use_skill2(m), "", "patient defense")
+	check(m.c.has_effect("patient"), "dodging")

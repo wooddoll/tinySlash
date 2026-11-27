@@ -112,6 +112,8 @@ class Actor:
 	var ab := {}
 	## 로그 Sneak Attack을 다시 넣을 수 있을 때까지
 	var sneak_cd := 0.0
+	## 워락 Hellish Rebuke에 쓴 슬롯 레벨
+	var rebuke_slot := 1
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -506,8 +508,15 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 		event.emit({"type": "text", "actor": b, "text": "회피!"})
 		return {"dodged": true}
 	var m := attack_mods(a.c, w)
-	# 중독되면 공격 불리점 [SRD]
-	var r := dice.d20(-1 if a.c.has_effect("poisoned") else 0)
+	# 중독되면 공격 불리점 [SRD]. 무모한 공격: 내 근접 공격 이점, 나를 노리는 공격도 이점. Patient Defense: 나를 노리는 공격 불리점
+	var adv := -1 if a.c.has_effect("poisoned") else 0
+	if a.c.has_effect("reckless") and not w.ranged:
+		adv += 1
+	if b.c.has_effect("reckless"):
+		adv += 1
+	if b.c.has_effect("patient"):
+		adv -= 1
+	var r := dice.d20(signi(adv))
 	var nat: int = r.value
 	var total: int = nat + m.bonus
 	var full: bool = nat == 20 or (nat != 1 and total >= b.c.ac())
@@ -541,6 +550,10 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 	var res := Damage.apply(b.c, dmg, w.damage_type, crit)
 	if sneak > 0:
 		event.emit({"type": "text", "actor": b, "text": "급소 +%d" % sneak})
+	if full and not w.ranged and a.c.has_effect("smite_ready") and b.c.hp > 0:
+		_smite(a, b, crit)
+	if b.c.has_effect("rebuke") and res.dealt > 0 and a.alive() and a.c.is_hostile_to(b.c):
+		_rebuke(b, a)
 	if b.timers.has("turned") and res.dealt > 0:
 		b.timers.erase("turned")  # Turn Undead: 피해를 입으면 풀림 [SRD]
 		b.flee = 0.0
@@ -1102,7 +1115,8 @@ func _boss_release(a: Actor) -> void:
 # =====================================================================
 
 const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식", "paralyzed": "마비", "poisoned": "중독",
-	"surging": "Action Surge", "turned": "겁먹음"}
+	"surging": "Action Surge", "turned": "겁먹음", "reckless": "무모한 공격", "smite_ready": "Divine Smite",
+	"rebuke": "Hellish Rebuke", "patient": "Patient Defense"}
 ## 실시간에서 D&D 1라운드로 치는 시간, 구울 마비 시간 (초)
 const ROUND := 6.0
 const PARALYZE_TIME := 2.0
@@ -1136,7 +1150,20 @@ const SKILLS2 := {
 	"cleric": ["Turn Undead / Spiritual Weapon", "언데드가 6 안에 있으면 Turn Undead(Channel Divinity), 아니면 Spiritual Weapon(2레벨 슬롯)"],
 	"wizard": ["Burning Hands", "앞쪽 부채꼴(길이 3) 안 적이 DEX 내성: 실패 3d6 화염, 성공 절반 (1레벨 슬롯)"],
 	"sorcerer": ["Burning Hands", "앞쪽 부채꼴(길이 3) 안 적이 DEX 내성: 실패 3d6 화염, 성공 절반 (1레벨 슬롯)"],
+	"barbarian": ["무모한 공격", "6초 동안 내 근접 공격에 이점, 나를 노리는 공격도 이점"],
+	"paladin": ["Divine Smite", "8초 안에 다음 근접 공격이 맞으면 2d8 광휘 추가, 언데드·악마 +1d8 (무료 횟수, 다음은 슬롯)"],
+	"bard": ["Thunderwave", "내 둘레(반지름 1.6) 적이 CON 내성: 실패 2d8 천둥과 밀려남, 성공 절반 (1레벨 슬롯)"],
+	"druid": ["Thunderwave", "내 둘레(반지름 1.6) 적이 CON 내성: 실패 2d8 천둥과 밀려남, 성공 절반 (1레벨 슬롯)"],
+	"warlock": ["Hellish Rebuke", "10초 안에 나를 다치게 한 적이 DEX 내성: 실패 2d10 화염, 성공 절반 (계약 슬롯)"],
+	"ranger": ["Cure Wounds", "가까운(2 안) 가장 다친 아군·자신 2d8 + WIS 회복 (1레벨 슬롯)"],
+	"monk": ["Patient Defense", "6초 동안 나를 노리는 공격에 불리점 (Focus 1)"],
 }
+const RECKLESS_TIME := 6.0
+const SMITE_TIME := 8.0
+const REBUKE_TIME := 10.0
+const PATIENT_TIME := 6.0
+const WAVE_SHAPE := {"name": "Thunderwave", "shape": "circle", "radius": 1.6}
+const CURE_RANGE := 2.0
 const SURGE_TIME := 6.0
 const SURGE_K := 0.5
 const SNEAK_CD := 2.0
@@ -1250,6 +1277,81 @@ func use_skill2(a: Actor) -> String:
 			event.emit({"type": "area", "actor": a, "shape": BURN_SHAPE, "center": a.pos, "dir": a.facing,
 				"color": Color(1, 0.55, 0.15)})
 			msg = "Burning Hands"
+		"barbarian":
+			if c.has_effect("reckless"):
+				return "이미 무모하게 싸우는 중"
+			c.add_effect("reckless", c, "never")
+			a.timers["reckless"] = RECKLESS_TIME
+			msg = "무모한 공격!"
+		"paladin":
+			if c.has_effect("smite_ready"):
+				return "이미 준비됨"
+			var free: bool = c.resources.get("free_smite", 0) > 0
+			if not free and Spells.lowest_slot(c, 1) == 0:
+				return "주문 슬롯이 없어요"
+			c.add_effect("smite_ready", c, "never")
+			a.timers["smite_ready"] = SMITE_TIME
+			msg = "Divine Smite 준비"
+		"bard", "druid":
+			var slot := Spells.lowest_slot(c, 1)
+			if slot == 0:
+				return "주문 슬롯이 없어요"
+			c.resources["slot%d" % slot] -= 1
+			var n := 0
+			for b in foes_of(a):
+				if not b.alive() or a.pos.distance_to(b.pos) > WAVE_SHAPE.radius + b.radius:
+					continue
+				var ok := save(b.c, CON, c.spell_dc())
+				var dmg := Dice.sum(dice.roll(1 + slot, 8))
+				if ok:
+					dmg = maxi(1, dmg / 2)
+				var res := Damage.apply(b.c, dmg, "thunder", false)
+				b.awake = true
+				n += 1
+				event.emit({"type": "hit", "actor": a, "target": b, "damage": res.dealt, "crit": false, "blocked": ok,
+					"spell": "thunderwave"})
+				if b.c.hp <= 0:
+					_fall(b)
+				elif not ok:
+					var away := b.pos - a.pos
+					b.knock = (away.normalized() if away.length() > 0.01 else a.facing) * (5.0 if b.c.stats.size <= Rules.Size.MEDIUM else 2.5)
+			event.emit({"type": "area", "actor": a, "shape": WAVE_SHAPE, "center": a.pos, "dir": a.facing,
+				"color": Color(0.6, 0.75, 1.0)})
+			msg = "Thunderwave"
+		"warlock":
+			if c.has_effect("rebuke"):
+				return "이미 준비됨"
+			var slot := Spells.lowest_slot(c, 1)
+			if slot == 0:
+				return "주문 슬롯이 없어요"
+			c.resources["slot%d" % slot] -= 1
+			c.add_effect("rebuke", c, "never")
+			a.rebuke_slot = slot
+			a.timers["rebuke"] = REBUKE_TIME
+			msg = "Hellish Rebuke 준비"
+		"ranger":
+			var slot := Spells.lowest_slot(c, 1)
+			if slot == 0:
+				return "주문 슬롯이 없어요"
+			var t: Actor = null
+			for b in party():
+				if b.c.team == c.team and b.c.is_alive() and b.c.hp < b.c.stats.max_hp and a.pos.distance_to(b.pos) <= CURE_RANGE \
+						and (t == null or float(b.c.hp) / b.c.stats.max_hp < float(t.c.hp) / t.c.stats.max_hp):
+					t = b
+			if t == null:
+				return "가까이 다친 아군이 없어요"
+			c.resources["slot%d" % slot] -= 1
+			_heal(t, Spells.heal_amount(dice, c, "cure_wounds", slot).amount)
+			msg = "Cure Wounds"
+		"monk":
+			if c.resources.get("focus", 0) <= 0:
+				return "집중을 다 썼어요"
+			if c.has_effect("patient"):
+				return "이미 쓰는 중"
+			c.resources["focus"] -= 1
+			c.add_effect("patient", c, "never")
+			a.timers["patient"] = PATIENT_TIME
+			msg = "Patient Defense"
 		_:
 			return "두 번째 기술이 없어요"
 	a.skill_cd = maxf(a.skill_cd, SKILL_COOLDOWN)
@@ -1303,9 +1405,83 @@ func auto_skill2(a: Actor) -> bool:
 			a.facing = keep
 			if n < 2:
 				return false
+		"barbarian":
+			var near := _nearest(a, foes)
+			if c.has_effect("reckless") or c.hp < c.stats.max_hp * 0.5 or a.pos.distance_to(near.pos) > melee_dist(a, near) + 0.5:
+				return false
+		"paladin":
+			if c.has_effect("smite_ready") or (c.resources.get("free_smite", 0) <= 0 and Spells.lowest_slot(c, 1) == 0):
+				return false
+			var near := _nearest(a, foes)
+			if a.pos.distance_to(near.pos) > melee_dist(a, near) + 0.5:
+				return false
+			if near.c.stats.cr < 1.0 and near.c.stats.creature_type != "undead":
+				return false
+		"bard", "druid":
+			if Spells.lowest_slot(c, 1) == 0:
+				return false
+			var n := 0
+			for b in foes:
+				if a.pos.distance_to(b.pos) <= WAVE_SHAPE.radius + b.radius:
+					n += 1
+			if n < 2:
+				return false
+		"warlock":
+			if c.has_effect("rebuke") or Spells.lowest_slot(c, 1) == 0:
+				return false
+			var near := _nearest(a, foes)
+			if near.target != a or a.pos.distance_to(near.pos) > melee_dist(near, a) + 0.5:
+				return false
+		"ranger":
+			if Spells.lowest_slot(c, 1) == 0:
+				return false
+			var hurt := false
+			for b in party():
+				if b.c.is_alive() and b.c.hp < b.c.stats.max_hp * 0.4 and a.pos.distance_to(b.pos) <= CURE_RANGE:
+					hurt = true
+			if not hurt:
+				return false
+		"monk":
+			if c.has_effect("patient") or c.resources.get("focus", 0) <= 1 or c.hp > c.stats.max_hp * 0.5:
+				return false
 		_:
 			return false
 	return use_skill2(a) == ""
+
+
+## Divine Smite가 터짐: 무료 횟수, 없으면 가장 낮은 슬롯
+func _smite(a: Actor, b: Actor, crit: bool) -> void:
+	var c := a.c
+	var slot := 1
+	if c.resources.get("free_smite", 0) > 0:
+		c.resources["free_smite"] -= 1
+	else:
+		slot = Spells.lowest_slot(c, 1)
+		if slot == 0:
+			return
+		c.resources["slot%d" % slot] -= 1
+	c.remove_effects("smite_ready")
+	a.timers.erase("smite_ready")
+	var n := 1 + slot + (1 if b.c.stats.creature_type in ["undead", "fiend"] else 0)
+	var res := Damage.apply(b.c, Dice.sum(dice.roll(n * (2 if crit else 1), 8)), "radiant", crit)
+	event.emit({"type": "text", "actor": b, "text": "강타 +%d" % res.dealt})
+
+
+## Hellish Rebuke가 터짐: 나(w)를 다치게 한 적(x)이 DEX 내성
+func _rebuke(w: Actor, x: Actor) -> void:
+	var slot: int = maxi(1, w.rebuke_slot)
+	w.c.remove_effects("rebuke")
+	w.timers.erase("rebuke")
+	var ok := save(x.c, DEX, w.c.spell_dc())
+	var dmg := Dice.sum(dice.roll(1 + slot, 10))
+	if ok:
+		dmg = maxi(1, dmg / 2)
+	var res := Damage.apply(x.c, dmg, "fire", false)
+	event.emit({"type": "hit", "actor": w, "target": x, "damage": res.dealt, "crit": false, "blocked": ok,
+		"spell": "hellish_rebuke"})
+	event.emit({"type": "text", "actor": x, "text": "Hellish Rebuke"})
+	if x.c.hp <= 0:
+		_fall(x)
 
 
 func _spirits_tick(delta: float) -> void:
