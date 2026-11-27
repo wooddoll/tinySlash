@@ -298,3 +298,69 @@ func test_ally_cleric_heals() -> void:
 	p.c.hp = 2
 	ac.tick(1.0 / 60.0)
 	check(p.c.hp > 2, "ally cleric used Healing Word")
+
+
+func test_max_two_melee_attackers() -> void:
+	# 한 대상을 동시에 공격 준비하는 근접 몬스터는 최대 2마리
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(5.5, 4.0), "player")
+	p.c.stats.max_hp = 999
+	p.c.hp = 999
+	for i in 4:
+		var g := ac.add(foe(), p.pos + Vector2.from_angle(i * PI / 2) * 1.0, "monster")
+		g.awake = true
+	var most := 0
+	for f in 300:
+		ac.tick(1.0 / 60.0)
+		most = maxi(most, ac.actors.filter(func(b: ActionCombat.Actor) -> bool: return b.state == "windup").size())
+	check(most <= ActionCombat.MAX_MELEE_ATTACKERS, "at most 2 wind up together (got %d)" % most)
+	check(most >= 1, "they still attack")
+
+
+func test_target_score_prefers_hurt_caster() -> void:
+	var ac := arena()
+	var g := ac.add(foe(), Vector2(5.0, 4.0), "monster")
+	var f := ac.add(pc("fighter"), Vector2(6.0, 4.0), "player")
+	var w := ac.add(pc("wizard"), Vector2(5.0, 5.3), "ally")
+	w.c.hp = 1
+	check(ac.monster_target_score(g, w) > ac.monster_target_score(g, f), "a hurt caster a bit farther away is preferred")
+
+
+func test_cowardly_flees() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 4.0), "player")
+	var g := ac.add(foe("goblin_minion"), Vector2(4.0, 4.0), "monster")
+	g.awake = true
+	g.c.stats.features.append("cowardly")
+	g.c.hp = 1
+	seed(3)
+	var fled := false
+	for i in 40:
+		g.flee_checked = false
+		g.flee = 0.0
+		ac._think_monster(g, 0.016)
+		if g.flee > 0.0:
+			fled = true
+			check(g.move.dot(g.pos - p.pos) > 0.0, "runs away from the player")
+			break
+	check(fled, "a bloodied cowardly goblin sometimes flees")
+
+
+func test_ally_dodges_telegraph() -> void:
+	var ac := arena()
+	ac.add(pc("fighter"), Vector2(2.0, 2.0), "player")
+	var cl := ac.add(pc("cleric"), Vector2(5.0, 4.0), "ally")
+	var g := ac.add(foe(), Vector2(6.0, 4.0), "monster")
+	g.awake = true
+	g.target = cl
+	g.state = "windup"
+	g.t = ActionCombat.MONSTER_WINDUP - 0.3
+	seed(1)
+	var dodged := 0
+	for i in 20:
+		cl.reacted.clear()
+		cl.want_dodge = false
+		ac._think_ally(cl)
+		if cl.want_dodge:
+			dodged += 1
+	check(dodged >= 8 and dodged <= 19, "ally dodges about 70%% of the time (%d/20)" % dodged)

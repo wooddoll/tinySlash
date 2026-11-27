@@ -41,6 +41,23 @@ const SHOT_SPEED := 13.0
 const SHOT_RADIUS := 0.35
 ## 자동 조준: 바라보는 방향에서 이만큼(cos) 안의 가장 가까운 적
 const AIM_COS := 0.82
+## AI: 한 대상을 동시에 공격 준비할 수 있는 근접 몬스터 수, 대상 다시 고르는 간격(초), 둘러쌀 때 서로 거리
+const MAX_MELEE_ATTACKERS := 2
+const RETHINK := 0.6
+const SPREAD_DIST := 1.1
+## 대상 점수: 거리 1유닛당, 잃은 HP 비율, 시전자·집중(MonsterAI.priority 비율), 지금 대상 유지, 이미 노리는 몬스터 1마리당, (동료) 리더·나를 노리는 적
+const T_DIST := 10.0
+const T_HURT := 15.0
+const T_PRIORITY := 0.5
+const T_STICK := 12.0
+const T_CROWD := 6.0
+const T_GUARD := 10.0
+## 겁쟁이 도망 확률, 시간
+const FLEE_CHANCE := 0.3
+const FLEE_TIME := 4.0
+## 동료 구르기: 예고를 보고 반응하는 시간, 구를 확률
+const ALLY_REACTION := 0.25
+const ALLY_DODGE := 0.7
 ## 몬스터가 깨어나는 거리
 const WAKE_RANGE := 6.5
 ## 동료가 플레이어 곁에 머무는 거리
@@ -76,6 +93,13 @@ class Actor:
 	var timers := {}
 	## 클래스 기술을 다시 쓸 수 있을 때까지
 	var skill_cd := 0.0
+	## AI: 대상을 다시 고를 때까지, 도망 남은 시간, 도망 판정을 했는지, 기다릴 때 도는 방향
+	var think_t := 0.0
+	var flee := 0.0
+	var flee_checked := false
+	var orbit := 1.0 if randf() < 0.5 else -1.0
+	## 동료가 이미 반응한 공격 예고 (몬스터 id)
+	var reacted := {}
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -482,11 +506,30 @@ func _think_monster(a: Actor, delta: float) -> void:
 		if a.pos.distance_to(near.pos) <= WAKE_RANGE and clear_line(a.pos, near.pos):
 			wake_room(a.room)
 		return
-	if a.target == null or not a.target.alive():
-		a.target = near
-	elif a.pos.distance_to(near.pos) + 1.5 < a.pos.distance_to(a.target.pos):
-		a.target = near  # 훨씬 가까운 적으로 바꿈
 	a.wait = maxf(0.0, a.wait - delta)
+	# 겁쟁이(cowardly): 처음 반 넘게 다치면 30% 확률로 몇 초 도망
+	if a.c.stats.has_feature("cowardly") and not a.flee_checked and a.c.is_bloodied():
+		a.flee_checked = true
+		if randf() < FLEE_CHANCE:
+			a.flee = FLEE_TIME
+			event.emit({"type": "text", "actor": a, "text": "도망!"})
+	if a.flee > 0.0:
+		a.flee -= delta
+		var away := (a.pos - near.pos).normalized()
+		a.move = steer(a, a.pos + away * 3.0)
+		return
+	# 대상: 가끔 점수로 다시 고름 (가까움, 다친 정도, 시전자, 이미 몰린 대상은 덜)
+	a.think_t -= delta
+	if a.target == null or not a.target.alive() or a.think_t <= 0.0:
+		a.think_t = RETHINK
+		var best: Actor = null
+		var bv := -INF
+		for b in foes:
+			var v := monster_target_score(a, b)
+			if v > bv:
+				bv = v
+				best = b
+		a.target = best
 	var t := a.target
 	var to := t.pos - a.pos
 	var dist := to.length()
@@ -502,14 +545,56 @@ func _think_monster(a: Actor, delta: float) -> void:
 			a.wait = randf_range(MONSTER_WAIT_MIN + 0.2, MONSTER_WAIT_MAX + 0.2)
 		return
 	var reach := reach_of(a.weapon)
+	var spread := _spread(a, t)
 	if dist > reach * 0.85:
-		a.move = steer(a, t.pos)
-	elif a.wait <= 0.0 and a.cooldown <= 0.0:
-		a.facing = to.normalized()
-		a.want_attack = true
-		a.wait = randf_range(MONSTER_WAIT_MIN, MONSTER_WAIT_MAX)
-	else:
-		a.facing = to.normalized()
+		a.move = (steer(a, t.pos) + spread).normalized()
+		return
+	a.facing = to.normalized()
+	# 동시에 공격 준비하는 몬스터 수 제한: 차례가 아니면 둘레를 돌며 기다림
+	if a.wait <= 0.0 and a.cooldown <= 0.0:
+		if _attackers_on(t, a) < MAX_MELEE_ATTACKERS:
+			a.want_attack = true
+			a.wait = randf_range(MONSTER_WAIT_MIN, MONSTER_WAIT_MAX)
+			return
+		a.wait = randf_range(0.15, 0.35)
+	if a.state == "idle":
+		a.move = (to.normalized().orthogonal() * a.orbit * 0.45 + spread).limit_length(0.6)
+
+
+## 몬스터가 대상 b를 노릴 가치
+func monster_target_score(a: Actor, b: Actor) -> float:
+	var v := -a.pos.distance_to(b.pos) * T_DIST
+	v += (1.0 - float(b.c.hp) / maxf(1.0, b.c.stats.max_hp)) * T_HURT
+	v += MonsterAI.priority(b.c) * T_PRIORITY
+	if b == a.target:
+		v += T_STICK
+	v -= _attackers_on(b, a, true) * T_CROWD
+	return v
+
+
+## b를 노리는 다른 근접 몬스터 수. all이면 노리기만 해도, 아니면 지금 공격 준비 중인 것만
+func _attackers_on(b: Actor, me: Actor, all := false) -> int:
+	var n := 0
+	for o in actors:
+		if o == me or o.brain != "monster" or not o.alive() or o.target != b or is_ranged(o.weapon):
+			continue
+		# 같은 걸음에 이미 공격하기로 한 몬스터(want_attack)도 셈
+		if all or o.state == "windup" or o.want_attack:
+			n += 1
+	return n
+
+
+## 같은 대상을 둘러싼 다른 몬스터에게서 비켜나는 힘 (한쪽에 몰리지 않고 둘러쌈)
+func _spread(a: Actor, t: Actor) -> Vector2:
+	var push := Vector2.ZERO
+	for o in actors:
+		if o == a or o.brain != "monster" or not o.alive() or o.target != t:
+			continue
+		var d := a.pos - o.pos
+		var l := d.length()
+		if l < SPREAD_DIST and l > 0.001:
+			push += d / l * (SPREAD_DIST - l) / SPREAD_DIST
+	return push * 0.8
 
 
 ## 동료: 깨어 있는 적이 있으면 싸우고, 없으면 플레이어를 따라감
@@ -524,13 +609,28 @@ func _think_ally(a: Actor) -> void:
 		if leader and a.pos.distance_to(leader.pos) > FOLLOW_DIST:
 			a.move = steer(a, leader.pos) * minf(1.0, (a.pos.distance_to(leader.pos) - FOLLOW_DIST) + 0.3)
 		return
+	# 나를 노린 공격 예고를 보면 (반응 시간 뒤) 확률로 구름
+	if _ally_dodge(a, foes):
+		return
 	# 회복 기술이 있으면 많이 다친 동료(쓰러진 동료 먼저)를 고침
 	if a.c.stats.id in HEALERS and a.skill_cd <= 0.0 and not a.busy():
 		var hurt := _most_hurt(a)
 		if hurt and (hurt.c.hp <= 0 or hurt.c.hp < hurt.c.stats.max_hp * 0.4):
 			if use_skill(a) == "":
 				return
-	var t := _nearest(a, foes)
+	# 대상: 가까운 적, 리더나 나를 노리는 적, 다친 적
+	var t: Actor = null
+	var bv := -INF
+	for b in foes:
+		var v := -a.pos.distance_to(b.pos) * T_DIST + (1.0 - float(b.c.hp) / maxf(1.0, b.c.stats.max_hp)) * T_HURT
+		if b.target == leader or b.target == a:
+			v += T_GUARD
+		if b == a.target:
+			v += T_STICK
+		if v > bv:
+			bv = v
+			t = b
+	a.target = t
 	var to := t.pos - a.pos
 	var dist := to.length()
 	if is_ranged(a.weapon):
@@ -547,6 +647,26 @@ func _think_ally(a: Actor) -> void:
 	elif a.cooldown <= 0.0:
 		a.facing = to.normalized()
 		a.want_attack = true
+
+
+func _ally_dodge(a: Actor, foes: Array[Actor]) -> bool:
+	for f in foes:
+		if f.state != "windup":
+			a.reacted.erase(f.get_instance_id())
+			continue
+		if MONSTER_WINDUP - f.t < ALLY_REACTION or a.reacted.has(f.get_instance_id()):
+			continue
+		var ranged := is_ranged(f.weapon)
+		var threat := (ranged and f.facing.dot((a.pos - f.pos).normalized()) > 0.9) 			or (not ranged and f.target == a and a.pos.distance_to(f.pos) <= reach_of(f.weapon) + 0.8)
+		if not threat:
+			continue
+		a.reacted[f.get_instance_id()] = true
+		if randf() < ALLY_DODGE:
+			var away := (a.pos - f.pos).normalized()
+			a.move = away.orthogonal() if ranged else away
+			a.want_dodge = true
+			return true
+	return false
 
 
 ## 목표로 가는 이동 방향. 몸 너비로 곧장 갈 수 있으면 곧장, 막혔으면 칸 길 찾기 (기둥·벽 돌아가기)
