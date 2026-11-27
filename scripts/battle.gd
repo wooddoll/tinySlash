@@ -39,8 +39,9 @@ const ENCOUNTER_KEYS := {KEY_F1: "easy", KEY_F2: "normal", KEY_F3: "hard", KEY_F
 
 static var encounter_id := "normal"
 ## [변경] 단독 전투(B 키)는 실시간 액션 전투(docs/rules.md 10장). T 키로 예전 턴제와 바꿈.
-## 던전 지도 화면에서 고른 방 전투(custom에 map이 있음)는 턴제 그대로
+## 던전 지도 화면에서 고른 방 전투(custom에 map이 있음)도 실시간 (2026-11-27)
 static var action_mode := true
+const ACTION_HELP_DUNGEON := "이동: 왼쪽 스틱/WASD · 공격: X/J · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · T: 턴제로 · Esc: 도망쳐 던전으로"
 const ACTION_HELP := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · F1~F8: 조우 · R: 다시 · T: 턴제로 · Esc: 바깥으로"
 var action: ActionLayer
 var _action_ui := {}
@@ -97,7 +98,7 @@ var radial: RadialMenu
 
 func _ready() -> void:
 	InputSetup.register()
-	if action_mode and not _dungeon():
+	if action_mode:
 		_start_action()
 		return
 	_build_world()
@@ -512,7 +513,7 @@ func _build_ui() -> void:
 	layer.add_child(hint_label)
 
 	var help := Label.new()
-	help.text = "좌클릭: 이동/공격/대상 · 스킬·주문·아이템: 원형 메뉴(숫자로 고름) · 우클릭: 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F8: 조우 바꾸기 · T: 실시간으로 · Esc: 탐험으로")
+	help.text = "좌클릭: 이동/공격/대상 · 스킬·주문·아이템: 원형 메뉴(숫자로 고름) · 우클릭: 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("T: 실시간으로 · Esc: 던전으로" if _dungeon() else "F1~F8: 조우 바꾸기 · T: 실시간으로 · Esc: 탐험으로")
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	help.offset_top = -24
 	help.offset_left = 12
@@ -1212,7 +1213,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if combat == null:
 		_action_input(event)
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_T and not _dungeon():
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_T:
 		action_mode = true
 		get_tree().reload_current_scene()
 		return
@@ -1361,7 +1362,10 @@ func _click() -> void:
 func _start_action() -> void:
 	_build_world()
 	var d := Dungeon.new(grid.width, grid.height)
+	var map := _map()
 	for c in grid.heights:
+		if _is_wall_char(map, c):
+			continue  # 던전 벽(X)은 바닥이 아님: 화살·시야를 막음
 		d.set_tile(c, Dungeon.Tile.FLOOR)
 		if grid.heights[c] > 0.0:
 			d.heights[c] = grid.heights[c]
@@ -1371,22 +1375,32 @@ func _start_action() -> void:
 	add_child(action)
 	action.camera_rig = rig
 	action.setup(d, {})
-	var foes: Array = ENCOUNTERS[encounter_id].foes
+	var foes: Array = custom.foes if _dungeon() else ENCOUNTERS[encounter_id].foes
 	var foe_cells: Array = foes.map(func(e: Array) -> Vector2i: return e[1])
 	var taken: Array = foe_cells.duplicate()
-	for i in HeroState.party_classes.size():
-		var h := HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0)
-		h.xp = Rules.XP_THRESHOLDS[int(ENCOUNTERS[encounter_id].get("level", 1)) - 1]  # 보스 조우는 그 레벨 파티로
-		var c := h.make_creature()
+	var start: Vector2i = custom.get("pc_start", PC_START)
+	var members: Array[Creature] = []
+	if custom.has("party"):
+		heroes = custom.party  # 던전 탐험: 앞 전투의 HP와 사용 횟수를 이어 감
+		for h in heroes:
+			members.append((h as HeroState).make_creature())
+	else:
+		for i in HeroState.party_classes.size():
+			var h := HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0)
+			h.xp = Rules.XP_THRESHOLDS[int(ENCOUNTERS[encounter_id].get("level", 1)) - 1]  # 보스 조우는 그 레벨 파티로
+			members.append(h.make_creature())
+	for i in members.size():
+		var c := members[i]
 		party.append(c)
-		var cell := PC_START
+		var cell := start
 		if i > 0:
-			cell = _free_cell_near(PC_START, taken)
+			cell = _free_cell_near(start, taken)
 		taken.append(cell)
 		action.add_member(c, cell, "player" if i == 0 else "ally")
 	pc = party[0]
 	for e in foes:
-		action.add_foe(str(e[0]), e[1], 0)
+		var id := str(e[0])
+		action.add_foe(id, e[1], 0, Catalog.custom_monster(id, custom.get("monster_defs", {})) if _dungeon() else null)
 	action.ac.wake_room(-1)
 	rig.target = action.views[action.player].model
 	_build_action_ui()
@@ -1394,7 +1408,7 @@ func _start_action() -> void:
 	action.party_changed.connect(_action_party)
 	action.fight_over.connect(func(xp: int) -> void: _action_result(true, xp))
 	action.defeated.connect(func() -> void: _action_result(false, 0))
-	_action_log("[color=gray]%s[/color]" % ENCOUNTERS[encounter_id].label)
+	_action_log("[color=gray]%s[/color]" % _encounter_label())
 	_action_party()
 	Sfx.play(self, "fight")
 
@@ -1421,7 +1435,7 @@ func _build_action_ui() -> void:
 	log_l.add_theme_color_override("font_outline_color", Color.BLACK)
 	layer.add_child(log_l)
 	var help_l := Label.new()
-	help_l.text = ACTION_HELP
+	help_l.text = ACTION_HELP_DUNGEON if _dungeon() else ACTION_HELP
 	help_l.anchor_top = 1.0
 	help_l.anchor_bottom = 1.0
 	help_l.offset_left = 12
@@ -1460,10 +1474,26 @@ func _action_result(won: bool, xp: int) -> void:
 	if res.visible:
 		return
 	_action_party()
-	Sfx.play(self, "win" if won else "lose")
-	res.text = ("승리!
-경험치 %d" % xp if won else "패배...") + "
-F1~F8: 다른 조우 · R: 다시 · Esc: 바깥으로"
+	if _dungeon():
+		custom["result"] = "win" if won else "lose"
+	if won and not heroes.is_empty():
+		# 던전 전투: XP를 파티 인원수로 나눠 담음 [SRD]. 이긴 전투는 다시 할 수 없음
+		var share: int = xp / heroes.size()
+		var level_up := 0
+		for i in heroes.size():
+			var up: Dictionary = (heroes[i] as HeroState).absorb(party[i], share)
+			if up.has("level_up"):
+				level_up = up.level_up
+		if level_up > 0:
+			custom["level_up"] = level_up
+		var lead: HeroState = heroes[0]
+		Sfx.play(self, "level_up" if level_up > 0 else "win")
+		res.text = "승리!\n경험치 %d → 한 명당 +%d · 레벨 %d%s\nEsc: 던전으로" % [xp, share, lead.level(),
+			"\n레벨 업!" if level_up > 0 else ""]
+	else:
+		Sfx.play(self, "win" if won else "lose")
+		res.text = ("승리!\n경험치 %d" % xp if won else "패배...") + (
+			"\nR: 다시 · Esc: 던전으로" if _dungeon() else "\nF1~F8: 다른 조우 · R: 다시 · Esc: 바깥으로")
 	res.visible = true
 
 
@@ -1471,13 +1501,26 @@ func _action_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var key: Key = event.physical_keycode
-	if ENCOUNTER_KEYS.has(key):
+	var done: bool = (_action_ui.result as Label).visible
+	var won_dungeon: bool = done and custom.get("result", "") == "win" and not heroes.is_empty()
+	if ENCOUNTER_KEYS.has(key) and not _dungeon():
 		encounter_id = ENCOUNTER_KEYS[key]
 		get_tree().reload_current_scene()
-	elif key == KEY_R:
+	elif key == KEY_R and (not _dungeon() or (done and not won_dungeon)):
+		custom.erase("result")
 		get_tree().reload_current_scene()
-	elif key == KEY_T:
+	elif key == KEY_T and not done:
 		action_mode = false
 		get_tree().reload_current_scene()
 	elif event.is_action("back"):
-		get_tree().change_scene_to_file("res://scenes/main.tscn")
+		if not _dungeon():
+			get_tree().change_scene_to_file("res://scenes/main.tscn")
+			return
+		if not done and not heroes.is_empty():
+			# 싸우다 도망: 모두 쓰러져 있었으면 패배, 아니면 지금 HP와 사용 횟수를 그대로 가져감
+			if party.all(func(m: Creature) -> bool: return m.hp <= 0 or not m.is_alive()):
+				custom["result"] = "lose"
+			else:
+				for i in heroes.size():
+					(heroes[i] as HeroState).absorb(party[i])
+		get_tree().change_scene_to_file(str(custom.get("return_scene", "res://scenes/dungeon.tscn")))
