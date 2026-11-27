@@ -30,6 +30,7 @@ const MAX_FOES := 8
 
 var p: DungeonParams
 var rng := RandomNumberGenerator.new()
+var shape_rng := RandomNumberGenerator.new()
 var d: Dungeon
 var room_min := 4
 var room_max := 9
@@ -48,6 +49,7 @@ func _run(params: DungeonParams) -> Dungeon:
 	if s == 0:
 		s = randi_range(1, 999999)
 	rng.seed = s
+	shape_rng.seed = s * 104729 + 7  # 방 모양은 따로 (다른 무작위 결과가 바뀌지 않게)
 	room_min = mini(p.room_min, p.room_max)
 	room_max = maxi(p.room_min, p.room_max)
 	d = Dungeon.new(p.width, p.height)
@@ -102,12 +104,47 @@ func _themes() -> void:
 # 방 배치
 # =====================================================================
 
+## 방 모양: 네모 · 모서리 깎은 방 · 둥근 방 · 십자 방 (5x5 이상만, 작은 방은 네모)
+## 어느 모양이든 가운데 칸은 바닥이고, 가운데에서 방 전체가 보임 (복도가 가운데로 이어짐)
 func _add_room(rect: Rect2i) -> void:
+	var shape := "rect"
+	if rect.size.x >= 5 and rect.size.y >= 5:
+		var roll := shape_rng.randf()
+		shape = "rect" if roll < 0.3 else ("chamfer" if roll < 0.6 else ("round" if roll < 0.82 else "cross"))
+	var center := rect.position + rect.size / 2
 	var cells: Array[Vector2i] = []
 	for y in range(rect.position.y, rect.end.y):
 		for x in range(rect.position.x, rect.end.x):
-			cells.append(Vector2i(x, y))
-	_register_room(cells, rect, rect.position + rect.size / 2)
+			if _in_shape(shape, rect, Vector2i(x, y)):
+				cells.append(Vector2i(x, y))
+	_register_room(cells, rect, center)
+	d.rooms[-1]["shape"] = shape
+
+
+func _in_shape(shape: String, rect: Rect2i, c: Vector2i) -> bool:
+	var lx := c.x - rect.position.x
+	var ly := c.y - rect.position.y
+	var w := rect.size.x
+	var h := rect.size.y
+	match shape:
+		"chamfer":
+			# 네 모서리를 대각선으로 깎음
+			var k := maxi(1, mini(w, h) / 3)
+			var dx := mini(lx, w - 1 - lx)
+			var dy := mini(ly, h - 1 - ly)
+			return dx + dy >= k
+		"round":
+			var u := (lx + 0.5) / w * 2.0 - 1.0
+			var v := (ly + 0.5) / h * 2.0 - 1.0
+			return u * u + v * v <= 1.08
+		"cross":
+			# 가운데 띠 두 개 (폭은 각 변의 절반쯤)
+			var bw := maxi(3, w / 2)
+			var bh := maxi(3, h / 2)
+			var x0 := (w - bw) / 2
+			var y0 := (h - bh) / 2
+			return (lx >= x0 and lx < x0 + bw) or (ly >= y0 and ly < y0 + bh)
+	return true
 
 
 func _register_room(cells: Array[Vector2i], rect: Rect2i, center: Vector2i) -> void:
@@ -530,12 +567,14 @@ func _platform(r: Dictionary) -> void:
 	var plat := Rect2i(x, y, w, h)
 	for yy in range(plat.position.y, plat.end.y):
 		for xx in range(plat.position.x, plat.end.x):
-			d.heights[Vector2i(xx, yy)] = 0.5
+			if d.room_index.get(Vector2i(xx, yy), -1) == r.id:  # 둥근 방 등은 바닥 칸만
+				d.heights[Vector2i(xx, yy)] = 0.5
 	if w >= 4 and h >= 4 and rng.randf() < p.height_variation:
 		var inner := plat.grow(-1)
 		for yy in range(inner.position.y, inner.end.y):
 			for xx in range(inner.position.x, inner.end.x):
-				d.heights[Vector2i(xx, yy)] = 1.0
+				if d.room_index.get(Vector2i(xx, yy), -1) == r.id:
+					d.heights[Vector2i(xx, yy)] = 1.0
 
 
 ## 주변 8칸이 모두 같은 방 바닥이고 다른 장애물이 붙어 있지 않은 칸에만 놓음 -> 길이 막히지 않음
