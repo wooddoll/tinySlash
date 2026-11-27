@@ -60,6 +60,10 @@ const NATURE := "nature-kit"
 ## assets/dark는 저장소에 없으므로 파일이 없으면 놓지 않음
 const DARK_PROPS := "dark-props"
 const RACKS := ["rack-swords", "rack-shields", "rack-spears"]
+## [다크 판타지] Unity 에셋 스토어 CobraGamesAssets "Stylized Dungeon Props Pack" (tools/bake_unity_props.gd로 구움)
+## 벽에 붙여 세우는 가구(앞이 방 안쪽)와, 벽 가까이 아무렇게나 놓는 잡동사니
+const DARK_WALL := ["bookshelf-a", "bookshelf-b", "drawers", "chest-empty", "crate-small", "crate-large"]
+const DARK_CLUTTER := ["barrel", "barrel-moss", "pot-large", "pot-small", "fire-bin", "barrel"]
 ## 동굴 소품 (Nature Kit의 갈색 바위): 기둥(완전 엄폐), 바위(높이 1), 잔해(험지)
 const CAVE_PILLARS := ["rock_tallA", "rock_tallB", "rock_tallC", "rock_tallD", "rock_tallE", "rock_tallF"]
 const CAVE_ROCKS := ["rock_largeA", "rock_largeB", "rock_largeC", "rock_largeD", "rock_largeE", "rock_largeF"]
@@ -351,13 +355,27 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				var rack: String = RACKS[roll % RACKS.size()]
 				if mesh(rack, DARK_PROPS) != null:
 					put.call(DARK_PROPS + "/" + rack, Transform3D(face, center + dv * 0.38), c)
+			elif roll < 25:
+				var item: String = DARK_WALL[(roll + c.x + c.y) % DARK_WALL.size()]
+				var m := mesh(item, DARK_PROPS)
+				if m != null:
+					# 뒷면이 벽(0.5)에 닿게
+					put.call(DARK_PROPS + "/" + item, Transform3D(face, center + dv * (0.48 - m.get_aabb().size.z * 0.5)), c)
 		var r2 := absi(hash(c * 11 + Vector2i(5, 3))) % 100
-		if r2 < (7 if cave else 5):
+		var dark := not cave and mesh(DARK_CLUTTER[0], DARK_PROPS) != null
+		if r2 < (7 if cave else (8 if dark else 5)):
 			var d: Vector2i = walls[r2 % walls.size()]
 			var spin := Basis(Vector3.UP, (r2 % 4) * PI / 2.0 + 0.3)
-			var pos := center + Vector3(d.x, 0, d.y) * 0.28
+			var off := 0.28
 			var model := pick(CAVE_CLUTTER if cave else CLUTTER, c)
-			put.call(model, Transform3D(spin, pos), c)
+			if dark and r2 % 3 != 0:
+				var item: String = pick(DARK_CLUTTER, c)
+				var m := mesh(item, DARK_PROPS)
+				if m != null:
+					model = DARK_PROPS + "/" + item
+					var sz := m.get_aabb().size
+					off = minf(0.28, 0.47 - maxf(sz.x, sz.z) * 0.5)
+			put.call(model, Transform3D(spin, center + Vector3(d.x, 0, d.y) * off), c)
 	var parts: Array = []
 	for model in lists:
 		var xfs: Array[Transform3D] = []

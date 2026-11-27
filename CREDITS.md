@@ -40,6 +40,11 @@ Stylized Modular Medieval Dungeon Kit by AZ 3D studio, from Fab under the Fab St
 tier; check the license before any commercial release). The sword, shield and spear racks are picked out,
 merged and darkened by `tools/bake_props.gd` into `assets/dark/props/`, and stand against dungeon walls.
 
+Stylized Dungeon Props Pack by CobraGamesAssets, from the Unity Asset Store under the Standard Unity Asset
+Store EULA (used outside Unity as embedded game content; the package must not be redistributed). Barrels,
+crates, pots, a fire bin, bookshelves and chests are unpacked by `tools/unitypackage_extract.py` and baked
+by `tools/bake_unity_props.gd` into `assets/dark/props/`. They stand against or near dungeon walls.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.

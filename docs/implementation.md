@@ -56,6 +56,8 @@
 - `tools/bake_zombie.gd`: `assets/dark/zombie/szombie.glb`(CC 뼈대, 동작 없음)에 고블린 동작을 옮겨 `zombie.scn`으로 굽습니다. 좀비·구울·가스트가 색만 바꿔 씁니다.
 - `tools/bake_undead.gd`: 해골(Hotstrike, CC 뼈대)에 기사 동작과 장검을 옮기고, 유령(SR Studios)의 동작 2개를 게임 동작으로 나눠 `assets/dark/skeleton`, `assets/dark/ghost`에 굽습니다. 해골은 스켈레톤, 유령은 섀도·스펙터가 씁니다.
 - `tools/bake_props.gd`: AZ 3D studio 던전 세트(조각 176개가 든 FBX 하나)에서 검·방패·창 걸이를 이름으로 골라 한 메시로 합치고 색을 어둡게 눌러 `assets/dark/props/`에 굽습니다. `Kenney.decorate`가 벽 앞에 가끔(벽 한 면당 3%) 세웁니다. 파일이 없으면 놓지 않습니다.
+- `tools/unitypackage_extract.py`: Unity `.unitypackage`(tar.gz)를 Unity 없이 원래 경로대로 풉니다. 재질·프리팹이 GUID로 파일을 가리키므로 `_guids.tsv`도 남깁니다.
+- `tools/bake_unity_props.gd`: 풀어 놓은 Unity 소품 팩의 프리팹에서 FBX와 면별 재질을 찾아, Standard 셰이더 텍스처(색·노멀·금속/매끈함·가림)를 `ORMMaterial3D`로 옮기고 1024px로 줄여 VRAM 압축한 뒤 `assets/dark/props/<이름>.res`에 굽습니다. CobraGamesAssets 소품 팩에서 통·상자·항아리·화로·책장·서랍장 13종을 씁니다. `Kenney.decorate`가 가구는 벽에 등을 붙여(벽 한 면당 6%), 잡동사니는 벽 가까이 아무렇게나 놓습니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다. 키보드와 Xbox 배치 게임패드(버튼, 왼쪽 스틱 데드존 0.2).
 - `action_layer.gd`: 탐험 중 실시간 전투 화면. 입력을 카메라 기준으로 읽어 `ActionCombat`에 넘기고, 모델 위치·동작, HP 막대, 몬스터 준비 고리, 피해 숫자, 투사체, 효과음을 맞춥니다. 싸움이 끝나면 `fight_over(xp)`, 모두 쓰러지면 `defeated`.
 - `party_panel.gd`: 화면 왼쪽 파티 창. 파티원마다 초상화, HP 바(숫자 `현재/최대`, 임시 HP), 버프·디버프 칩(초록 버프, 빨강 디버프, 회색 정보, 마우스를 올리면 설명). 지금 차례인 파티원은 금색 테두리, 쓰러지면 초상화가 어두워집니다.
