@@ -67,7 +67,6 @@ func _run(params: DungeonParams) -> Dungeon:
 		d.edges = _connect_rooms()
 		for e in d.edges:
 			_corridor(d.rooms[e.x].center, d.rooms[e.y].center)
-		_mark_doors()
 
 	_choose_start_exit()
 	_features()
@@ -414,40 +413,14 @@ func _carve_line(a: Vector2i, b: Vector2i) -> void:
 
 
 func _carve(c: Vector2i, t: int) -> void:
-	for dy in p.corridor_width:
-		for dx in p.corridor_width:
+	var w := maxi(2, p.corridor_width)  # 예전 저장값이 1이어도 2칸으로
+	for dy in w:
+		for dx in w:
 			var n := c + Vector2i(dx, dy)
 			if n.x >= 1 and n.y >= 1 and n.x < p.width - 1 and n.y < p.height - 1:
 				if not d.is_floor(n):
 					d.set_tile(n, t)
 
-
-## 폭 1 복도가 방에 들어가는 칸을 문으로 (보기용, 규칙상 바닥과 같음)
-func _mark_doors() -> void:
-	if p.corridor_width != 1:
-		return
-	for y in range(1, p.height - 1):
-		for x in range(1, p.width - 1):
-			var c := Vector2i(x, y)
-			if not d.is_floor(c) or d.room_index.has(c):
-				continue
-			var touches_room := false
-			for dd in Dungeon.DIRS4:
-				if d.room_index.has(c + dd):
-					touches_room = true
-			if not touches_room:
-				continue
-			var l := d.is_floor(c + Vector2i(-1, 0))
-			var r := d.is_floor(c + Vector2i(1, 0))
-			var u := d.is_floor(c + Vector2i(0, -1))
-			var dn := d.is_floor(c + Vector2i(0, 1))
-			if (not l and not r and u and dn) or (not u and not dn and l and r):
-				d.set_tile(c, Dungeon.Tile.DOOR)
-
-
-# =====================================================================
-# 시작, 출구, 깊이
-# =====================================================================
 
 ## 가장 멀리 떨어진 두 방을 시작과 출구로 (임의 방 -> 가장 먼 방 -> 거기서 가장 먼 방)
 func _choose_start_exit() -> void:

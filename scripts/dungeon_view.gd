@@ -458,7 +458,7 @@ func _build_ui() -> void:
 	_slider(box, "room_count", "방 개수", 2, 40, 1)
 	_slider(box, "room_min", "최소 크기", 3, 15, 1)
 	_slider(box, "room_max", "최대 크기", 3, 20, 1)
-	_slider(box, "corridor_width", "복도 폭", 1, 3, 1)
+	_slider(box, "corridor_width", "복도 폭", 2, 3, 1)
 	_slider(box, "loop_chance", "순환로", 0.0, 1.0, 0.05)
 	_slider(box, "cave_fill", "동굴 벽 비율", 0.35, 0.55, 0.01)
 	_title(box, "지형")

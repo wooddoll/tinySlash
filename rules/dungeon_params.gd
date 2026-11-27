@@ -21,8 +21,8 @@ enum Difficulty { LOW, MODERATE, HIGH }
 @export_range(2, 40) var room_count := 10
 @export_range(3, 20) var room_min := 4
 @export_range(3, 30) var room_max := 9
-## 1 또는 2칸
-@export_range(1, 3) var corridor_width := 1
+## 2 또는 3칸 (폭 1칸 통로는 만들지 않음: 소품·캐릭터가 길을 막아 보임)
+@export_range(2, 3) var corridor_width := 2
 ## 최소 신장 트리 외에 추가로 길을 이을 확률 (순환로)
 @export_range(0.0, 1.0) var loop_chance := 0.2
 ## 동굴: 처음에 벽으로 채울 비율
