@@ -29,6 +29,8 @@ var views := {}
 var shot_views := {}
 ## 보스 기술 예고 (Actor → 바닥 표시 노드)
 var telegraphs := {}
+## Spiritual Weapon id → 노드
+var spirit_views := {}
 var _was_fighting := false
 var _sync_in := 0.0
 var _lost := false
@@ -144,6 +146,7 @@ func _physics_process(delta: float) -> void:
 	for a in views:
 		_sync_view(a, delta)
 	_sync_shots()
+	_sync_spirits(delta)
 	_frame_camera()
 	var fighting := ac.fighting()
 	if _was_fighting and not fighting:
@@ -197,6 +200,10 @@ func _read_input() -> void:
 		var why := ac.use_skill(player)
 		if why != "":
 			message.emit(why)
+	if Input.is_action_just_pressed("skill2"):
+		var why2 := ac.use_skill2(player)
+		if why2 != "":
+			message.emit(why2)
 	if Input.is_action_just_pressed("potion"):
 		var why := ac.use_potion(player)
 		if why != "":
@@ -297,6 +304,23 @@ func _on_event(ev: Dictionary) -> void:
 			_clear_telegraph(a)
 			telegraphs[a] = _telegraph(ev)
 			Sfx.play(self, "cast")
+		"area":
+			var n := _area_node(ev.shape, Color(ev.color, 0.55))
+			add_child(n)
+			n.position = _cell_pos(ev.center) + Vector3(0, 0.07, 0)
+			n.rotation.y = -(ev.dir as Vector2).angle()
+			var tw := n.create_tween()
+			tw.tween_property(n.material_override, "albedo_color:a", 0.0, 0.5)
+			tw.tween_callback(n.queue_free)
+			if m:
+				m.play_once("cast")
+			Sfx.play(self, "cast")
+		"spirit_swing":
+			if spirit_views.has(ev.id):
+				var sv: Node3D = spirit_views[ev.id]
+				var tw := sv.create_tween()
+				tw.tween_property(sv, "rotation:z", -1.6, 0.12)
+				tw.tween_property(sv, "rotation:z", 0.0, 0.25)
 		"dash":
 			if m:
 				m.play_once("dodge")
@@ -484,3 +508,53 @@ func _blast(ev: Dictionary) -> void:
 	var tw := n.create_tween()
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
 	tw.tween_callback(n.queue_free)
+
+
+# =====================================================================
+# Spiritual Weapon: 떠다니며 빛나는 금빛 칼
+# =====================================================================
+
+func _sync_spirits(delta: float) -> void:
+	var live := {}
+	for sp in ac.spirits:
+		live[sp.id] = true
+		if not spirit_views.has(sp.id):
+			spirit_views[sp.id] = _spirit_node()
+		var n: Node3D = spirit_views[sp.id]
+		var want := _cell_pos(sp.pos) + Vector3(0, 1.1 + sin(Time.get_ticks_msec() * 0.004) * 0.1, 0)
+		n.position = n.position.lerp(want, 1.0 - exp(-18.0 * delta)) if n.position != Vector3.ZERO else want
+		n.rotation.y += delta * 1.5
+	for id in spirit_views.keys():
+		if not live.has(id):
+			(spirit_views[id] as Node3D).queue_free()
+			spirit_views.erase(id)
+
+
+func _spirit_node() -> Node3D:
+	var root := Node3D.new()
+	var blade := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.12, 1.0, 0.03)
+	blade.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1, 0.9, 0.5, 0.85)
+	mat.emission_enabled = true
+	mat.emission = Color(1, 0.85, 0.4)
+	blade.material_override = mat
+	root.add_child(blade)
+	var guard := MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(0.38, 0.07, 0.07)
+	guard.mesh = gm
+	guard.material_override = mat
+	guard.position.y = -0.42
+	root.add_child(guard)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1, 0.85, 0.5)
+	light.omni_range = 2.5
+	light.light_energy = 1.2
+	root.add_child(light)
+	add_child(root)
+	return root

@@ -13,7 +13,7 @@ const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
 const HELP_EXPLORE := "WASD: 이동 · F: 조사/문/대화 · R: 방 수색 · J: 일지 · Q/E: 카메라 회전 · 휠: 줌 · Esc: 바깥으로"
-const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · 물러나기: 적에게서 멀리 달아나 방 밖으로"
+const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · 물러나기: 적에게서 멀리 달아나 방 밖으로"
 
 const SCENE := "res://scenes/scenario.tscn"
 

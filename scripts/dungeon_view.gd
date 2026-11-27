@@ -868,7 +868,7 @@ func _apply_mode() -> void:
 		rig.target = explorer
 		rig.ortho_size = 10.0
 		get_tree().call_group("room_label", "hide")  # 액션 중에는 방 번호를 숨김
-		help_label.text = "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 상호작용: Y/Enter · 카메라: LB·RB/Q·E · 생성기로: Back/Tab"
+		help_label.text = "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 상호작용: Y/Enter · 카메라: LB·RB/Q·E · 생성기로: Back/Tab"
 		_update_explore_info()
 	else:
 		var had_action := action != null

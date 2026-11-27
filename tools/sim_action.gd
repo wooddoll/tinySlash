@@ -153,6 +153,8 @@ func _bot(ac: ActionCombat, me: ActionCombat.Actor, skill: float, reacted: Dicti
 			me.move = away.orthogonal() if ranged else away
 			me.want_dodge = true
 			return
+	if me.skill_cd <= 0.0 and not me.busy() and ac.auto_skill2(me):
+		return
 	var target: ActionCombat.Actor = null
 	var bd := INF
 	for f in foes:

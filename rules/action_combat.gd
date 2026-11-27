@@ -110,6 +110,8 @@ class Actor:
 	## 보스 기술을 다시 쓸 수 있을 때까지, 쓰는 중인 기술 {sk, center, dir}
 	var ability_cd := 0.0
 	var ab := {}
+	## 로그 Sneak Attack을 다시 넣을 수 있을 때까지
+	var sneak_cd := 0.0
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -135,6 +137,9 @@ var _shot_id := 0
 ## 길 찾기: 목표 칸 → {칸: 걸음 수}. 한 걸음마다 새로 만듦
 var _flow := {}
 var _stench_t := 0.0
+## 클레릭 Spiritual Weapon: {id, owner, pos, t (남은 초), cd (다음 공격까지), slot}
+var spirits: Array[Dictionary] = []
+var _spirit_id := 0
 const FLOW_LIMIT := 40
 ## [변경] 실시간 전투의 몬스터 HP 배율 (D&D 그대로면 싸움이 3~4초로 너무 짧음). XP는 그대로
 const MONSTER_HP_K := 1.5
@@ -257,11 +262,13 @@ func tick(delta: float) -> void:
 	_separate()
 	_fly(delta)
 	_stench(delta)
+	_spirits_tick(delta)
 
 
 func _step(a: Actor, delta: float) -> void:
 	a.cooldown = maxf(0.0, a.cooldown - delta)
 	a.skill_cd = maxf(0.0, a.skill_cd - delta)
+	a.sneak_cd = maxf(0.0, a.sneak_cd - delta)
 	if a.awake:
 		a.ability_cd = maxf(0.0, a.ability_cd - delta)
 	for k in a.timers.keys():
@@ -306,6 +313,8 @@ func _step(a: Actor, delta: float) -> void:
 				_release(a)
 				a.state = "recover"
 				a.t = PC_RECOVER if a.c.stats.is_pc else MONSTER_RECOVER
+				if a.c.has_effect("surging"):
+					a.t *= SURGE_K
 		"ability":
 			if a.t <= 0.0:
 				if a.ab.sk.has("dash"):
@@ -396,6 +405,9 @@ func _swing(a: Actor) -> void:
 	if a.c.stats.is_pc:
 		a.t = PC_WINDUP + (HEAVY_EXTRA if w.heavy else 0.0)
 		a.cooldown = a.t + PC_RECOVER
+		if a.c.has_effect("surging"):
+			a.t *= SURGE_K
+			a.cooldown *= SURGE_K
 	else:
 		a.t = MONSTER_WINDUP
 		a.cooldown = MONSTER_WINDUP + MONSTER_RECOVER
@@ -513,6 +525,12 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 	var mark := b.c.find_effect("marked")
 	if not mark.is_empty() and mark.owner == a.c:
 		dmg += Dice.sum(dice.roll(2 if crit else 1, 6))
+	var sneak := 0
+	if full and can_sneak(a, b, w):
+		# [변경] Sneak Attack: 턴에 한 번 대신 SNEAK_CD초에 한 번
+		sneak = Dice.sum(dice.roll(ClassFeatures.sneak_dice(a.c.stats.level) * (2 if crit else 1), 6))
+		dmg += sneak
+		a.sneak_cd = SNEAK_CD
 	dmg = maxi(1, dmg)
 	if not full:
 		# [변경] 파티의 공격은 닿았지만 AC를 못 넘기면 절반, 몬스터의 공격은 막혀서 0
@@ -521,6 +539,11 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 		event.emit({"type": "text", "actor": b, "text": "막음"})
 		return {"blocked": true, "damage": 0}
 	var res := Damage.apply(b.c, dmg, w.damage_type, crit)
+	if sneak > 0:
+		event.emit({"type": "text", "actor": b, "text": "급소 +%d" % sneak})
+	if b.timers.has("turned") and res.dealt > 0:
+		b.timers.erase("turned")  # Turn Undead: 피해를 입으면 풀림 [SRD]
+		b.flee = 0.0
 	if res.killed and b.c.stats.has_feature("undead_fortitude") and w.damage_type != "radiant" and not crit:
 		# Undead Fortitude [SRD]: 광휘 피해나 치명타가 아니면 CON 내성 DC 5+피해로 HP 1로 버팀
 		if save(b.c, Rules.Ability.CON, 5 + res.dealt):
@@ -787,6 +810,8 @@ func _think_ally(a: Actor) -> void:
 		if hurt and (hurt.c.hp <= 0 or hurt.c.hp < hurt.c.stats.max_hp * 0.4):
 			if use_skill(a) == "":
 				return
+	if a.skill_cd <= 0.0 and not a.busy() and auto_skill2(a):
+		return
 	# 대상: 가까운 적, 리더나 나를 노리는 적, 다친 적
 	var t: Actor = null
 	var bv := -INF
@@ -1076,7 +1101,8 @@ func _boss_release(a: Actor) -> void:
 # 물약과 클래스 기술 (rules 10.4)
 # =====================================================================
 
-const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식", "paralyzed": "마비", "poisoned": "중독"}
+const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식", "paralyzed": "마비", "poisoned": "중독",
+	"surging": "Action Surge", "turned": "겁먹음"}
 ## 실시간에서 D&D 1라운드로 치는 시간, 구울 마비 시간 (초)
 const ROUND := 6.0
 const PARALYZE_TIME := 2.0
@@ -1098,6 +1124,219 @@ const SKILLS := {
 	"rogue": ["질주", "3초 동안 빠르게 움직임 (6초마다)"],
 	"monk": ["연타", "조준한 적에게 맨손 타격 두 번 (집중 1)"],
 }
+
+
+# =====================================================================
+# 두 번째 기술 (rules 10.4): 파이터 Action Surge, 클레릭 Turn Undead·Spiritual Weapon, 위저드·소서러 Burning Hands
+# 로그 Sneak Attack은 저절로 들어감
+# =====================================================================
+
+const SKILLS2 := {
+	"fighter": ["Action Surge", "6초 동안 공격 준비·회복이 절반 (짧은 휴식마다)"],
+	"cleric": ["Turn Undead / Spiritual Weapon", "언데드가 6 안에 있으면 Turn Undead(Channel Divinity), 아니면 Spiritual Weapon(2레벨 슬롯)"],
+	"wizard": ["Burning Hands", "앞쪽 부채꼴(길이 3) 안 적이 DEX 내성: 실패 3d6 화염, 성공 절반 (1레벨 슬롯)"],
+	"sorcerer": ["Burning Hands", "앞쪽 부채꼴(길이 3) 안 적이 DEX 내성: 실패 3d6 화염, 성공 절반 (1레벨 슬롯)"],
+}
+const SURGE_TIME := 6.0
+const SURGE_K := 0.5
+const SNEAK_CD := 2.0
+const TURN_RANGE := 6.0
+const TURN_TIME := 6.0
+const SPIRIT_TIME := 60.0
+const SPIRIT_SPEED := 6.0
+const SPIRIT_COOLDOWN := 2.0
+const SPIRIT_RANGE := 12.0
+## Burning Hands 부채꼴
+const BURN_SHAPE := {"name": "Burning Hands", "shape": "cone", "length": 3.0, "cos": 0.7}
+
+
+## Sneak Attack [SRD, 변경]: Finesse·원거리 무기로 맞혔고, 대상 옆에 다른 파티원이 있거나 대상이 나를 노리지 않을 때
+func can_sneak(a: Actor, b: Actor, w: WeaponData) -> bool:
+	if not a.c.stats.has_feature("sneak_attack") or a.sneak_cd > 0.0 or w == null or not (w.finesse or w.ranged):
+		return false
+	if b.target != a:
+		return true
+	for x in actors:
+		if x != a and x.alive() and x.c.team == a.c.team and x.pos.distance_to(b.pos) <= 1.0 + b.radius + x.radius:
+			return true
+	return false
+
+
+func _undead_near(a: Actor) -> Array[Actor]:
+	var out: Array[Actor] = []
+	for b in foes_of(a):
+		if b.alive() and b.c.stats.creature_type == "undead" and a.pos.distance_to(b.pos) <= TURN_RANGE \
+				and not b.timers.has("turned"):
+			out.append(b)
+	return out
+
+
+func has_spirit(a: Actor) -> bool:
+	for sp in spirits:
+		if sp.owner == a:
+			return true
+	return false
+
+
+## 두 번째 기술. 성공하면 "", 못 쓰면 이유
+func use_skill2(a: Actor) -> String:
+	if not a.alive() or a.busy():
+		return "지금은 못 써요"
+	if a.skill_cd > 0.0:
+		return "잠깐만요"
+	var c := a.c
+	var msg := ""
+	match c.stats.id:
+		"fighter":
+			if c.resources.get("action_surge", 0) <= 0:
+				return "Action Surge를 다 썼어요"
+			if c.has_effect("surging"):
+				return "이미 쓰는 중"
+			c.resources["action_surge"] -= 1
+			c.add_effect("surging", c, "never")
+			a.timers["surging"] = SURGE_TIME
+			msg = "Action Surge!"
+		"cleric":
+			var undead := _undead_near(a)
+			if not undead.is_empty() and c.resources.get("channel", 0) > 0:
+				c.resources["channel"] -= 1
+				var n := 0
+				for b in undead:
+					if b.c.stats.condition_immunities.has("frightened"):
+						continue
+					if save(b.c, WIS, c.spell_dc()):
+						event.emit({"type": "text", "actor": b, "text": "버팀"})
+						continue
+					b.awake = true
+					b.flee = TURN_TIME
+					b.timers["turned"] = TURN_TIME
+					n += 1
+					event.emit({"type": "text", "actor": b, "text": "겁먹음!"})
+				event.emit({"type": "area", "actor": a, "shape": {"name": "Turn Undead", "shape": "circle", "radius": TURN_RANGE},
+					"center": a.pos, "dir": a.facing, "color": Color(1, 0.95, 0.6)})
+				msg = "Turn Undead (%d)" % n
+			else:
+				if has_spirit(a):
+					return "Spiritual Weapon이 이미 있어요"
+				var slot := Spells.lowest_slot(c, 2)
+				if slot == 0:
+					return "언데드가 멀고 2레벨 슬롯도 없어요" if c.stats.level >= 3 else "언데드가 멀어요 (Channel Divinity)"
+				c.resources["slot%d" % slot] -= 1
+				_spirit_id += 1
+				spirits.append({"id": _spirit_id, "owner": a, "pos": a.pos + a.facing * 0.6, "t": SPIRIT_TIME, "cd": 0.3,
+					"slot": slot})
+				msg = "Spiritual Weapon!"
+		"wizard", "sorcerer":
+			var slot := Spells.lowest_slot(c, 1)
+			if slot == 0:
+				return "주문 슬롯이 없어요"
+			c.resources["slot%d" % slot] -= 1
+			var t := _skill_target(a, BURN_SHAPE.length + 1.0)
+			if t:
+				a.facing = (t.pos - a.pos).normalized()
+			var n := 0
+			for b in burn_targets(a):
+				var ok := save(b.c, DEX, c.spell_dc())
+				var dmg := Dice.sum(dice.roll(2 + slot, 6))
+				if ok:
+					dmg = maxi(1, dmg / 2)
+				var res := Damage.apply(b.c, dmg, "fire", false)
+				b.awake = true
+				n += 1
+				event.emit({"type": "hit", "actor": a, "target": b, "damage": res.dealt, "crit": false, "blocked": ok,
+					"spell": "burning_hands"})
+				if b.c.hp <= 0:
+					_fall(b)
+			event.emit({"type": "area", "actor": a, "shape": BURN_SHAPE, "center": a.pos, "dir": a.facing,
+				"color": Color(1, 0.55, 0.15)})
+			msg = "Burning Hands"
+		_:
+			return "두 번째 기술이 없어요"
+	a.skill_cd = maxf(a.skill_cd, SKILL_COOLDOWN)
+	event.emit({"type": "skill", "actor": a, "text": msg})
+	return ""
+
+
+## Burning Hands에 맞을 적 (지금 바라보는 방향)
+func burn_targets(a: Actor) -> Array[Actor]:
+	var out: Array[Actor] = []
+	for b in foes_of(a):
+		if not b.alive():
+			continue
+		var d := b.pos - a.pos
+		var dist := d.length()
+		if dist <= a.radius + b.radius or (dist <= BURN_SHAPE.length + b.radius and d.normalized().dot(a.facing) >= BURN_SHAPE.cos):
+			if clear_line(a.pos, b.pos):
+				out.append(b)
+	return out
+
+
+## 동료 AI·시뮬레이션 봇이 두 번째 기술을 쓸 만하면 씀
+func auto_skill2(a: Actor) -> bool:
+	var c := a.c
+	var foes := foes_of(a).filter(func(b: Actor) -> bool: return b.awake and b.alive())
+	if foes.is_empty():
+		return false
+	match c.stats.id:
+		"fighter":
+			if c.resources.get("action_surge", 0) <= 0 or c.has_effect("surging"):
+				return false
+			var near := _nearest(a, foes)
+			if near.c.stats.cr < 1.0 and foes.size() < 3:
+				return false
+			if a.pos.distance_to(near.pos) > melee_dist(a, near) + 0.5:
+				return false
+		"cleric":
+			if not _undead_near(a).is_empty() and c.resources.get("channel", 0) > 0:
+				pass
+			elif has_spirit(a) or Spells.lowest_slot(c, 2) == 0:
+				return false
+		"wizard", "sorcerer":
+			if Spells.lowest_slot(c, 1) == 0:
+				return false
+			var t := _skill_target(a, BURN_SHAPE.length + 1.0)
+			if t == null:
+				return false
+			var keep := a.facing
+			a.facing = (t.pos - a.pos).normalized()
+			var n := burn_targets(a).size()
+			a.facing = keep
+			if n < 2:
+				return false
+		_:
+			return false
+	return use_skill2(a) == ""
+
+
+func _spirits_tick(delta: float) -> void:
+	for sp in spirits.duplicate():
+		var owner: Actor = sp.owner
+		sp.t -= delta
+		if sp.t <= 0.0 or not owner.alive():
+			spirits.erase(sp)
+			event.emit({"type": "spirit_end", "id": sp.id})
+			continue
+		sp.cd = maxf(0.0, sp.cd - delta)
+		# 대상: 주인 가까이 깨어 있는 적 중 무기에서 가장 가까운 것
+		var best: Actor = null
+		var bd := INF
+		for b in foes_of(owner):
+			if not b.alive() or not b.awake or owner.pos.distance_to(b.pos) > SPIRIT_RANGE:
+				continue
+			var d := (sp.pos as Vector2).distance_to(b.pos)
+			if d < bd:
+				bd = d
+				best = b
+		var home: Vector2 = owner.pos + Vector2(0.6, -0.4)
+		var goal: Vector2 = home if best == null else best.pos
+		var reach := 0.0 if best == null else 0.7 + best.radius
+		var to: Vector2 = goal - sp.pos
+		if to.length() > reach:
+			sp.pos += to.normalized() * minf(SPIRIT_SPEED * delta, to.length() - reach)
+		elif best and sp.cd <= 0.0:
+			sp.cd = SPIRIT_COOLDOWN
+			event.emit({"type": "spirit_swing", "id": sp.id})
+			strike(owner, best, Spells.spirit_weapon(sp.slot))
 
 
 func use_potion(a: Actor) -> String:

@@ -588,3 +588,98 @@ func test_boss_web_at_target_stuns() -> void:
 	run(ac, 1.2)
 	check(b.pos.distance_to(Vector2(3.5, 4.0)) < 0.3, "grafter stays put")
 	check(r[2][0].c.hp < 999 and r[2][1].c.hp == 999, "only the target spot is hit")
+
+
+func test_action_surge_halves_swing() -> void:
+	var ac := arena()
+	var f := ac.add(pc("fighter", 2), Vector2(3.5, 3.5), "player")
+	eq(ac.use_skill2(f), "", "action surge works")
+	check(f.c.has_effect("surging"), "surging")
+	f.want_attack = true
+	run(ac, 1.0 / 60.0)
+	var full_w := ActionCombat.PC_WINDUP + (ActionCombat.HEAVY_EXTRA if f.weapon.heavy else 0.0)
+	check(f.t < full_w * ActionCombat.SURGE_K + 0.02, "windup halved")
+	f.skill_cd = 0.0
+	check(ac.use_skill2(f) != "", "only once per rest")
+	run(ac, ActionCombat.SURGE_TIME + 0.2)
+	check(not f.c.has_effect("surging"), "wears off")
+
+
+func test_sneak_attack_with_ally_adjacent() -> void:
+	var ac := arena()
+	var r := ac.add(pc("rogue", 3), Vector2(3.5, 3.5), "player")
+	var g := ac.add(foe("goblin_warrior"), Vector2(4.4, 3.5), "monster")
+	g.c.hp = 999
+	g.target = r
+	var w := r.weapon
+	check(w.finesse or w.ranged, "rogue weapon finesse")
+	check(not ac.can_sneak(r, g, w), "alone and targeted: no sneak")
+	var ally := ac.add(pc("fighter", 1), Vector2(4.4, 4.4), "ally")
+	check(ac.can_sneak(r, g, w), "ally next to target: sneak")
+	var got := [false]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "text" and str(ev.text).begins_with("급소"):
+			got[0] = true)
+	for i in 40:
+		r.sneak_cd = 0.0
+		ac.strike(r, g, w)
+		if got[0]:
+			break
+	check(got[0] and r.sneak_cd > 0.0, "sneak lands and goes on cooldown")
+	check(not ac.can_sneak(r, g, w), "cooldown blocks the next")
+	ally.pos = ally.pos
+
+
+func test_turn_undead_makes_flee() -> void:
+	var ac := arena()
+	var c := ac.add(pc("cleric", 2), Vector2(3.5, 3.5), "player")
+	var z := ac.add(foe("skeleton"), Vector2(6.0, 3.5), "monster")
+	z.awake = true
+	var turned := false
+	for i in 30:
+		c.c.resources["channel"] = 1
+		c.skill_cd = 0.0
+		z.timers.erase("turned")
+		z.flee = 0.0
+		eq(ac.use_skill2(c), "", "turn undead used")
+		if z.timers.has("turned"):
+			turned = true
+			break
+	check(turned and z.flee > 0.0, "skeleton flees")
+	var d0 := z.pos.distance_to(c.pos)
+	run(ac, 1.0)
+	check(z.pos.distance_to(c.pos) > d0, "runs away")
+
+
+func test_spiritual_weapon_attacks() -> void:
+	var ac := arena()
+	var c := ac.add(pc("cleric", 3), Vector2(2.5, 3.5), "player")
+	var g := ac.add(foe("goblin_warrior"), Vector2(7.5, 3.5), "monster")
+	g.awake = true
+	g.c.hp = 999
+	eq(ac.use_skill2(c), "", "no undead → spiritual weapon")
+	eq(ac.spirits.size(), 1, "spirit made")
+	check(ac.use_skill2(c) != "", "only one at a time")
+	var hits := [0]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "hit" and ev.actor == c:
+			hits[0] += 1)
+	g.c.stats = g.c.stats.duplicate()
+	g.c.stats.speed = 0
+	run(ac, 4.0)
+	check(hits[0] >= 2, "spirit flew over and hit repeatedly")
+
+
+func test_burning_hands_cone() -> void:
+	var ac := arena()
+	var w := ac.add(pc("wizard", 1), Vector2(3.5, 3.5), "player")
+	w.facing = Vector2.RIGHT
+	var a1 := ac.add(foe("goblin_minion"), Vector2(5.0, 3.5), "monster")
+	var a2 := ac.add(foe("goblin_minion"), Vector2(5.5, 4.2), "monster")
+	var back := ac.add(foe("goblin_minion"), Vector2(1.5, 3.5), "monster")
+	check(ac.burn_targets(w).size() == 2, "two in the cone")
+	var hp_back := back.c.hp
+	eq(ac.use_skill2(w), "", "burning hands")
+	check(a1.c.hp < a1.c.stats.max_hp or a1.state == "dead", "front burned")
+	eq(back.c.hp, hp_back, "behind safe")
+	a2.pos = a2.pos

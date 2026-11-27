@@ -20,6 +20,7 @@ const MAP := {
 	"attack": [KEY_J],
 	"dodge": [KEY_SPACE, KEY_SHIFT],
 	"skill": [KEY_K],
+	"skill2": [KEY_L],
 	"potion": [KEY_1],
 	"interact": [KEY_F, KEY_ENTER],
 }
@@ -29,6 +30,7 @@ const JOY := {
 	"attack": [JOY_BUTTON_X],
 	"dodge": [JOY_BUTTON_A],
 	"skill": [JOY_BUTTON_B],
+	"skill2": [JOY_BUTTON_DPAD_RIGHT],
 	"interact": [JOY_BUTTON_Y],
 	"end_turn": [JOY_BUTTON_Y],
 	"potion": [JOY_BUTTON_DPAD_UP],

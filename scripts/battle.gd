@@ -41,8 +41,8 @@ static var encounter_id := "normal"
 ## [변경] 단독 전투(B 키)는 실시간 액션 전투(docs/rules.md 10장). T 키로 예전 턴제와 바꿈.
 ## 던전 지도 화면에서 고른 방 전투(custom에 map이 있음)도 실시간 (2026-11-27)
 static var action_mode := true
-const ACTION_HELP_DUNGEON := "이동: 왼쪽 스틱/WASD · 공격: X/J · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · T: 턴제로 · Esc: 도망쳐 던전으로"
-const ACTION_HELP := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · F1~F8: 조우 · R: 다시 · T: 턴제로 · Esc: 바깥으로"
+const ACTION_HELP_DUNGEON := "이동: 왼쪽 스틱/WASD · 공격: X/J · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · T: 턴제로 · Esc: 도망쳐 던전으로"
+const ACTION_HELP := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · F1~F8: 조우 · R: 다시 · T: 턴제로 · Esc: 바깥으로"
 var action: ActionLayer
 var _action_ui := {}
 ## 던전 생성기에서 넘겨준 전투 (Dungeon.battle_setup). 비어 있으면 기본 맵과 F1~F8 조우.
