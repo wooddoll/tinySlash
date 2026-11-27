@@ -66,6 +66,22 @@ const GRASS := ["grass", "grass_large", "grass_leafs", "flower_redA", "flower_ye
 const DECOR := ["rock_smallA", "rock_smallC", "stump_round", "mushroom_redGroup", "mushroom_tanGroup", "plant_bush", "log"]
 
 
+## [다크 판타지] KayKit 돌(밝은 회청색)을 어둡고 따뜻한 돌색으로 (텍스처에 곱함)
+const DARK_STONE := Color(0.72, 0.64, 0.58)
+const DARK_STONE_PARTS := ["floor", "floor-detail", "floor-broken", "floor-weeds", "wall", "wall-cracked", "wall-post",
+	"door", "column", "stairs", "wall-half", "dirt", "dirt-b", "dirt-c", "dirt-d", "dirt-weeds"]
+
+
+static func _tint(m: ArrayMesh, col: Color) -> void:
+	for i in m.get_surface_count():
+		var mat := m.surface_get_material(i) as BaseMaterial3D
+		if mat == null:
+			continue
+		var t := mat.duplicate() as BaseMaterial3D
+		t.albedo_color = mat.albedo_color * col
+		m.surface_set_material(i, t)
+
+
 ## 칸 좌표로 고르는 변형 (같은 칸은 늘 같은 모양)
 static func pick(list: Array, c: Vector2i) -> String:
 	return list[absi(c.x * 7 + c.y * 13 + c.x * c.y) % list.size()]
@@ -82,6 +98,8 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 		var k := _kaykit(model)
 		var baked := _bake(k)
 		k.free()
+		if model in DARK_STONE_PARTS:
+			_tint(baked, DARK_STONE)
 		_meshes[key] = baked
 		return baked
 	var scene := load("res://assets/kenney/%s/%s.glb" % [pack, model]) as PackedScene
@@ -311,8 +329,8 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				put.call("torch-wall", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.55, 0)), c)
 				var l := OmniLight3D.new()
 				l.light_color = Color(1.0, 0.65, 0.3)
-				l.light_energy = 1.3
-				l.omni_range = 2.6
+				l.light_energy = 1.8
+				l.omni_range = 3.2
 				l.position = center + dv * 0.2 + Vector3(0, 0.75, 0)
 				l.add_child(_flame_glow())
 				parent.add_child(l)

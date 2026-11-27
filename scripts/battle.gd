@@ -146,11 +146,16 @@ func _build_world() -> void:
 	if _dungeon():
 		var env: Environment = $WorldEnvironment.environment.duplicate()
 		env.background_mode = Environment.BG_COLOR
-		env.background_color = Color(0.06, 0.06, 0.08)
+		# [다크 판타지] 던전 방 전투는 어둡게: 약한 푸른 달빛 + 횃불이 주인공
+		env.background_color = Color(0.03, 0.03, 0.04)
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color(0.55, 0.55, 0.65)
-		env.ambient_light_energy = 0.6
+		env.ambient_light_color = Color(0.4, 0.4, 0.52)
+		env.ambient_light_energy = 0.5
 		$WorldEnvironment.environment = env
+		var sun := get_node_or_null("Sun") as DirectionalLight3D
+		if sun:
+			sun.light_energy *= 0.45
+			sun.light_color = Color(0.75, 0.8, 1.0)
 		mats["a"] = _mat(Color(0.47, 0.45, 0.43))
 		mats["b"] = _mat(Color(0.43, 0.41, 0.4))
 		mats["brush"] = _mat(Color(0.38, 0.33, 0.28))
