@@ -54,6 +54,10 @@ Fantasy Props MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset St
 `tools/bake_megakit.gd` into `assets/quaternius/props/` and used to furnish themed dungeon rooms
 (library, smithy, alchemy room, storage, barracks, treasury).
 
+Medieval Village MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset Store. Baked by
+`tools/bake_village.gd` into `assets/quaternius/village/`: uneven brick walls, corner posts and the
+dungeon floor (world-space triplanar, so cell borders do not show) replace the KayKit walls and floor tiles.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.

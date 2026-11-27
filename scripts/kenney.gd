@@ -91,6 +91,13 @@ const GRASS := ["grass", "grass_large", "grass_leafs", "flower_redA", "flower_ye
 const DECOR := ["rock_smallA", "rock_smallC", "stump_round", "mushroom_redGroup", "mushroom_tanGroup", "plant_bush", "log"]
 
 
+## 방 던전의 벽·바닥: Quaternius "Medieval Village MegaKit" (CC0, tools/bake_village.gd로 구움).
+## 파일이 있으면 KayKit 조각 대신 씀 (저장소에는 에셋이 없어 없으면 KayKit 그대로)
+const VILLAGE := "res://assets/quaternius/village/%s.res"
+const VILLAGE_PARTS := {"floor": "floor", "floor-detail": "floor", "floor-broken": "floor", "floor-weeds": "floor",
+	"wall": "wall", "wall-cracked": "wall", "wall-post": "post", "door": "door"}
+
+
 ## [다크 판타지] KayKit 돌(밝은 회청색)을 어둡고 따뜻한 돌색으로 (텍스처에 곱함)
 const DARK_STONE := Color(0.72, 0.64, 0.58)
 const DARK_STONE_PARTS := ["floor", "floor-detail", "floor-broken", "floor-weeds", "wall", "wall-cracked", "wall-post",
@@ -122,6 +129,9 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 	if pack == DARK_PROPS or pack == MEGAKIT:
 		var path := ("res://assets/dark/props/%s.res" if pack == DARK_PROPS else "res://assets/quaternius/props/%s.res") % model
 		_meshes[key] = load(path) as Mesh if ResourceLoader.exists(path) else null
+		return _meshes[key]
+	if pack == DUNGEON and VILLAGE_PARTS.has(model) and ResourceLoader.exists(VILLAGE % VILLAGE_PARTS[model]):
+		_meshes[key] = load(VILLAGE % VILLAGE_PARTS[model]) as Mesh
 		return _meshes[key]
 	if pack == DUNGEON and SWAP.has(model):
 		var k := _kaykit(model)
