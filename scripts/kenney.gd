@@ -56,14 +56,8 @@ const CAVE_FLOORS := ["dirt", "dirt-b", "dirt-c", "dirt-d", "dirt", "dirt-weeds"
 const CLUTTER := ["candle", "candles", "bottle", "bottle-b", "plates"]
 const CAVE_CLUTTER := ["nature-kit/mushroom_redGroup", "nature-kit/mushroom_tanGroup", "nature-kit/rock_smallC", "nature-kit/mushroom_tanGroup"]
 const NATURE := "nature-kit"
-## [다크 판타지] 벽에 기대 세우는 무기·방패 걸이 (Fab AZ 3D studio 던전 세트를 tools/bake_props.gd로 구운 것).
-## assets/dark는 저장소에 없으므로 파일이 없으면 놓지 않음
+## (예전) 다크 판타지 소품 묶음 이름: assets/dark/props/<이름>.res (tools/bake_props.gd, bake_unity_props.gd)
 const DARK_PROPS := "dark-props"
-const RACKS := ["rack-swords", "rack-shields", "rack-spears"]
-## [다크 판타지] Unity 에셋 스토어 CobraGamesAssets "Stylized Dungeon Props Pack" (tools/bake_unity_props.gd로 구움)
-## 벽에 붙여 세우는 가구(앞이 방 안쪽)와, 벽 가까이 아무렇게나 놓는 잡동사니
-const DARK_WALL := ["bookshelf-a", "bookshelf-b", "drawers", "chest-empty", "crate-small", "crate-large"]
-const DARK_CLUTTER := ["barrel", "barrel-moss", "pot-large", "pot-small", "fire-bin", "barrel"]
 ## 방 주제별 소품: Quaternius "Fantasy Props MegaKit" (CC0, tools/bake_megakit.gd로 구움, 파일 없으면 놓지 않음)
 ## 주제 → [벽에 등을 붙이는 가구, 벽 가까이 놓는 잡동사니]
 const MEGAKIT := "megakit"
@@ -81,6 +75,9 @@ const THEME_PROPS := {
 	"treasury": [["Chest_Wood", "Cabinet", "Chest_Wood"],
 		["Coin_Pile", "Coin_Pile_2", "Chalice", "Pouch_Large", "Vase_4", "Coin_Pile"]],
 }
+## 주제 없는 방: 같은 팩의 흔한 가구와 잡동사니 (주제 방보다 드물게)
+const PLAIN_PROPS := [["Barrel_Holder", "Crate_Wooden", "Shelf_Arch", "WeaponStand", "Bench", "Crate_Metal"],
+	["Barrel", "Crate_Wooden", "Bucket_Wooden_1", "Pot_1", "Vase_2", "Vase_Rubble_Medium", "Candle_1", "Rope_1"]]
 ## 동굴 소품 (Nature Kit의 갈색 바위): 기둥(완전 엄폐), 바위(높이 1), 잔해(험지)
 const CAVE_PILLARS := ["rock_tallA", "rock_tallB", "rock_tallC", "rock_tallD", "rock_tallE", "rock_tallF"]
 const CAVE_ROCKS := ["rock_largeA", "rock_largeB", "rock_largeC", "rock_largeD", "rock_largeE", "rock_largeF"]
@@ -95,7 +92,33 @@ const DECOR := ["rock_smallA", "rock_smallC", "stump_round", "mushroom_redGroup"
 ## 파일이 있으면 KayKit 조각 대신 씀 (저장소에는 에셋이 없어 없으면 KayKit 그대로)
 const VILLAGE := "res://assets/quaternius/village/%s.res"
 const VILLAGE_PARTS := {"floor": "floor", "floor-detail": "floor", "floor-broken": "floor", "floor-weeds": "floor",
-	"wall": "wall", "wall-cracked": "wall", "wall-post": "post", "door": "door"}
+	"wall": "wall", "wall-cracked": "wall", "wall-post": "post", "door": "door", "column": "column"}
+## 방 던전 소품: KayKit 이름 → [Quaternius 조각("megakit/이름" 또는 "village/이름"), 들어갈 크기(칸), 붙는 곳]
+## 붙는 곳 "floor": 바닥 가운데가 원점 · "wall": 뒷면이 원점(로컬 +Z가 방 안쪽), 넷째 값은 원점을 앞으로 옮길 거리
+## 파일이 없으면 KayKit 그대로
+const QUAT_SWAP := {
+	"rocks": ["megakit/Crate_Wooden", Vector3(0.85, 0.9, 0.85), "floor"],
+	"stones": ["village/rubble", Vector3(0.8, 0.25, 0.8), "floor"],
+	"table": ["megakit/Table_Large", Vector3(0.95, 0.75, 0.95), "floor"],
+	"barrel": ["megakit/Barrel", Vector3(0.7, 0.9, 0.7), "floor"],
+	"chair": ["megakit/Chair_1", Vector3(0.6, 0.9, 0.6), "floor"],
+	"pot": ["megakit/Pot_1", Vector3(0.45, 0.5, 0.45), "floor"],
+	"chest": ["megakit/Chest_Wood", Vector3(0.8, 0.6, 0.6), "floor"],
+	"stairs": ["village/stairs", Vector3(1.0, 1.0, 1.0), "floor"],
+	"banner": ["megakit/Banner_1", Vector3(0.8, 1.4, 0.3), "floor"],
+	"shield-rectangle": ["megakit/Shield_Wooden", Vector3(0.5, 0.5, 0.2), "floor"],
+	"wall-half": ["village/fence", Vector3(1.0, 0.6, 1.0), "floor"],
+	"coin": ["megakit/Coin_Pile", Vector3(0.45, 0.25, 0.45), "floor"],
+	"torch-wall": ["megakit/Torch_Metal", Vector3(0.3, 0.55, 0.35), "wall", 0.0],
+	"shelf-candles": ["megakit/Lantern_Wall", Vector3(0.3, 0.5, 0.35), "wall", 0.0],
+	"banner-wall": ["megakit/Banner_2_Cloth", Vector3(0.6, 1.1, 0.1), "wall", 0.1],
+	"banner-shield": ["megakit/Banner_1_Cloth", Vector3(0.6, 1.2, 0.1), "wall", 0.1],
+	"candle": ["megakit/Candle_1", Vector3(0.2, 0.3, 0.2), "floor"],
+	"candles": ["megakit/CandleStick_Triple", Vector3(0.3, 0.4, 0.3), "floor"],
+	"bottle": ["megakit/Bottle_1", Vector3(0.15, 0.3, 0.15), "floor"],
+	"bottle-b": ["megakit/SmallBottles_1", Vector3(0.3, 0.3, 0.3), "floor"],
+	"plates": ["megakit/Table_Plate", Vector3(0.25, 0.1, 0.25), "floor"],
+}
 
 
 ## [다크 판타지] KayKit 돌(밝은 회청색)을 어둡고 따뜻한 돌색으로 (텍스처에 곱함)
@@ -133,6 +156,11 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 	if pack == DUNGEON and VILLAGE_PARTS.has(model) and ResourceLoader.exists(VILLAGE % VILLAGE_PARTS[model]):
 		_meshes[key] = load(VILLAGE % VILLAGE_PARTS[model]) as Mesh
 		return _meshes[key]
+	if pack == DUNGEON and QUAT_SWAP.has(model):
+		var q := _quat(model)
+		if q:
+			_meshes[key] = q
+			return q
 	if pack == DUNGEON and SWAP.has(model):
 		var k := _kaykit(model)
 		var baked := _bake(k)
@@ -157,6 +185,16 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 
 ## 애니메이션이 있는 모델(상자, 캐릭터)은 장면째로 씁니다
 static func instance(model: String, pack := DUNGEON) -> Node3D:
+	if pack == DUNGEON and (QUAT_SWAP.has(model) or VILLAGE_PARTS.has(model)):
+		var m := mesh(model)
+		if m is ArrayMesh and (_quat_paths.has(m) or VILLAGE_PARTS.has(model) and ResourceLoader.exists(VILLAGE % VILLAGE_PARTS[model])):
+			var root := Node3D.new()
+			root.name = model
+			var mi := MeshInstance3D.new()
+			mi.name = "Model"
+			mi.mesh = m
+			root.add_child(mi)
+			return root
 	if pack == DUNGEON and SWAP.has(model):
 		var root := Node3D.new()
 		root.name = model
@@ -170,6 +208,34 @@ static func instance(model: String, pack := DUNGEON) -> Node3D:
 		for mi in n.find_children("*", "MeshInstance3D", true, false):
 			mi.mesh = mesh(model, pack) if mi == _first_mesh(n) else _recolor(mi.mesh)
 	return n
+
+
+static var _quat_paths := {}
+
+
+## QUAT_SWAP 조각: 정한 크기 안에 들도록 고르게 줄이고 원점을 맞춘 메시 (파일이 없으면 null)
+static func _quat(model: String) -> ArrayMesh:
+	var e: Array = QUAT_SWAP[model]
+	var p: PackedStringArray = String(e[0]).split("/")
+	var path := ("res://assets/quaternius/props/%s.res" if p[0] == "megakit" else VILLAGE) % p[1]
+	if not ResourceLoader.exists(path):
+		return null
+	var src := load(path) as Mesh
+	var b := src.get_aabb()
+	var box: Vector3 = e[1]
+	var k := minf(box.x / maxf(b.size.x, 0.001), minf(box.y / maxf(b.size.y, 0.001), box.z / maxf(b.size.z, 0.001)))
+	var origin := Vector3(b.get_center().x, b.position.y, b.get_center().z)
+	if e[2] == "wall":
+		origin.z = b.position.z - float(e[3]) / k
+	var xf := Transform3D(Basis.from_scale(Vector3.ONE * k), Vector3.ZERO) * Transform3D(Basis.IDENTITY, -origin)
+	var out := ArrayMesh.new()
+	for s in src.get_surface_count():
+		var st := SurfaceTool.new()
+		st.append_from(src, s, xf)
+		st.commit(out)
+		out.surface_set_material(s, src.surface_get_material(s))
+	_quat_paths[out] = path
+	return out
 
 
 ## Nature Kit 색 고치기: 가져온 색이 한 번 더 밝아져 있어 되돌리고(sRGB→선형),
@@ -362,9 +428,11 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 		# 폭 1칸 통로(양쪽이 벽)에는 큰 가구·잡동사니를 두지 않음 (길을 막아 보임)
 		var corridor := (Vector2i(1, 0) in walls and Vector2i(-1, 0) in walls) or (Vector2i(0, 1) in walls and Vector2i(0, -1) in walls)
 		var theme: String = str(theme_at.call(c)) if theme_at.is_valid() and not cave else ""
-		var props: Array = THEME_PROPS.get(theme, [])
+		var themed := THEME_PROPS.has(theme)
+		var props: Array = THEME_PROPS[theme] if themed else (PLAIN_PROPS if not cave else [])
 		if not props.is_empty() and mesh(props[0][0], MEGAKIT) == null:
-			props = []  # 구운 파일이 없으면 보통 장식
+			props = []  # 구운 파일이 없으면 KayKit 장식만
+			themed = false
 		var furnished := false  # 한 칸에 큰 가구는 하나만 (모서리에서 겹치지 않게)
 		for d in walls:
 			var roll := absi(hash(c * 3 + d * 7)) % 100
@@ -374,16 +442,16 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 			if cave:
 				continue
 			if roll < 9:
-				put.call("torch-wall", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.55, 0)), c)
+				put.call("torch-wall", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.75, 0)), c)
 				var l := OmniLight3D.new()
 				l.light_color = Color(1.0, 0.65, 0.3)
 				l.light_energy = 1.8
 				l.omni_range = 3.2
-				l.position = center + dv * 0.2 + Vector3(0, 0.75, 0)
+				l.position = center + dv * 0.2 + Vector3(0, 1.0, 0)
 				l.add_child(_flame_glow())
 				parent.add_child(l)
 				lights.append([l, c])
-			elif not props.is_empty():
+			elif themed or (roll >= 19 and roll < 30 and not corridor and not props.is_empty()):
 				if roll < 55 and not furnished:
 					var item: String = props[0][absi(hash(c * 13 + d)) % props[0].size()]
 					var m := mesh(item, MEGAKIT)
@@ -391,25 +459,15 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 						var sz := m.get_aabb().size
 						# 한 칸 너비·벽 높이·한 칸 깊이에 들어가게 줄임
 						var k := minf(1.0, minf(0.95 / maxf(sz.x, 0.01), minf(1.0 / maxf(sz.y, 0.01), 0.95 / maxf(sz.z, 0.01))))
-						put.call(MEGAKIT + "/" + item, Transform3D(face.scaled(Vector3.ONE * k), center + dv * (0.48 - sz.z * k * 0.5)), c)
+						put.call(MEGAKIT + "/" + item, Transform3D(face.scaled(Vector3.ONE * k), center + dv * (0.4 - sz.z * k * 0.5)), c)
 						furnished = true
 			elif roll < 13:
 				put.call("banner-wall" if roll < 12 else "banner-shield", Transform3D(face, center + dv * 0.5), c)
 			elif roll < 16:
-				put.call("shelf-candles", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.5, 0)), c)
-			elif roll < 19:
-				var rack: String = RACKS[roll % RACKS.size()]
-				if mesh(rack, DARK_PROPS) != null:
-					put.call(DARK_PROPS + "/" + rack, Transform3D(face, center + dv * 0.38), c)
-			elif roll < 33 and not corridor:
-				var item: String = DARK_WALL[(roll + c.x + c.y) % DARK_WALL.size()]
-				var m := mesh(item, DARK_PROPS)
-				if m != null:
-					# 뒷면이 벽(0.5)에 닿게
-					put.call(DARK_PROPS + "/" + item, Transform3D(face, center + dv * (0.48 - m.get_aabb().size.z * 0.5)), c)
+				put.call("shelf-candles", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.8, 0)), c)
 		var r2 := absi(hash(c * 11 + Vector2i(5, 3))) % 100
-		if not props.is_empty():
-			if r2 < 35:
+		if not props.is_empty() and (themed or not corridor):
+			if r2 < (35 if themed else 12):
 				var d: Vector2i = walls[r2 % walls.size()]
 				var item: String = props[1][absi(hash(c * 17 + Vector2i(1, 9))) % props[1].size()]
 				var m := mesh(item, MEGAKIT)
@@ -422,20 +480,10 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 					var off := minf(0.28, 0.47 - foot * k * 0.5)
 					put.call(MEGAKIT + "/" + item, Transform3D(spin, center + Vector3(d.x, 0, d.y) * off), c)
 			continue
-		var dark := not cave and not corridor and mesh(DARK_CLUTTER[0], DARK_PROPS) != null
-		if r2 < (7 if cave else (16 if dark else 5)):
+		if r2 < (7 if cave else 5):
 			var d: Vector2i = walls[r2 % walls.size()]
 			var spin := Basis(Vector3.UP, (r2 % 4) * PI / 2.0 + 0.3)
-			var off := 0.28
-			var model := pick(CAVE_CLUTTER if cave else CLUTTER, c)
-			if dark and r2 % 4 != 0:
-				var item: String = pick(DARK_CLUTTER, c)
-				var m := mesh(item, DARK_PROPS)
-				if m != null:
-					model = DARK_PROPS + "/" + item
-					var sz := m.get_aabb().size
-					off = minf(0.28, 0.47 - maxf(sz.x, sz.z) * 0.5)
-			put.call(model, Transform3D(spin, center + Vector3(d.x, 0, d.y) * off), c)
+			put.call(pick(CAVE_CLUTTER if cave else CLUTTER, c), Transform3D(spin, center + Vector3(d.x, 0, d.y) * 0.28), c)
 	var parts: Array = []
 	for model in lists:
 		var xfs: Array[Transform3D] = []

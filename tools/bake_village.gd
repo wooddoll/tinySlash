@@ -17,6 +17,12 @@ const PIECES := {
 	"wall": ["Wall_UnevenBrick_Straight", Vector3(0.5, 0.55, 0.5)],
 	"door": ["Wall_UnevenBrick_Door_Round", Vector3(0.5, 0.55, 0.5)],
 	"post": ["Corner_Exterior_Brick", Vector3(0.55, 0.57, 0.55)],
+	# 방 안 기둥(완전 엄폐): 같은 돌기둥을 두껍게, 벽 높이로
+	"column": ["Corner_Exterior_Brick", Vector3(1.0, 0.57, 1.0)],
+	# 다음 층 계단: 2m 계단을 한 칸에
+	"stairs": ["Stairs_Exterior_Straight", Vector3(0.48, 0.5, 0.48)],
+	# 반 엄폐 낮은 울타리
+	"fence": ["Prop_WoodenFence_Single", Vector3(0.48, 0.55, 0.6)],
 }
 
 var _mats := {}
@@ -28,6 +34,8 @@ func _init() -> void:
 		var m := _bake(PIECES[name][0], PIECES[name][1], name == "post")
 		if m:
 			print(name, " ", m.get_aabb(), " save=", ResourceSaver.save(m, OUT + name + ".res", ResourceSaver.FLAG_COMPRESS))
+	var rub := _rubble()
+	print("rubble ", rub.get_aabb(), " save=", ResourceSaver.save(rub, OUT + "rubble.res", ResourceSaver.FLAG_COMPRESS))
 	var f := _floor()
 	print("floor save=", ResourceSaver.save(f, OUT + "floor.res", ResourceSaver.FLAG_COMPRESS))
 	quit()
@@ -78,6 +86,31 @@ func _bake(file: String, size: Vector3, keep_corner: bool) -> ArrayMesh:
 		tool.commit(out)
 		out.surface_set_material(out.get_surface_count() - 1, _material(key, groups[key][0]))
 	scene.free()
+	return out
+
+
+## 잔해(험지): 벽돌 조각 넷을 아무렇게나 흩어 놓은 더미 (한 칸 안)
+func _rubble() -> ArrayMesh:
+	var spots := [["Prop_Brick1", Vector3(-0.2, 0, -0.15), 0.3], ["Prop_Brick2", Vector3(0.18, 0, -0.05), 1.4],
+		["Prop_Brick3", Vector3(-0.05, 0, 0.2), 2.2], ["Prop_Brick4", Vector3(0.05, 0.06, -0.02), 0.9],
+		["Prop_Brick1", Vector3(0.25, 0, 0.25), 2.8], ["Prop_Brick3", Vector3(-0.28, 0, 0.12), 0.6]]
+	var groups := {}
+	for sp in spots:
+		var m := _bake(sp[0], Vector3.ONE * 0.6, false)
+		var xf := Transform3D(Basis(Vector3.UP, sp[2]), sp[1])
+		for s in m.get_surface_count():
+			var mat := m.surface_get_material(s)
+			if not groups.has(mat):
+				groups[mat] = []
+			groups[mat].append([m, s, xf])
+	var out := ArrayMesh.new()
+	for mat in groups:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for e in groups[mat]:
+			st.append_from(e[0], e[1], e[2])
+		st.commit(out)
+		out.surface_set_material(out.get_surface_count() - 1, mat)
 	return out
 
 

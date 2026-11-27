@@ -56,7 +56,8 @@ Fantasy Props MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset St
 
 Medieval Village MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset Store. Baked by
 `tools/bake_village.gd` into `assets/quaternius/village/`: uneven brick walls, corner posts and the
-dungeon floor (world-space triplanar, so cell borders do not show) replace the KayKit walls and floor tiles.
+dungeon floor (world-space triplanar, so cell borders do not show) replace the KayKit walls and floor tiles; its stone columns, stairs, fence and brick rubble, plus
+Fantasy Props MegaKit crates, barrels, chests, torches, lanterns, banners and candles, replace the other KayKit room props.
 
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
