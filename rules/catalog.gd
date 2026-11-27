@@ -676,7 +676,7 @@ static func monster(id: String) -> CreatureStats:
 			s.features = PackedStringArray(["flying", "incorporeal"])
 			s.resistances = PackedStringArray(["acid", "cold", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing"])
 			s.immunities = PackedStringArray(["necrotic", "poison"])
-			s.tint = Color(0.6, 0.8, 1.0)
+			s.tint = Color(0.55, 0.8, 1.0, 0.55)
 			s.model = "dark/ghost"
 		"animated_armor":
 			_m(s, "움직이는 갑옷", 1.0, 200, [14, 11, 13, 1, 3, 1], 18, 33, 5, Rules.Size.MEDIUM, 0)

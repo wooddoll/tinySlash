@@ -315,7 +315,7 @@ func face(dir: Vector3, instant := false) -> void:
 		rotation.y = _yaw
 
 
-## 몸 색을 곱해 바꿈 (같은 모델을 쓰는 몬스터 구별)
+## 몸 색을 곱해 바꿈 (같은 모델을 쓰는 몬스터 구별). 알파가 1보다 작으면 반투명하게 빛나는 유령
 func tint(col: Color) -> void:
 	if col == Color.WHITE or model == null:
 		return
@@ -328,6 +328,12 @@ func tint(col: Color) -> void:
 			if src is BaseMaterial3D:
 				var copy: BaseMaterial3D = src.duplicate()
 				copy.albedo_color = copy.albedo_color * col
+				if col.a < 1.0:
+					# 반투명 색(유령류): 비쳐 보이고 그 색으로 은은하게 빛남
+					copy.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+					copy.emission_enabled = true
+					copy.emission = Color(col.r, col.g, col.b)
+					copy.emission_energy_multiplier = 0.8
 				m.set_surface_override_material(s, copy)
 
 
