@@ -123,6 +123,20 @@ func _bot(ac: ActionCombat, me: ActionCombat.Actor, skill: float, reacted: Dicti
 	var foes := ac.foes_of(me)
 	if foes.is_empty():
 		return
+	# 보스 기술: 범위 안이면 (반응 뒤) skill 확률로 굴러 빠져나가고, 끝날 때까지 밖으로 걸음
+	for f in foes:
+		var key := -f.get_instance_id()
+		if f.state != "ability":
+			reacted.erase(key)
+			continue
+		if f.ab.sk.windup - f.t < REACTION or not ac.skill_area_has(f, me.pos, me.radius + 0.3):
+			continue
+		if not reacted.has(key):
+			reacted[key] = randf() < skill
+			me.want_dodge = reacted[key]
+		if reacted[key]:
+			me.move = ac.skill_escape(f, me.pos)
+			return
 	# 위협: 나를 노리는 몬스터가 준비 중이고, 반응 시간이 지났음
 	for f in foes:
 		if f.state != "windup":

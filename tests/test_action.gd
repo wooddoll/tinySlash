@@ -487,3 +487,92 @@ func test_bosses_exist() -> void:
 	for id in DungeonGenerator.BOSSES:
 		var s := Catalog.monster(id)
 		check(s.size == Rules.Size.LARGE and s.model.begins_with("dark/"), "%s is large with a model" % id)
+
+
+## 보스를 세우고 기술 예고 → 끝까지 돌림. 대상들은 움직이지 않음 (brain player는 생각하지 않음)
+func boss_skill_run(id: String, targets: Array) -> Array:
+	var ac := arena()
+	var b := ac.add(foe(id), Vector2(3.5, 4.0), "monster")
+	b.awake = true
+	var out := []
+	for p in targets:
+		var a := ac.add(pc("fighter", 5), p, "player")
+		a.c.hp = 999
+		a.c.stats = a.c.stats.duplicate()
+		a.c.stats.max_hp = 999
+		out.append(a)
+	ac.start_boss_skill(b, out[0])
+	return [ac, b, out]
+
+
+func test_boss_toll_hits_circle_only() -> void:
+	var r := boss_skill_run("bellwarden", [Vector2(5.0, 4.0), Vector2(8.5, 4.0)])
+	var ac: ActionCombat = r[0]
+	var b: ActionCombat.Actor = r[1]
+	eq(b.state, "ability", "toll telegraphs")
+	check(ac.skill_area_has(b, Vector2(5.0, 4.0), 0.3) and not ac.skill_area_has(b, Vector2(8.5, 4.0), 0.3), "circle area")
+	var hits := []
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "hit" and ev.get("skill", "") == "toll":
+			hits.append(ev.target))
+	run(ac, 1.3)
+	eq(hits.size(), 1, "only the near one is hit")
+	check(hits[0] == r[2][0] and r[2][0].c.hp < 999, "near one takes thunder damage")
+	eq(r[2][1].c.hp, 999, "far one untouched")
+	check(b.ability_cd > 5.0, "cooldown started")
+
+
+func test_boss_skill_dodged_with_iframes() -> void:
+	var r := boss_skill_run("bellwarden", [Vector2(5.0, 4.0)])
+	var ac: ActionCombat = r[0]
+	var p: ActionCombat.Actor = r[2][0]
+	run(ac, 1.1)
+	p.iframe = 0.3
+	run(ac, 0.2)
+	eq(p.c.hp, 999, "iframe avoids the toll")
+
+
+func test_boss_sonar_cone_front_only() -> void:
+	# 앞쪽 부채꼴만, 실패하면 기절
+	var r := boss_skill_run("cantor", [Vector2(7.0, 4.0), Vector2(1.0, 4.0)])
+	var ac: ActionCombat = r[0]
+	var front: ActionCombat.Actor = r[2][0]
+	var back: ActionCombat.Actor = r[2][1]
+	var stunned := [false]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "text" and ev.text == "기절!":
+			stunned[0] = true)
+	run(ac, 1.05)
+	check(front.c.hp < 999, "front takes psychic damage")
+	eq(back.c.hp, 999, "behind is safe")
+	if stunned[0]:
+		eq(front.state, "stun", "failed save stuns")
+
+
+func test_boss_dive_lands_on_marked_spot() -> void:
+	# 급강하: 예고한 자리로 돌진. 대상이 비키면 안 맞음
+	var r := boss_skill_run("regent", [Vector2(8.0, 4.0)])
+	var ac: ActionCombat = r[0]
+	var b: ActionCombat.Actor = r[1]
+	var p: ActionCombat.Actor = r[2][0]
+	p.pos = Vector2(8.0, 6.8)  # 예고 뒤 비킴
+	run(ac, 2.0)
+	check(b.pos.distance_to(Vector2(8.0, 4.0)) < 0.4, "regent landed on the marked spot")
+	eq(p.c.hp, 999, "moved away, not hit")
+	var r2 := boss_skill_run("regent", [Vector2(8.0, 4.0)])
+	run(r2[0], 2.0)
+	check(r2[2][0].c.hp < 999, "standing still gets hit")
+
+
+func test_boss_uses_skill_in_fight() -> void:
+	var ac := arena()
+	var b := ac.add(foe("bellwarden"), Vector2(3.5, 4.0), "monster")
+	var p := ac.add(pc("fighter", 3), Vector2(5.5, 4.0), "player")
+	ac.wake_room(-1)
+	var used := [0]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "ability":
+			used[0] += 1)
+	p.c.hp = 999
+	run(ac, 12.0)
+	check(used[0] >= 1, "boss uses its skill within a fight")

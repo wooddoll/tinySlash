@@ -27,6 +27,8 @@ var paused := false
 var views := {}
 ## 투사체 id → 노드
 var shot_views := {}
+## 보스 기술 예고 (Actor → 바닥 표시 노드)
+var telegraphs := {}
 var _was_fighting := false
 var _sync_in := 0.0
 var _lost := false
@@ -287,6 +289,24 @@ func _on_event(ev: Dictionary) -> void:
 				Sfx.play(self, "swing", -4.0)
 			if a.brain == "monster":
 				_reveal(a)
+		"ability":
+			if m:
+				m.play_once(ev.skill.get("anim", "cast"))
+				_popup(m, ev.skill.name + "!", Color(1, 0.6, 0.2), 1.2)
+			_reveal(a)
+			_clear_telegraph(a)
+			telegraphs[a] = _telegraph(ev)
+			Sfx.play(self, "cast")
+		"dash":
+			if m:
+				m.play_once("dodge")
+			Sfx.play(self, "swing")
+		"ability_hit":
+			_clear_telegraph(a)
+			_blast(ev)
+			Sfx.play(self, "crit")
+			if camera_rig and camera_rig.has_method("shake") and player and player.pos.distance_to(ev.center) < 7.0:
+				camera_rig.shake(0.2)
 		"dodge":
 			if m:
 				m.play_once("dodge")
@@ -328,6 +348,7 @@ func _on_event(ev: Dictionary) -> void:
 				m.hold("die")
 			message.emit("%s 쓰러짐!" % a.c.display_name)
 		"death":
+			_clear_telegraph(a)
 			if m:
 				m.hold("die")
 				var tw := create_tween()
@@ -386,3 +407,80 @@ func refresh_member(a: ActionCombat.Actor, c: Creature) -> void:
 	if c.hp > 0 and a.state == "down":
 		a.state = "idle"
 		(views[a].model as CharacterModel).set_base("idle")
+
+
+# =====================================================================
+# 보스 기술 예고 (바닥의 범위: 바깥 테두리 + 예고 시간 동안 차오르는 안쪽)
+# =====================================================================
+
+## 기술 범위 모양의 평평한 메시 (원은 반지름, 부채꼴은 +X 쪽 길이·각도)
+func _area_mesh(sk: Dictionary) -> ArrayMesh:
+	var pts := PackedVector3Array()
+	var cone: bool = sk.shape == "cone"
+	var half := acos(float(sk.cos)) if cone else PI
+	var r: float = sk.length if cone else sk.radius
+	var n := 32
+	for i in n:
+		var a0 := -half + 2.0 * half * i / n
+		var a1 := -half + 2.0 * half * (i + 1) / n
+		pts.append(Vector3.ZERO)
+		pts.append(Vector3(cos(a1) * r, 0, sin(a1) * r))
+		pts.append(Vector3(cos(a0) * r, 0, sin(a0) * r))
+	var am := ArrayMesh.new()
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pts
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+
+func _area_node(sk: Dictionary, col: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _area_mesh(sk)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = col
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+func _telegraph(ev: Dictionary) -> Node3D:
+	var sk: Dictionary = ev.skill
+	var root := Node3D.new()
+	add_child(root)
+	var c: Vector2 = ev.center
+	root.position = _cell_pos(c) + Vector3(0, 0.05, 0)
+	var dir: Vector2 = ev.dir
+	root.rotation.y = -dir.angle()
+	root.add_child(_area_node(sk, Color(1, 0.45, 0.1, 0.22)))
+	var fill := _area_node(sk, Color(1, 0.2, 0.05, 0.4))
+	fill.position.y = 0.01
+	fill.scale = Vector3(0.02, 1, 0.02)
+	root.add_child(fill)
+	var tw := root.create_tween()
+	tw.tween_property(fill, "scale", Vector3.ONE, float(ev.windup))
+	return root
+
+
+func _clear_telegraph(a: ActionCombat.Actor) -> void:
+	if telegraphs.has(a):
+		(telegraphs[a] as Node3D).queue_free()
+		telegraphs.erase(a)
+
+
+## 기술이 터짐: 범위가 밝게 번쩍이고 사라짐
+func _blast(ev: Dictionary) -> void:
+	var sk: Dictionary = ev.skill
+	var n := _area_node(sk, Color(1, 0.85, 0.5, 0.6))
+	add_child(n)
+	var c: Vector2 = ev.center
+	n.position = _cell_pos(c) + Vector3(0, 0.07, 0)
+	var dir: Vector2 = ev.dir
+	n.rotation.y = -dir.angle()
+	var mat := n.material_override as StandardMaterial3D
+	var tw := n.create_tween()
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
+	tw.tween_callback(n.queue_free)

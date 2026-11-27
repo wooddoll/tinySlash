@@ -6,6 +6,8 @@ extends RefCounted
 
 const STR := Rules.Ability.STR
 const DEX := Rules.Ability.DEX
+const CON := Rules.Ability.CON
+const WIS := Rules.Ability.WIS
 
 ## 이벤트: {"type": "swing"|"hit"|"dodge"|"shot"|"down"|"death"|"heal"|"wake"|"text", ...}
 signal event(ev: Dictionary)
@@ -105,6 +107,9 @@ class Actor:
 	var ghost := false
 	## 몸 반지름 (유닛). 중형 이하 RADIUS, 대형 0.45 (한 칸에 겨우 들어감), 거대 0.7
 	var radius := RADIUS
+	## 보스 기술을 다시 쓸 수 있을 때까지, 쓰는 중인 기술 {sk, center, dir}
+	var ability_cd := 0.0
+	var ab := {}
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -114,7 +119,7 @@ class Actor:
 		return c.is_alive() and c.hp > 0
 
 	func busy() -> bool:
-		return state in ["windup", "recover", "dodge", "stun", "down", "dead"]
+		return state in ["windup", "ability", "dash", "recover", "dodge", "stun", "down", "dead"]
 
 
 var dungeon: Dungeon
@@ -153,6 +158,8 @@ func add(c: Creature, p: Vector2, brain: String, room := -1) -> Actor:
 	a.fly = c.stats.has_feature("flying")
 	a.ghost = c.stats.has_feature("incorporeal")
 	a.radius = body_radius(c.stats.size)
+	if not boss_skill(a).is_empty():
+		a.ability_cd = BOSS_FIRST_CD
 	actors.append(a)
 	return a
 
@@ -255,6 +262,8 @@ func tick(delta: float) -> void:
 func _step(a: Actor, delta: float) -> void:
 	a.cooldown = maxf(0.0, a.cooldown - delta)
 	a.skill_cd = maxf(0.0, a.skill_cd - delta)
+	if a.awake:
+		a.ability_cd = maxf(0.0, a.ability_cd - delta)
 	for k in a.timers.keys():
 		a.timers[k] -= delta
 		if a.timers[k] <= 0.0:
@@ -297,6 +306,24 @@ func _step(a: Actor, delta: float) -> void:
 				_release(a)
 				a.state = "recover"
 				a.t = PC_RECOVER if a.c.stats.is_pc else MONSTER_RECOVER
+		"ability":
+			if a.t <= 0.0:
+				if a.ab.sk.has("dash"):
+					a.state = "dash"
+					a.t = DASH_MAX
+					event.emit({"type": "dash", "actor": a})
+				else:
+					_boss_release(a)
+			a.knock = Vector2.ZERO
+		"dash":
+			var to: Vector2 = a.ab.center - a.pos
+			if to.length() < 0.2 or a.t <= 0.0:
+				a.ab.center = a.pos
+				_boss_release(a)
+			else:
+				vel = to.normalized() * minf(DASH_SPEED, to.length() / delta)
+				a.facing = to.normalized()
+			a.knock = Vector2.ZERO
 		"recover", "stun":
 			if a.t <= 0.0:
 				a.state = "idle"
@@ -508,7 +535,7 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 		b.target = a
 	# 맞으면 밀리고 굳음 (큰 크리처는 덜)
 	# [변경] 몬스터는 공격 준비 중에 버팀 (치명타만 끊음): 계속 때려서 공격을 막을 수 없고, 예고를 보고 굴러야 함
-	var armored: bool = b.state == "windup" and not b.c.stats.is_pc and not crit
+	var armored: bool = b.state in ["windup", "ability", "dash"] and not b.c.stats.is_pc and not crit
 	var push := (b.pos - a.pos).normalized()
 	b.knock = push * (0.5 if armored else 2.5 if b.c.stats.size <= Rules.Size.MEDIUM else 0.8)
 	if not armored and b.state in ["idle", "windup", "recover"] and res.dealt > 0 and (b.c.stats.size <= Rules.Size.MEDIUM or crit):
@@ -644,6 +671,8 @@ func _think_monster(a: Actor, delta: float) -> void:
 		if a.pos.distance_to(near.pos) <= WAKE_RANGE and clear_line(a.pos, near.pos):
 			wake_room(a.room)
 		return
+	if a.state in ["ability", "dash"]:
+		return  # 보스 기술 중에는 방향도 고정
 	a.wait = maxf(0.0, a.wait - delta)
 	# 겁쟁이(cowardly): 처음 반 넘게 다치면 30% 확률로 몇 초 도망
 	if a.c.stats.has_feature("cowardly") and not a.flee_checked and a.c.is_bloodied():
@@ -671,6 +700,8 @@ func _think_monster(a: Actor, delta: float) -> void:
 	var t := a.target
 	var to := t.pos - a.pos
 	var dist := to.length()
+	if _try_boss_skill(a, t, dist):
+		return
 	if is_ranged(a.weapon):
 		# 궁수: 4~7 유닛 거리를 두고 쏨
 		if dist < 3.5:
@@ -788,6 +819,23 @@ func _think_ally(a: Actor) -> void:
 
 
 func _ally_dodge(a: Actor, foes: Array[Actor]) -> bool:
+	# 보스 기술 예고: 범위 안이면 (반응 시간 뒤, 확률로) 굴러서 빠져나가고, 끝날 때까지 범위 밖으로 걸음
+	for f in foes:
+		var key := -f.get_instance_id()
+		if f.state != "ability":
+			a.reacted.erase(key)
+			continue
+		if f.ab.sk.windup - f.t < ALLY_REACTION or not skill_area_has(f, a.pos, a.radius + 0.3):
+			continue
+		if not a.reacted.has(key):
+			a.reacted[key] = randf() < ALLY_DODGE
+			if a.reacted[key]:
+				a.move = skill_escape(f, a.pos)
+				a.want_dodge = true
+				return true
+		if a.reacted[key]:
+			a.move = skill_escape(f, a.pos)
+			return true
 	for f in foes:
 		if f.state != "windup":
 			a.reacted.erase(f.get_instance_id())
@@ -902,6 +950,113 @@ func revive_party() -> void:
 			b.c.remove_condition("prone")
 			b.state = "idle"
 			event.emit({"type": "heal", "actor": b, "amount": 1})
+
+
+# =====================================================================
+# 보스 고유 기술 [변경] (docs/rules.md 9.2, 10장)
+# =====================================================================
+
+## 보스 몬스터 id → 기술. 예고 동안 바닥에 범위가 보이고, 끝나면 범위 안 모두가 내성 굴림.
+## 실패하면 전부 + 추가 효과, 성공하면 절반. 구르기 무적이거나 범위 밖이면 안 맞음.
+##   shape: circle(center 둘레 radius) / cone(앞쪽 length, cos 이상). dash: 대상 자리로 돌진한 뒤 그 둘레를 침
+const BOSS_SKILLS := {
+	"bellwarden": {"id": "toll", "name": "종소리", "shape": "circle", "radius": 2.6, "windup": 1.2, "cooldown": 8.0,
+		"range": 2.2, "save": CON, "dc": 12, "dice": [2, 8], "type": "thunder", "push": 5.0, "anim": "cast"},
+	"cantor": {"id": "sonar", "name": "음파", "shape": "cone", "length": 5.0, "cos": 0.6, "windup": 1.0, "cooldown": 9.0,
+		"range": 4.5, "save": WIS, "dc": 12, "dice": [2, 6], "type": "psychic", "stun": 1.5, "anim": "holding-right-shoot"},
+	"regent": {"id": "dive", "name": "급강하", "shape": "circle", "radius": 1.3, "windup": 1.0, "cooldown": 9.0,
+		"range": 7.0, "min_range": 2.0, "save": DEX, "dc": 13, "dice": [3, 6], "type": "piercing", "dash": true, "anim": "cast"},
+}
+## 깨어난 뒤 첫 기술까지
+const BOSS_FIRST_CD := 3.0
+const DASH_SPEED := 9.0
+const DASH_MAX := 1.2
+
+
+func boss_skill(a: Actor) -> Dictionary:
+	return BOSS_SKILLS.get(a.c.stats.id, {})
+
+
+func _try_boss_skill(a: Actor, t: Actor, dist: float) -> bool:
+	var sk := boss_skill(a)
+	if sk.is_empty() or a.ability_cd > 0.0 or a.busy():
+		return false
+	if dist > sk.range or dist < sk.get("min_range", 0.0) or not clear_line(a.pos, t.pos, a):
+		return false
+	start_boss_skill(a, t)
+	return true
+
+
+## 기술 예고 시작 (대상 t 쪽으로)
+func start_boss_skill(a: Actor, t: Actor) -> void:
+	var sk := boss_skill(a)
+	a.facing = (t.pos - a.pos).normalized()
+	a.state = "ability"
+	a.t = sk.windup
+	a.ab = {"sk": sk, "center": t.pos if sk.has("dash") else a.pos, "dir": a.facing}
+	a.ability_cd = sk.cooldown
+	a.cooldown = maxf(a.cooldown, sk.windup + MONSTER_RECOVER)
+	a.move = Vector2.ZERO
+	event.emit({"type": "ability", "actor": a, "skill": sk, "center": a.ab.center, "dir": a.facing, "windup": sk.windup})
+
+
+## 점 p(몸 반지름 r)가 a가 쓰는 기술의 범위 안인지
+func skill_area_has(a: Actor, p: Vector2, r: float) -> bool:
+	if a.ab.is_empty() or a.state not in ["ability", "dash", "recover"]:
+		return false
+	var sk: Dictionary = a.ab.sk
+	var center: Vector2 = a.ab.center
+	if sk.shape == "cone":
+		var d := p - center
+		var dist := d.length()
+		if dist <= a.radius + r:
+			return true
+		return dist <= sk.length + r and d.normalized().dot(a.ab.dir) >= sk.cos
+	return p.distance_to(center) <= sk.radius + r
+
+
+## 범위에서 빠져나가는 방향
+func skill_escape(a: Actor, p: Vector2) -> Vector2:
+	var sk: Dictionary = a.ab.sk
+	var center: Vector2 = a.ab.center
+	if sk.shape == "cone":
+		var side: Vector2 = (a.ab.dir as Vector2).orthogonal()
+		return side if (p - center).dot(side) >= 0.0 else -side
+	var away := p - center
+	return away.normalized() if away.length() > 0.01 else (a.ab.dir as Vector2).orthogonal()
+
+
+func _boss_release(a: Actor) -> void:
+	var sk: Dictionary = a.ab.sk
+	var center: Vector2 = a.ab.center
+	a.state = "recover"
+	a.t = MONSTER_RECOVER
+	event.emit({"type": "ability_hit", "actor": a, "skill": sk, "center": center, "dir": a.ab.dir})
+	for b in foes_of(a):
+		if not b.alive() or not skill_area_has(a, b.pos, b.radius) or not clear_line(center, b.pos):
+			continue
+		if b.iframe > 0.0:
+			event.emit({"type": "text", "actor": b, "text": "회피!"})
+			continue
+		var ok := save(b.c, sk.save, sk.dc)
+		var dmg := Dice.sum(dice.roll(sk.dice[0], sk.dice[1]))
+		if ok:
+			dmg = maxi(1, dmg / 2)
+		var res := Damage.apply(b.c, dmg, sk.type, false)
+		event.emit({"type": "hit", "actor": a, "target": b, "damage": res.dealt, "crit": false, "blocked": ok,
+			"roll": 0, "ac": 0, "skill": sk.id})
+		if b.c.hp <= 0:
+			_fall(b)
+			continue
+		if not ok:
+			if sk.has("push"):
+				var away := b.pos - center
+				b.knock = (away.normalized() if away.length() > 0.01 else a.facing) * sk.push
+			if sk.has("stun"):
+				b.state = "stun"
+				b.t = sk.stun
+				event.emit({"type": "text", "actor": b, "text": "기절!"})
+	a.ab = {}
 
 
 # =====================================================================

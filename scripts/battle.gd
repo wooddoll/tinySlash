@@ -31,17 +31,20 @@ const ENCOUNTERS := {
 	"hard": {"label": "어려움 — 늑대 2", "foes": [["wolf", Vector2i(11, 3)], ["wolf", Vector2i(11, 6)]]},
 	"boss": {"label": "보스 — 고블린 대장 + 졸개 2", "foes": [["goblin_boss", Vector2i(11, 5)], ["goblin_minion", Vector2i(12, 4)], ["goblin_minion", Vector2i(12, 6)]]},
 	"undead": {"label": "언데드 — 스켈레톤 2", "foes": [["skeleton", Vector2i(11, 2)], ["skeleton", Vector2i(11, 7)]]},
+	"bellwarden": {"label": "보스 — 가라앉은 종지기 (2레벨 파티용)", "foes": [["bellwarden", Vector2i(11, 5)]], "level": 2},
+	"cantor": {"label": "보스 — 심연의 노래꾼 (3레벨 파티용)", "foes": [["cantor", Vector2i(11, 5)]], "level": 3},
+	"regent": {"label": "보스 — 납골 섭정 (4레벨 파티용)", "foes": [["regent", Vector2i(11, 5)]], "level": 4},
 }
-const ENCOUNTER_KEYS := {KEY_F1: "easy", KEY_F2: "normal", KEY_F3: "hard", KEY_F4: "boss", KEY_F5: "undead"}
+const ENCOUNTER_KEYS := {KEY_F1: "easy", KEY_F2: "normal", KEY_F3: "hard", KEY_F4: "boss", KEY_F5: "undead", KEY_F6: "bellwarden", KEY_F7: "cantor", KEY_F8: "regent"}
 
 static var encounter_id := "normal"
 ## [변경] 단독 전투(B 키)는 실시간 액션 전투(docs/rules.md 10장). T 키로 예전 턴제와 바꿈.
 ## 던전 지도 화면에서 고른 방 전투(custom에 map이 있음)는 턴제 그대로
 static var action_mode := true
-const ACTION_HELP := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · F1~F5: 조우 · R: 다시 · T: 턴제로 · Esc: 바깥으로"
+const ACTION_HELP := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · F1~F8: 조우 · R: 다시 · T: 턴제로 · Esc: 바깥으로"
 var action: ActionLayer
 var _action_ui := {}
-## 던전 생성기에서 넘겨준 전투 (Dungeon.battle_setup). 비어 있으면 기본 맵과 F1~F5 조우.
+## 던전 생성기에서 넘겨준 전투 (Dungeon.battle_setup). 비어 있으면 기본 맵과 F1~F8 조우.
 ## 끝나면 custom["result"]에 "win" 또는 "lose"를 남깁니다.
 ## custom["party"]: 던전 탐험의 파티 (HeroState 배열). 없으면 1레벨 파이터 + 클레릭
 ## custom["return_scene"]: 끝나고 돌아갈 장면 (없으면 던전), custom["surprised"]: 기습당한 편 (1 = 적)
@@ -329,9 +332,11 @@ func _spawn_units() -> void:
 		for h in heroes:
 			party.append((h as HeroState).make_creature())
 	else:
-		# 단독 전투: 고른 파티(던전 생성기·시나리오 창에서 바꿈)를 1레벨로
+		# 단독 전투: 고른 파티(던전 생성기·시나리오 창에서 바꿈)를 1레벨로 (보스 조우는 그 레벨)
 		for i in HeroState.party_classes.size():
-			party.append(HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0).make_creature())
+			var h := HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0)
+			h.xp = Rules.XP_THRESHOLDS[int(ENCOUNTERS[encounter_id].get("level", 1)) - 1]
+			party.append(h.make_creature())
 	pc = party[0]
 	var foes: Array = custom.foes if _dungeon() else ENCOUNTERS[encounter_id].foes
 	var foe_cells: Array = foes.map(func(e: Array) -> Vector2i: return e[1])
@@ -507,7 +512,7 @@ func _build_ui() -> void:
 	layer.add_child(hint_label)
 
 	var help := Label.new()
-	help.text = "좌클릭: 이동/공격/대상 · 스킬·주문·아이템: 원형 메뉴(숫자로 고름) · 우클릭: 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F5: 조우 바꾸기 · T: 실시간으로 · Esc: 탐험으로")
+	help.text = "좌클릭: 이동/공격/대상 · 스킬·주문·아이템: 원형 메뉴(숫자로 고름) · 우클릭: 취소 · WASD: 카메라 이동 · Q/E: 90° 회전 · 휠: 줌 · Enter: 턴 종료 · " + ("Esc: 던전으로" if _dungeon() else "F1~F8: 조우 바꾸기 · T: 실시간으로 · Esc: 탐험으로")
 	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	help.offset_top = -24
 	help.offset_left = 12
@@ -1139,7 +1144,7 @@ func _show_result() -> void:
 	_clear_overlays()
 	for v in views.values():
 		v.set_active(false)
-	var keys := "Esc: 던전으로 · R: 다시" if _dungeon() else "F1~F5: 다른 조우 · R: 다시"
+	var keys := "Esc: 던전으로 · R: 다시" if _dungeon() else "F1~F8: 다른 조우 · R: 다시"
 	if _dungeon():
 		custom["result"] = "win" if combat.winner == 0 else "lose"
 	if combat.winner == 0 and not heroes.is_empty():
@@ -1352,7 +1357,7 @@ func _click() -> void:
 # 실시간 액션 전투 (단독 전투) [변경]
 # =====================================================================
 
-## 같은 맵(MAP)과 조우(F1~F5)를 액션 전투로. 높이 2.0 이상 장애물(나무, 기둥)은 못 지나고, 낮은 담(#)은 나는 몬스터만 넘음
+## 같은 맵(MAP)과 조우(F1~F8)를 액션 전투로. 높이 2.0 이상 장애물(나무, 기둥)은 못 지나고, 낮은 담(#)은 나는 몬스터만 넘음
 func _start_action() -> void:
 	_build_world()
 	var d := Dungeon.new(grid.width, grid.height)
@@ -1370,7 +1375,9 @@ func _start_action() -> void:
 	var foe_cells: Array = foes.map(func(e: Array) -> Vector2i: return e[1])
 	var taken: Array = foe_cells.duplicate()
 	for i in HeroState.party_classes.size():
-		var c := HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0).make_creature()
+		var h := HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0)
+		h.xp = Rules.XP_THRESHOLDS[int(ENCOUNTERS[encounter_id].get("level", 1)) - 1]  # 보스 조우는 그 레벨 파티로
+		var c := h.make_creature()
 		party.append(c)
 		var cell := PC_START
 		if i > 0:
@@ -1456,7 +1463,7 @@ func _action_result(won: bool, xp: int) -> void:
 	Sfx.play(self, "win" if won else "lose")
 	res.text = ("승리!
 경험치 %d" % xp if won else "패배...") + "
-F1~F5: 다른 조우 · R: 다시 · Esc: 바깥으로"
+F1~F8: 다른 조우 · R: 다시 · Esc: 바깥으로"
 	res.visible = true
 
 
