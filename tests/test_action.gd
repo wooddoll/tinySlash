@@ -456,3 +456,34 @@ func test_monster_hp_scaled_in_action() -> void:
 	eq(g.c.hp, g.c.stats.max_hp, "monster starts full")
 	eq(st.max_hp, base, "shared stats untouched")
 	eq(p.c.hp, Catalog.pc("fighter", 1).max_hp, "party hp unchanged")
+
+
+func test_large_boss_body_and_reach() -> void:
+	# 대형 보스는 몸이 커서 더 멀리서 맞고 더 멀리 닿음. 섭정 꼬리 침은 중독
+	var ac := arena()
+	var r := ac.add(foe("regent"), Vector2(3.5, 3.5), "monster")
+	eq(r.radius, 0.45, "large radius")
+	check(r.fly and r.c.stats.multiattack == 2, "regent flies, two stings")
+	var p := ac.add(pc("fighter"), Vector2(3.5 + ActionCombat.melee_dist(p_dummy(ac), r) - 0.05, 3.5), "player")
+	p.facing = Vector2.LEFT
+	check(ac.aim_target(p) == r, "fighter can reach the big body from farther away")
+	var hit := false
+	for i in 30:
+		var res := ac.strike(r, p, r.weapon)
+		if res.get("damage", 0) > 0 and p.c.has_effect("poisoned"):
+			hit = true
+			break
+		p.c.hp = p.c.stats.max_hp
+	check(hit, "sting can poison")
+
+
+func p_dummy(ac: ActionCombat) -> ActionCombat.Actor:
+	var a := ActionCombat.Actor.new(pc("fighter"), Vector2.ZERO)
+	a.weapon = ActionCombat.primary_weapon(a.c)
+	return a
+
+
+func test_bosses_exist() -> void:
+	for id in DungeonGenerator.BOSSES:
+		var s := Catalog.monster(id)
+		check(s.size == Rules.Size.LARGE and s.model.begins_with("dark/"), "%s is large with a model" % id)

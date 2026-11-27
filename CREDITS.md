@@ -28,6 +28,11 @@ license; check the listing before any release). The goblin's animations were mov
 skeleton by `tools/retarget.gd` and baked into `assets/dark/zombie/zombie.scn` by
 `tools/bake_zombie.gd`. Used for the zombie, ghoul and ghast.
 
+The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
+from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
+renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.
+The original downloads stay outside the project and must not be shared or uploaded publicly.
+
 ## Audio
 
 Interface Sounds, Impact Sounds, RPG Audio, UI Audio, Voiceover Pack,

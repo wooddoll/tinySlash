@@ -39,6 +39,10 @@ static func weapon(id: String) -> WeaponData:
 		"life_drain": return _w(id, "생명 흡수", 3, 6, "necrotic", {"finesse": true, "add_mod": false, "on_hit_save": CON, "on_hit_dc": 10, "on_hit_effect": "drain_max"})
 		"swarm_bites": return _w(id, "물어뜯기", 2, 4, "piercing", {"finesse": true, "add_mod": false})
 		"insect_bites": return _w(id, "물어뜯기", 2, 4, "piercing", {"finesse": true})
+		# 던전 보스 [변경: SRD에 없는 자작 몬스터]
+		"bell_toll": return _w(id, "종 내려치기", 2, 6, "bludgeoning", {"heavy": true, "reach": true})
+		"cantor_tentacle": return _w(id, "촉수", 1, 6, "bludgeoning", {"finesse": true, "reach": true})
+		"regent_sting": return _w(id, "꼬리 침", 2, 6, "piercing", {"finesse": true, "reach": true, "on_hit_save": CON, "on_hit_dc": 12, "on_hit_effect": "poisoned"})
 	push_error("알 수 없는 무기: " + id)
 	return null
 
@@ -678,6 +682,33 @@ static func monster(id: String) -> CreatureStats:
 			s.condition_immunities = PackedStringArray(["charmed", "deafened", "exhaustion", "frightened", "paralyzed", "petrified", "poisoned"])
 			s.tint = Color(0.35, 0.35, 0.4)
 			s.model = "dark/knight"
+			s.weapon_model = ""
+		# 던전 보스 [변경: 자작]. 출구(보스) 방에만 나옴. 모델은 Bento "The Eightfold Archive" (tools/bake_boss.gd)
+		"bellwarden":
+			_m(s, "가라앉은 종지기", 2.0, 450, [18, 8, 16, 3, 10, 5], 16, 45, 6, Rules.Size.LARGE, -1)
+			s.weapons = [weapon("bell_toll")]
+			s.creature_type = "construct"
+			s.immunities = PackedStringArray(["poison", "psychic"])
+			s.condition_immunities = PackedStringArray(["charmed", "frightened", "paralyzed", "poisoned"])
+			s.model = "dark/bellwarden"
+			s.weapon_model = ""
+		"cantor":
+			_m(s, "심연의 노래꾼", 3.0, 700, [16, 14, 14, 8, 12, 10], 13, 52, 8, Rules.Size.LARGE, 2)
+			s.weapons = [weapon("cantor_tentacle")]
+			s.multiattack = 3
+			s.creature_type = "monstrosity"
+			s.resistances = PackedStringArray(["cold", "thunder"])
+			s.features = PackedStringArray(["flying"])
+			s.model = "dark/cantor"
+			s.weapon_model = ""
+		"regent":
+			_m(s, "납골 섭정", 4.0, 1100, [17, 15, 15, 6, 12, 8], 14, 68, 8, Rules.Size.LARGE, 2)
+			s.weapons = [weapon("regent_sting")]
+			s.multiattack = 2
+			_undead(s)
+			s.resistances = PackedStringArray(["necrotic"])
+			s.features = PackedStringArray(["flying"])
+			s.model = "dark/regent"
 			s.weapon_model = ""
 		"swarm_rats":
 			_m(s, "쥐 떼", 0.25, 50, [9, 11, 9, 2, 10, 3], 10, 14, 6, Rules.Size.MEDIUM, 0)

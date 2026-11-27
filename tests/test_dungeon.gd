@@ -99,7 +99,8 @@ func test_encounters_within_xp_budget() -> void:
 					continue
 				var e: Dictionary = r.encounter
 				eq(e.budget, DungeonGenerator.XP_BUDGET[lvl - 1][e.difficulty] * p.party_size, "budget lvl %d" % lvl)
-				check(int(e.xp) <= int(e.budget), "xp %d <= budget %d" % [e.xp, e.budget])
+				var cap: float = e.budget * (DungeonGenerator.BOSS_STRETCH if e.boss else 1.0)  # 보스는 예산의 1.2배까지
+				check(int(e.xp) <= int(cap), "xp %d <= budget %d" % [e.xp, cap])
 				check((e.foes as Array).size() >= 1, "at least one foe")
 
 
@@ -118,12 +119,17 @@ func test_party_size_scales_budget() -> void:
 func test_boss_room_is_exit_and_high() -> void:
 	var p := params(DungeonParams.Algorithm.BSP, 11)
 	p.theme = "goblin"
-	p.party_level = 3  # High 400 -> 고블린 대장(200) 들어감
+	p.party_level = 3  # High 400 x 파티 -> 예산 안 보스 중 가장 비싼 것
 	var d := DungeonGenerator.generate(p)
 	var e: Dictionary = d.rooms[d.exit_room].encounter
 	check(not e.is_empty(), "exit has encounter")
 	eq(e.difficulty, DungeonParams.Difficulty.HIGH, "high difficulty")
-	eq(e.foes[0][0], "goblin_boss", "boss leads")
+	check(e.foes[0][0] in DungeonGenerator.BOSSES, "boss leads (%s)" % e.foes[0][0])
+	# 예산이 보스에 못 미치면 (1레벨 2명: 200) 예전처럼 고블린 대장
+	p.party_level = 1
+	p.party_size = 2
+	var d1 := DungeonGenerator.generate(p)
+	eq(d1.rooms[d1.exit_room].encounter.foes[0][0], "goblin_boss", "low budget falls back to goblin boss")
 	check(d.rooms[d.start_room].encounter.is_empty(), "start room is safe")
 
 

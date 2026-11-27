@@ -1,7 +1,8 @@
 ## 액션 전투 난이도 시뮬레이션 (수치 맞추기용).
 ## 실제 던전 생성기로 만든 방의 조우를 파티(플레이어 봇 + 동료 AI)가 싸워 보고 통계를 냅니다.
 ## 플레이어 봇은 몬스터 공격 예고를 보고 정해진 확률(skill)로 구릅니다 (반응 0.3초).
-## 실행: Godot --headless --path . -s tools/sim_action.gd -- [던전 수] [파티 클래스들] (예: 20 fighter,cleric)
+## 실행: Godot --headless --path . -s tools/sim_action.gd -- [던전 수] [파티 클래스들] [boss] (예: 20 fighter,cleric)
+## boss를 붙이면 출구 보스 방만 싸우고, 레벨 2~4로 봅니다
 extends SceneTree
 
 const DT := 1.0 / 60.0
@@ -15,6 +16,9 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var n := int(args[0]) if args.size() > 0 else 20
 	var classes := (args[1] if args.size() > 1 else "fighter,cleric").split(",")
+	var boss_only := args.size() > 2 and args[2] == "boss"
+	if boss_only:
+		LEVELS = [2, 3, 4]
 	for lvl in LEVELS:
 		for skill in SKILLS:
 			var st := {"fights": 0, "wins": 0, "time": 0.0, "lost": 0.0, "downs": 0, "worst": 0.0, "dealt": 0, "taken": 0,
@@ -26,8 +30,10 @@ func _init() -> void:
 				p.party_size = classes.size()
 				var d := DungeonGenerator.generate(p)
 				for r in d.rooms:
-					if r.encounter.is_empty():
+					if r.encounter.is_empty() or (boss_only and not r.encounter.get("boss", false)):
 						continue
+					if boss_only and i < 2 and skill == SKILLS[0]:
+						print("  Lv%d 보스 방: %s" % [lvl, r.encounter.label])
 					_fight(d, r, classes, lvl, skill, st, 7 * i + r.id)
 			var f: float = maxf(1, st.fights)
 			print("Lv%d skill %.2f | 싸움 %d, 이김 %.0f%%, 평균 %.1f초, 잃은 HP %.0f%% (최악 %.0f%%), 쓰러짐 %.2f번, 플레이어 휘두르기 %.1f번" % [
@@ -98,7 +104,7 @@ func _fight(d: Dungeon, r: Dictionary, classes: PackedStringArray, lvl: int, ski
 	st.downs += downs[0]
 	if not ac.fighting() and not ac.party_down():
 		st.wins += 1
-	elif OS.get_cmdline_user_args().size() > 2:
+	elif OS.get_cmdline_user_args().size() > 3:
 		var desc := []
 		for a in ac.actors:
 			if a.alive():
@@ -127,7 +133,7 @@ func _bot(ac: ActionCombat, me: ActionCombat.Actor, skill: float, reacted: Dicti
 			continue
 		reacted[f] = true
 		var ranged := ActionCombat.is_ranged(f.weapon)
-		var in_reach := me.pos.distance_to(f.pos) <= ActionCombat.reach_of(f.weapon) + 0.8
+		var in_reach := me.pos.distance_to(f.pos) <= ActionCombat.melee_dist(f, me) + 0.5
 		if (ranged or in_reach) and randf() < skill:
 			var away := (me.pos - f.pos).normalized()
 			me.move = away.orthogonal() if ranged else away
@@ -150,7 +156,7 @@ func _bot(ac: ActionCombat, me: ActionCombat.Actor, skill: float, reacted: Dicti
 			me.facing = to.normalized()
 			me.want_attack = true
 		return
-	if bd > ActionCombat.reach_of(me.weapon) * 0.85:
+	if bd > (ActionCombat.melee_dist(me, target) - ActionCombat.RADIUS) * 0.85:
 		me.move = to.normalized()
 	else:
 		me.facing = to.normalized()

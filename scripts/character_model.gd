@@ -32,6 +32,10 @@ const RAW_HEIGHT := {
 	"quaternius/blue_demon": 2.1,
 	"animals/rat": 4.0,
 	"dark/zombie": 1.81,
+	# 보스는 키 대신 너비로 크기를 맞춤 (대형 = 약 2칸 너비)
+	"dark/bellwarden": 4.5,
+	"dark/cantor": 2.4,
+	"dark/regent": 4.8,
 }
 ## 옛 Kenney 캐릭터 이름 → 새 모델 (예전 시나리오 팩도 그대로 돌아가게)
 const ALIASES := {

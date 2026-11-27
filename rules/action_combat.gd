@@ -103,6 +103,8 @@ class Actor:
 	## 날기 (낮은 장애물 위로 지나감), 비실체 (벽·문을 지나감, 그 안에서는 절반 속도)
 	var fly := false
 	var ghost := false
+	## 몸 반지름 (유닛). 중형 이하 RADIUS, 대형 0.45 (한 칸에 겨우 들어감), 거대 0.7
+	var radius := RADIUS
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -150,8 +152,21 @@ func add(c: Creature, p: Vector2, brain: String, room := -1) -> Actor:
 		c.hp = ceili(c.hp * MONSTER_HP_K)
 	a.fly = c.stats.has_feature("flying")
 	a.ghost = c.stats.has_feature("incorporeal")
+	a.radius = body_radius(c.stats.size)
 	actors.append(a)
 	return a
+
+
+static func body_radius(size: int) -> float:
+	match size:
+		Rules.Size.LARGE: return 0.45
+		Rules.Size.HUGE, Rules.Size.GARGANTUAN: return 0.7
+	return RADIUS
+
+
+## a가 b를 근접으로 맞힐 수 있는 중심 거리 (무기 거리 + 두 몸 크기)
+static func melee_dist(a: Actor, b: Actor) -> float:
+	return reach_of(a.weapon) + b.radius + (a.radius - RADIUS)
 
 
 ## 기본 공격 무기: 공격 굴림을 하는 소마법이 있으면 그것(주문 화살), 아니면 첫 무기
@@ -191,8 +206,9 @@ func foes_of(a: Actor) -> Array[Actor]:
 
 
 func can_stand(p: Vector2, who: Actor = null) -> bool:
-	for sx in [-RADIUS, RADIUS]:
-		for sy in [-RADIUS, RADIUS]:
+	var r := who.radius if who != null else RADIUS
+	for sx in [-r, 0.0, r]:
+		for sy in [-r, 0.0, r]:
 			if not passable(Vector2i(floori(p.x + sx), floori(p.y + sy)), who):
 				return false
 	return true
@@ -327,7 +343,7 @@ func _separate() -> void:
 				continue
 			var d := b.pos - a.pos
 			var dist := d.length()
-			var need := RADIUS * 2.0
+			var need := a.radius + b.radius
 			if dist < need and dist > 0.0001:
 				var push := d / dist * (need - dist) * 0.5
 				_move(a, -push)
@@ -396,7 +412,7 @@ func _release(a: Actor) -> void:
 	for b in foes_of(a):
 		var d := b.pos - a.pos
 		var dist := d.length()
-		if dist > reach + RADIUS or dist < 0.001:
+		if dist > reach + b.radius + (a.radius - RADIUS) or dist < 0.001:
 			continue
 		if d.normalized().dot(a.facing) < ARC_COS:
 			continue
@@ -421,7 +437,7 @@ func _fly(delta: float) -> void:
 		var owner: Actor = s.owner
 		var hit: Actor = null
 		for b in actors:
-			if b.alive() and b.c.is_hostile_to(owner.c) and (s.pos as Vector2).distance_to(b.pos) <= SHOT_RADIUS + RADIUS:
+			if b.alive() and b.c.is_hostile_to(owner.c) and (s.pos as Vector2).distance_to(b.pos) <= SHOT_RADIUS + b.radius:
 				hit = b
 				break
 		var wall := not dungeon.is_walkable(Vector2i(floori(s.pos.x), floori(s.pos.y)))
@@ -543,6 +559,13 @@ func _on_hit(a: Actor, b: Actor, w: WeaponData, dealt: int) -> void:
 			if b.c.stats.max_hp <= 0:
 				Damage._kill(b.c)
 				_fall(b)
+		"poisoned":
+			if b.c.stats.condition_immunities.has("poisoned"):
+				return
+			b.c.remove_effects("poisoned")
+			b.c.add_effect("poisoned", a.c, "never")
+			b.timers["poisoned"] = ROUND
+			event.emit({"type": "text", "actor": b, "text": "중독!"})
 		"str_drain":
 			var loss := dice.roll_die(4)
 			b.c.str_loss += loss
@@ -659,7 +682,7 @@ func _think_monster(a: Actor, delta: float) -> void:
 			a.want_attack = true
 			a.wait = randf_range(MONSTER_WAIT_MIN + 0.2, MONSTER_WAIT_MAX + 0.2)
 		return
-	var reach := reach_of(a.weapon)
+	var reach := melee_dist(a, t) - RADIUS
 	var spread := _spread(a, t)
 	if dist > reach * 0.85:
 		a.move = (steer(a, t.pos) + spread).normalized()
@@ -757,7 +780,7 @@ func _think_ally(a: Actor) -> void:
 			a.facing = to.normalized()
 			a.want_attack = true
 		return
-	if dist > reach_of(a.weapon) * 0.85:
+	if dist > (melee_dist(a, t) - RADIUS) * 0.85:
 		a.move = steer(a, t.pos)
 	elif a.cooldown <= 0.0:
 		a.facing = to.normalized()
@@ -835,7 +858,7 @@ func _bfs(goal: Vector2i, who: Actor = null) -> Dictionary:
 
 ## 몸 너비(양옆 RADIUS)로 막히지 않고 곧장 갈 수 있는지
 func _clear_wide(a: Vector2, b: Vector2, who: Actor = null) -> bool:
-	var side := (b - a).normalized().orthogonal() * (RADIUS + 0.02)
+	var side := (b - a).normalized().orthogonal() * ((who.radius if who != null else RADIUS) + 0.02)
 	return clear_line(a, b, who) and clear_line(a + side, b + side, who) and clear_line(a - side, b - side, who)
 
 
