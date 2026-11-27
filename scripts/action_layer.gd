@@ -5,6 +5,8 @@ extends Node3D
 
 const CharacterModel = preload("res://scripts/character_model.gd")
 const Sfx = preload("res://scripts/sfx.gd")
+## 카메라가 함께 담으려는 적의 거리 (유닛)
+const CAMERA_FRAME_RANGE := 9.0
 
 signal message(text: String)
 ## 파티원 HP·자원이 바뀜
@@ -139,6 +141,7 @@ func _physics_process(delta: float) -> void:
 	for a in views:
 		_sync_view(a, delta)
 	_sync_shots()
+	_frame_camera()
 	var fighting := ac.fighting()
 	if _was_fighting and not fighting:
 		ac.revive_party()
@@ -153,6 +156,27 @@ func _physics_process(delta: float) -> void:
 	if ac.party_down() and not _lost:
 		_lost = true
 		defeated.emit()
+
+
+## 싸울 때 카메라: 가까운 깨어난 적 쪽으로 조금 비켜 보고, 조금 넓게 (공격 예고 고리가 화면 밖에 있지 않게)
+func _frame_camera() -> void:
+	if camera_rig == null or player == null or not ("look_offset" in camera_rig):
+		return
+	var sum := Vector2.ZERO
+	var n := 0
+	var far := 0.0
+	for b in ac.actors:
+		if b.brain == "monster" and b.awake and b.alive() and b.pos.distance_to(player.pos) < CAMERA_FRAME_RANGE:
+			sum += b.pos
+			n += 1
+			far = maxf(far, b.pos.distance_to(player.pos))
+	if n == 0:
+		camera_rig.look_offset = Vector3.ZERO
+		camera_rig.zoom_bonus = 0.0
+		return
+	var off := ((sum / n - player.pos) * 0.4).limit_length(2.5)
+	camera_rig.look_offset = Vector3(off.x, 0, off.y)
+	camera_rig.zoom_bonus = clampf(far * 0.35, 1.0, 3.0)
 
 
 func _read_input() -> void:
@@ -279,6 +303,11 @@ func _on_event(ev: Dictionary) -> void:
 					Color(1, 0.85, 0.2) if ev.crit else (Color(0.75, 0.75, 0.75) if ev.blocked else
 						(Color(1, 0.35, 0.3) if t.c.team == 0 else Color(1, 1, 1))), 1.4 if ev.crit else 1.0)
 			Sfx.play(self, "crit" if ev.crit else ("miss" if ev.blocked else "hit"))
+			if camera_rig and camera_rig.has_method("shake"):
+				if t == player and ev.damage > 0:
+					camera_rig.shake(0.25)
+				elif ev.crit and a == player:
+					camera_rig.shake(0.12)
 			if t.c.team != 0:
 				_reveal(t)
 		"text":

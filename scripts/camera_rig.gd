@@ -25,6 +25,14 @@ extends Node3D
 
 @onready var camera: Camera3D = $Camera3D
 
+## 대상에서 비켜 볼 자리 (전투 때 적 쪽으로), 화면을 더 넓게 볼 양 (월드 유닛). 바깥에서 정하면 부드럽게 따라감
+var look_offset := Vector3.ZERO
+var zoom_bonus := 0.0
+var _offset := Vector3.ZERO
+var _bonus := 0.0
+var _shake := 0.0
+var _cam_base := Vector3.ZERO
+
 var _target_yaw := 0.0
 var _rotate_step := 90.0
 
@@ -46,12 +54,25 @@ func _ready() -> void:
 	if target:
 		global_position = target.global_position
 	_target_yaw = rotation.y
+	_cam_base = camera.position
+
+
+## 화면 흔들기 (월드 유닛, 0.1~0.3 정도). 금방 잦아듦
+func shake(amount: float) -> void:
+	_shake = maxf(_shake, amount)
 
 
 func _process(delta: float) -> void:
+	_offset = _offset.lerp(look_offset, 1.0 - exp(-3.0 * delta))
+	_bonus = lerpf(_bonus, zoom_bonus, 1.0 - exp(-2.5 * delta))
 	if target:
 		var t := 1.0 - exp(-follow_speed * delta)
-		global_position = global_position.lerp(target.global_position, t)
+		global_position = global_position.lerp(target.global_position + _offset, t)
+	if _shake > 0.001:
+		camera.position = _cam_base + Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * _shake
+		_shake = move_toward(_shake, 0.0, 1.5 * delta)
+	elif camera.position != _cam_base:
+		camera.position = _cam_base
 
 	if Input.is_action_just_pressed("cam_left"):
 		_target_yaw -= deg_to_rad(_rotate_step)
@@ -60,7 +81,7 @@ func _process(delta: float) -> void:
 	rotation.y = lerp_angle(rotation.y, _target_yaw, 1.0 - exp(-rotate_speed * delta))
 
 	if isometric:
-		camera.size = lerpf(camera.size, ortho_size, 1.0 - exp(-10.0 * delta))
+		camera.size = lerpf(camera.size, ortho_size + _bonus, 1.0 - exp(-10.0 * delta))
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -881,6 +881,8 @@ func _apply_mode() -> void:
 		if had_action:
 			_generate()  # 움직인 몬스터를 제자리로
 		rig.target = focus
+		rig.look_offset = Vector3.ZERO
+		rig.zoom_bonus = 0.0
 		_set_mood(false)
 		_fog_apply_all()
 		help_label.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Tab: 탐험 · Esc: 바깥으로"

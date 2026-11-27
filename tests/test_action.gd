@@ -221,3 +221,80 @@ func test_monster_miss_is_blocked() -> void:
 	var ev := ac.strike(g, p, g.weapon)
 	check(ev.blocked, "blocked")
 	eq(p.c.hp, hp, "no damage from a monster miss")
+
+
+func test_monster_windup_not_interrupted() -> void:
+	# 몬스터는 준비 중에 맞아도 공격이 끊기지 않음 (치명타 제외)
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	g.c.stats.max_hp = 99
+	g.c.hp = 99
+	g.awake = true
+	g.state = "windup"
+	g.t = 0.5
+	p.facing = Vector2(1, 0)
+	ac.dice.forced = [15, 4, 4]
+	ac.strike(p, g, p.weapon)
+	eq(g.state, "windup", "still winding up after a normal hit")
+	ac.dice.forced = [20, 4, 4, 4, 4]
+	ac.strike(p, g, p.weapon)
+	eq(g.state, "stun", "a crit interrupts")
+
+
+func test_dodge_cancels_recover_and_buffers() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	p.want_attack = true
+	ac.tick(1.0 / 60.0)
+	eq(p.state, "windup", "swinging")
+	# 준비 중에 누른 구르기는 기억했다가 회복 동작에 들어가면 바로 구름
+	p.want_dodge = true
+	var t := 0.0
+	while p.state != "dodge" and t < 0.5:
+		ac.tick(1.0 / 60.0)
+		t += 1.0 / 60.0
+	eq(p.state, "dodge", "buffered dodge fires")
+	check(t < ActionCombat.PC_WINDUP + HEAVY_PAD + 0.05, "dodge cancels recovery (%.2f s)" % t)
+
+
+const HEAVY_PAD := ActionCombat.HEAVY_EXTRA
+
+
+func test_multiattack_rolls_each() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe("ghoul"), Vector2(4.0, 3.5), "monster")
+	p.c.stats.max_hp = 99
+	p.c.hp = 99
+	g.facing = Vector2(-1, 0)
+	var hits := [0]
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type in ["hit", "text"] and ev.get("target", ev.actor) == p:
+			hits[0] += 1)
+	ac._release(g)
+	eq(hits[0], 2, "ghoul swings two claws")
+
+
+func test_monster_walks_around_pillar() -> void:
+	var ac := arena()
+	for y in range(2, 6):
+		ac.dungeon.set_tile(Vector2i(5, y), Dungeon.Tile.WALL)
+	var p := ac.add(pc("fighter"), Vector2(8.5, 3.5), "player")
+	var g := ac.add(foe(), Vector2(2.5, 3.5), "monster")
+	g.awake = true
+	p.c.stats.max_hp = 999
+	p.c.hp = 999
+	run(ac, 6.0)
+	check(g.pos.distance_to(p.pos) < 2.0, "reached the player around the wall (dist %.2f)" % g.pos.distance_to(p.pos))
+
+
+func test_ally_cleric_heals() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var cl := ac.add(pc("cleric"), Vector2(3.0, 4.5), "ally")
+	var g := ac.add(foe(), Vector2(9.0, 6.0), "monster")
+	g.awake = true
+	p.c.hp = 2
+	ac.tick(1.0 / 60.0)
+	check(p.c.hp > 2, "ally cleric used Healing Word")

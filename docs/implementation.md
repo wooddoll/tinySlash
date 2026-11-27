@@ -50,6 +50,7 @@
   - 무기: Kenney 모델은 `weapon_model` "팩/이름" 하나를 오른팔 뼈에 붙입니다. KayKit 모델은 "+"로 이은 장비 이름입니다. 모델 안에 든 장비(예: Knight의 `2H_Sword`, `Rectangle_Shield`)는 그것만 보이게 하고, 없는 것은 `assets/kaykit/items/<이름>.gltf`를 손 뼈(`handslot.r`, 방패는 `handslot.l`)에 쥐어 줍니다.
 - 탐험 분위기 (`dungeon_view._set_mood`): 탐험 중에는 해를 달빛처럼 약하게(그림자 끔), 주변광·배경을 어둡게, 안개. 주인공이 등불(OmniLight, 그림자 없음)을 들고, 카메라 쪽 보조광이 캐릭터(렌더 층 2, `CharacterModel.CHAR_LAYER`)만 비춥니다. 생성기 화면은 원래 밝기.
 - `tools/bake_dark.gd`: Fab 다크 판타지 캐릭터(기사, 마녀, 고블린)를 가볍게 굽는 도구. 원본(`F:/workspace/fab_downloads/src`)에서 텍스처를 1024(ORM 512)로 줄이고, Godot LOD 생성으로 삼각형을 약 1만 6천 개로 줄이고(무기는 그대로, weapon_r 뼈에 붙임), 동작 10개만 골라 루트 이동을 빼고 길이를 맞춰 `assets/dark/<이름>/<이름>.scn`으로 저장. `character_model.gd`에서 "dark/knight"처럼 씁니다. 파이터·팔라딘·움직이는 갑옷=기사, 위저드·소서러·워락=마녀, 고블린 셋=고블린.
+- `tools/sim_action.gd`: 액션 전투 난이도 시뮬레이션. 실제 생성기 던전의 조우를 파티(플레이어 봇 + 동료 AI)가 싸워 보고, 구르기 실력(예고를 보고 구를 확률)별로 승률·시간·잃은 HP를 냅니다. `-- 던전수 fighter,cleric`. 2026-11-27 결과(Lv1~3, 파이터+클레릭): 안 구르면 싸움마다 HP 10~16%, 90% 구르면 3~9%, 한 싸움 2~3초.
 - `tools/retarget.gd`: 쉬는 자세가 다른 뼈대로 동작을 옮기는 도구. 뼈마다 '자식 관절을 향하는 방향'을 원본과 같게 돌리고, 골반은 위·옆 방향으로 몸통 방향을 맞춥니다(좌우 회전은 뺌). 두 모델이 바라보는 방향이 달라도 align 회전으로 맞춥니다. 트리 밖 뼈대는 전역 자세가 갱신되지 않으므로 지역 자세로 직접 계산합니다.
 - `tools/bake_zombie.gd`: `assets/dark/zombie/szombie.glb`(CC 뼈대, 동작 없음)에 고블린 동작을 옮겨 `zombie.scn`으로 굽습니다. 좀비·구울·가스트가 색만 바꿔 씁니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다. 키보드와 Xbox 배치 게임패드(버튼, 왼쪽 스틱 데드존 0.2).

@@ -20,11 +20,16 @@ const PC_RECOVER := 0.26
 const HEAVY_EXTRA := 0.12
 const MONSTER_WINDUP := 0.7
 const MONSTER_RECOVER := 0.7
+## 몬스터가 한 번 공격하고 다음 공격까지 더 기다리는 시간 (무작위)
+const MONSTER_WAIT_MIN := 0.3
+const MONSTER_WAIT_MAX := 1.0
 ## 구르기: 시간, 속도, 무적 시간, 다시 쓸 때까지
 const DODGE_TIME := 0.34
 const DODGE_SPEED := 7.5
 const DODGE_IFRAME := 0.3
 const DODGE_COOLDOWN := 0.45
+## 구르기 입력을 이만큼 기억했다가 할 수 있게 되면 구름 (공격 중에 눌러도 놓치지 않게)
+const DODGE_BUFFER := 0.3
 ## 맞으면 잠깐 굳음
 const HITSTUN := 0.22
 ## 근접 공격 범위: 기본 + 칸당 거리, 앞쪽 부채꼴 (cos)
@@ -56,6 +61,7 @@ class Actor:
 	var move := Vector2.ZERO
 	var want_attack := false
 	var want_dodge := false
+	var dodge_buf := 0.0
 	var dodge_dir := Vector2.ZERO
 	var weapon: WeaponData
 	## 조종: "player", "ally", "monster"
@@ -92,6 +98,9 @@ var blocked := {}
 ## 쓰러뜨린 몬스터 XP (나눠 주기 전)
 var xp_pool := 0
 var _shot_id := 0
+## 길 찾기: 목표 칸 → {칸: 걸음 수}. 한 걸음마다 새로 만듦
+var _flow := {}
+const FLOW_LIMIT := 40
 
 
 func _init(d: Dungeon, dc: Dice = null) -> void:
@@ -169,6 +178,7 @@ func clear_line(a: Vector2, b: Vector2) -> bool:
 # =====================================================================
 
 func tick(delta: float) -> void:
+	_flow.clear()
 	for a in actors:
 		_think(a, delta)
 	for a in actors:
@@ -198,7 +208,15 @@ func _step(a: Actor, delta: float) -> void:
 			a.state = "idle"
 		return
 	a.t -= delta
+	if a.want_dodge:
+		a.dodge_buf = DODGE_BUFFER
+	else:
+		a.dodge_buf = maxf(0.0, a.dodge_buf - delta)
+	var dodge_ok: bool = a.dodge_buf > 0.0 and a.dodge_cd <= 0.0 and a.c.speed() > 0
 	var vel := Vector2.ZERO
+	# [변경] 파티는 공격 뒤 회복 동작을 구르기로 끊을 수 있음
+	if a.state == "recover" and a.c.stats.is_pc and dodge_ok:
+		a.state = "idle"
 	match a.state:
 		"dodge":
 			vel = a.dodge_dir * DODGE_SPEED
@@ -214,7 +232,8 @@ func _step(a: Actor, delta: float) -> void:
 			if a.t <= 0.0:
 				a.state = "idle"
 		_:
-			if a.want_dodge and a.dodge_cd <= 0.0 and a.c.speed() > 0:
+			if dodge_ok:
+				a.dodge_buf = 0.0
 				_dodge(a)
 			elif a.want_attack and a.cooldown <= 0.0 and a.weapon != null:
 				_swing(a)
@@ -331,8 +350,12 @@ func _release(a: Actor) -> void:
 	# [변경] 무거운 무기(Heavy)는 부채꼴 안 모두를 벰. 나머지는 가장 가까운 하나
 	if not w.heavy and hits.size() > 1:
 		hits.resize(1)
+	# 몬스터의 여러 번 공격(Multiattack)은 한 번 휘두를 때 같은 대상에게 그만큼 굴림
+	var times := maxi(1, a.c.stats.multiattack) if not a.c.stats.is_pc else 1
 	for b in hits:
-		strike(a, b, w)
+		for i in times:
+			if b.alive():
+				strike(a, b, w)
 
 
 func _fly(delta: float) -> void:
@@ -397,9 +420,11 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 	if b.target == null:
 		b.target = a
 	# 맞으면 밀리고 굳음 (큰 크리처는 덜)
+	# [변경] 몬스터는 공격 준비 중에 버팀 (치명타만 끊음): 계속 때려서 공격을 막을 수 없고, 예고를 보고 굴러야 함
+	var armored: bool = b.state == "windup" and not b.c.stats.is_pc and not crit
 	var push := (b.pos - a.pos).normalized()
-	b.knock = push * (2.5 if b.c.stats.size <= Rules.Size.MEDIUM else 0.8)
-	if b.state in ["idle", "windup", "recover"] and res.dealt > 0 and (b.c.stats.size <= Rules.Size.MEDIUM or crit):
+	b.knock = push * (0.5 if armored else 2.5 if b.c.stats.size <= Rules.Size.MEDIUM else 0.8)
+	if not armored and b.state in ["idle", "windup", "recover"] and res.dealt > 0 and (b.c.stats.size <= Rules.Size.MEDIUM or crit):
 		b.state = "stun"
 		b.t = HITSTUN
 	var ev := {"type": "hit", "actor": a, "target": b, "damage": res.dealt, "crit": crit, "blocked": not full,
@@ -470,19 +495,19 @@ func _think_monster(a: Actor, delta: float) -> void:
 		if dist < 3.5:
 			a.move = -to.normalized()
 		elif dist > minf(7.0, a.weapon.range_normal) or not clear_line(a.pos, t.pos):
-			a.move = to.normalized()
+			a.move = steer(a, t.pos)
 		elif a.wait <= 0.0 and a.cooldown <= 0.0:
 			a.facing = to.normalized()
 			a.want_attack = true
-			a.wait = randf_range(0.8, 1.6)
+			a.wait = randf_range(MONSTER_WAIT_MIN + 0.2, MONSTER_WAIT_MAX + 0.2)
 		return
 	var reach := reach_of(a.weapon)
 	if dist > reach * 0.85:
-		a.move = to.normalized()
+		a.move = steer(a, t.pos)
 	elif a.wait <= 0.0 and a.cooldown <= 0.0:
 		a.facing = to.normalized()
 		a.want_attack = true
-		a.wait = randf_range(0.6, 1.4)
+		a.wait = randf_range(MONSTER_WAIT_MIN, MONSTER_WAIT_MAX)
 	else:
 		a.facing = to.normalized()
 
@@ -497,8 +522,14 @@ func _think_ally(a: Actor) -> void:
 			leader = b
 	if foes.is_empty():
 		if leader and a.pos.distance_to(leader.pos) > FOLLOW_DIST:
-			a.move = (leader.pos - a.pos).normalized() * minf(1.0, (a.pos.distance_to(leader.pos) - FOLLOW_DIST) + 0.3)
+			a.move = steer(a, leader.pos) * minf(1.0, (a.pos.distance_to(leader.pos) - FOLLOW_DIST) + 0.3)
 		return
+	# 회복 기술이 있으면 많이 다친 동료(쓰러진 동료 먼저)를 고침
+	if a.c.stats.id in HEALERS and a.skill_cd <= 0.0 and not a.busy():
+		var hurt := _most_hurt(a)
+		if hurt and (hurt.c.hp <= 0 or hurt.c.hp < hurt.c.stats.max_hp * 0.4):
+			if use_skill(a) == "":
+				return
 	var t := _nearest(a, foes)
 	var to := t.pos - a.pos
 	var dist := to.length()
@@ -506,16 +537,70 @@ func _think_ally(a: Actor) -> void:
 		if dist < 2.5:
 			a.move = -to.normalized()
 		elif dist > minf(8.0, a.weapon.range_normal) or not clear_line(a.pos, t.pos):
-			a.move = to.normalized()
+			a.move = steer(a, t.pos)
 		elif a.cooldown <= 0.0:
 			a.facing = to.normalized()
 			a.want_attack = true
 		return
 	if dist > reach_of(a.weapon) * 0.85:
-		a.move = to.normalized()
+		a.move = steer(a, t.pos)
 	elif a.cooldown <= 0.0:
 		a.facing = to.normalized()
 		a.want_attack = true
+
+
+## 목표로 가는 이동 방향. 몸 너비로 곧장 갈 수 있으면 곧장, 막혔으면 칸 길 찾기 (기둥·벽 돌아가기)
+func steer(a: Actor, goal: Vector2) -> Vector2:
+	var to := goal - a.pos
+	if to.length() < 0.01:
+		return Vector2.ZERO
+	if _clear_wide(a.pos, goal):
+		return to.normalized()
+	var gc := Vector2i(floori(goal.x), floori(goal.y))
+	if not _flow.has(gc):
+		_flow[gc] = _bfs(gc)
+	var field: Dictionary = _flow[gc]
+	var here := Vector2i(floori(a.pos.x), floori(a.pos.y))
+	var best := here
+	var bd: int = field.get(here, 1 << 20)
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			var n := here + Vector2i(dx, dy)
+			if n == here or not field.has(n):
+				continue
+			# 대각선은 양옆이 모두 비었을 때만 (모서리 끼임 방지)
+			if dx != 0 and dy != 0 and not (field.has(here + Vector2i(dx, 0)) and field.has(here + Vector2i(0, dy))):
+				continue
+			if field[n] < bd:
+				bd = field[n]
+				best = n
+	if best == here:
+		return to.normalized()
+	return (Vector2(best) + Vector2(0.5, 0.5) - a.pos).normalized()
+
+
+func _bfs(goal: Vector2i) -> Dictionary:
+	var dist := {goal: 0}
+	var queue: Array[Vector2i] = [goal]
+	var i := 0
+	while i < queue.size():
+		var c := queue[i]
+		i += 1
+		var dc: int = dist[c]
+		if dc >= FLOW_LIMIT:
+			continue
+		for n in [c + Vector2i.RIGHT, c + Vector2i.LEFT, c + Vector2i.UP, c + Vector2i.DOWN]:
+			if dist.has(n) or not dungeon.is_walkable(n) or blocked.has(n):
+				continue
+			dist[n] = dc + 1
+			queue.append(n)
+	return dist
+
+
+## 몸 너비(양옆 RADIUS)로 막히지 않고 곧장 갈 수 있는지
+func _clear_wide(a: Vector2, b: Vector2) -> bool:
+	var side := (b - a).normalized().orthogonal() * (RADIUS + 0.02)
+	return clear_line(a, b) and clear_line(a + side, b + side) and clear_line(a - side, b - side)
 
 
 func wake_room(room: int) -> void:
@@ -566,6 +651,8 @@ func revive_party() -> void:
 
 const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식"}
 const SKILL_COOLDOWN := 1.0
+## 동료 AI가 회복 기술을 쓰는 클래스
+const HEALERS := ["cleric", "bard", "druid", "paladin"]
 ## 클래스 기술 이름과 설명
 const SKILLS := {
 	"fighter": ["Second Wind", "1d10 + 레벨 회복 (짧은 휴식마다)"],
