@@ -50,8 +50,8 @@
   - 무기: Kenney 모델은 `weapon_model` "팩/이름" 하나를 오른팔 뼈에 붙입니다. KayKit 모델은 "+"로 이은 장비 이름입니다. 모델 안에 든 장비(예: Knight의 `2H_Sword`, `Rectangle_Shield`)는 그것만 보이게 하고, 없는 것은 `assets/kaykit/items/<이름>.gltf`를 손 뼈(`handslot.r`, 방패는 `handslot.l`)에 쥐어 줍니다.
 - 탐험 분위기 (`dungeon_view._set_mood`): 탐험 중에는 해를 달빛처럼 약하게(그림자 끔), 주변광·배경을 어둡게, 안개. 주인공이 등불(OmniLight, 그림자 없음)을 들고, 카메라 쪽 보조광이 캐릭터(렌더 층 2, `CharacterModel.CHAR_LAYER`)만 비춥니다. 생성기 화면은 원래 밝기.
 - `tools/bake_dark.gd`: Fab 다크 판타지 캐릭터(기사, 마녀, 고블린)를 가볍게 굽는 도구. 원본(`F:/workspace/fab_downloads/src`)에서 텍스처를 1024(ORM 512)로 줄이고, Godot LOD 생성으로 삼각형을 약 1만 6천 개로 줄이고(무기는 그대로, weapon_r 뼈에 붙임), 동작 10개만 골라 루트 이동을 빼고 길이를 맞춰 `assets/dark/<이름>/<이름>.scn`으로 저장. `character_model.gd`에서 "dark/knight"처럼 씁니다. 파이터·팔라딘·움직이는 갑옷=기사, 위저드·소서러·워락=마녀, 고블린 셋=고블린.
-- `tools/sim_action.gd`: 액션 전투 난이도 시뮬레이션. 실제 생성기 던전의 조우를 파티(플레이어 봇 + 동료 AI)가 싸워 보고, 구르기 실력(예고를 보고 구를 확률)별로 승률·시간·잃은 HP를 냅니다. `-- 던전수 fighter,cleric`. 2026-11-27 결과(Lv1~3, 파이터+클레릭, AI 개선 뒤): 안 구르면 싸움마다 HP 9~13%, 90% 구르면 4~8%, 한 싸움 3~4초. 몬스터 HP 1.5배 뒤: 안 구르면 HP 17~22%(Lv1~2에서 3% 짐), 90% 구르면 6~14%(모두 이김), 한 싸움 4~7.5초, 플레이어 휘두르기 5~7번. `-- 20 fighter,cleric boss`는 출구 보스 방만 Lv2~4로 싸움: 이김 85~95%, 잃은 HP 12~40%, 한 싸움 6.5~13초 (2026-11-27).
-- `tools/bake_boss.gd`: 보스 모델(Bento "The Eightfold Archive" Hadal 셋)을 LOD2 + 512px 텍스처 + 엔진 이름 동작으로 `assets/dark/<이름>/<이름>.scn`에 굽습니다. 원본은 프로젝트 밖 `F:/workspace/fab_downloads/bosses`. 턴제 전투(B 키 단독 전투)는 `rules/monster_ai.gd` 점수 AI, 던전 액션 전투는 `action_combat.gd`의 실시간 AI(대상 점수, 동시 공격 2마리, 둘러싸기, 도망, 동료 구르기)를 씁니다.
+- `tools/sim_action.gd`: 액션 전투 난이도 시뮬레이션. 실제 생성기 던전의 조우를 파티(플레이어 봇 + 동료 AI)가 싸워 보고, 구르기 실력(예고를 보고 구를 확률)별로 승률·시간·잃은 HP를 냅니다. `-- 던전수 fighter,cleric`. 2026-11-27 결과(Lv1~3, 파이터+클레릭, AI 개선 뒤): 안 구르면 싸움마다 HP 9~13%, 90% 구르면 4~8%, 한 싸움 3~4초. 몬스터 HP 1.5배 뒤: 안 구르면 HP 17~22%(Lv1~2에서 3% 짐), 90% 구르면 6~14%(모두 이김), 한 싸움 4~7.5초, 플레이어 휘두르기 5~7번. `-- 20 fighter,cleric boss`는 출구 보스 방만 Lv2~4로 싸움: 이김 85~95%, 잃은 HP 12~40%, 한 싸움 6.5~13초 (2026-11-27). 턴제 전투(단독 전투의 T 키, 던전 지도 화면의 방 전투)는 `rules/monster_ai.gd` 점수 AI, 액션 전투는 `action_combat.gd`의 실시간 AI(대상 점수, 동시 공격 2마리, 둘러싸기, 도망, 동료 구르기)를 씁니다.
+- `tools/bake_boss.gd`: 보스 모델(Bento "The Eightfold Archive" Hadal 셋)을 LOD2 + 512px 텍스처 + 엔진 이름 동작으로 `assets/dark/<이름>/<이름>.scn`에 굽습니다. 원본은 프로젝트 밖 `F:/workspace/fab_downloads/bosses`.
 - `tools/retarget.gd`: 쉬는 자세가 다른 뼈대로 동작을 옮기는 도구. 뼈마다 '자식 관절을 향하는 방향'을 원본과 같게 돌리고, 골반은 위·옆 방향으로 몸통 방향을 맞춥니다(좌우 회전은 뺌). 두 모델이 바라보는 방향이 달라도 align 회전으로 맞춥니다. 트리 밖 뼈대는 전역 자세가 갱신되지 않으므로 지역 자세로 직접 계산합니다.
 - `tools/bake_zombie.gd`: `assets/dark/zombie/szombie.glb`(CC 뼈대, 동작 없음)에 고블린 동작을 옮겨 `zombie.scn`으로 굽습니다. 좀비·구울·가스트가 색만 바꿔 씁니다.
 - `input_setup.gd`: 입력 맵을 코드로 등록합니다. 키보드와 Xbox 배치 게임패드(버튼, 왼쪽 스틱 데드존 0.2).
@@ -189,7 +189,7 @@
   - 짐: 던전 시작 지점으로 돌아갑니다 (체크포인트 규칙 3.6 대신 임시).
   - Esc로 도망: 방에 들어서기 직전 칸으로 돌아갑니다. 다시 들어가면 같은 전투가 처음부터 시작됩니다.
 - 파티 상태는 `rules/hero_state.gd`(`HeroState`)가 파티원마다 하나씩 들고 있습니다 (`dungeon_view.gd`의 `hero` 파이터, `ally` 클레릭, `party()`).
-  - 전투 장면은 `custom["party"]`가 있으면 그걸로 PC들을 만들고(`make_creature`), 이기거나 도망치면 결과를 다시 담습니다(`absorb`). 없으면(단독 전투) 1레벨 파이터 + 클레릭으로 싸웁니다.
+  - 전투 장면은 `custom["party"]`가 있으면 그걸로 PC들을 만들고(`make_creature`), 이기거나 도망치면 결과를 다시 담습니다(`absorb`). 없으면(단독 전투) 고른 파티를 1레벨로 싸웁니다. 단독 전투는 기본이 실시간 액션 전투(`battle.gd`의 `_start_action`: 같은 맵을 `Dungeon`으로 바꿔 `ActionLayer`를 얹음)이고, T 키로 턴제와 바꿉니다.
   - 첫 파티원은 들어선 칸에, 나머지는 그 근처 빈 칸 중 적에게서 먼 칸에 섭니다 (`_free_cell_near`).
   - XP는 파티 인원수로 나눠 각자 더합니다.
   - 이어지는 것: HP, 물약, Second Wind, Action Surge, 주문 슬롯, Channel Divinity, XP. 임시 HP, 상태 이상, 집중은 이어지지 않습니다.
