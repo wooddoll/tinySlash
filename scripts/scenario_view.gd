@@ -13,7 +13,7 @@ const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
 const HELP_EXPLORE := "WASD: 이동 · F: 조사/문/대화 · R: 방 수색 · J: 일지 · Q/E: 카메라 회전 · 휠: 줌 · Esc: 바깥으로"
-const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E"
+const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E · 물러나기: 적에게서 멀리 달아나 방 밖으로"
 
 const SCENE := "res://scenes/scenario.tscn"
 
@@ -40,6 +40,13 @@ var _busy := false  # 전투 중
 var action: ActionLayer
 var members: Array = []
 var _fight_group := ""
+## 이번 전투의 적 액터 → 표식 키, 적이 있던 방들
+var _foe_actors := {}
+var _fight_rooms := {}
+## 적과 한 번이라도 가까이 맞붙었는가 (처음부터 멀리서 시작된 전투가 바로 끝나지 않게)
+var _engaged := false
+## 적에게서 이만큼 떨어져 방 밖에 있으면 물러남
+const RETREAT_DIST := 6.0
 ## 표식 키 → 서 있는 몬스터 모델 (전투가 시작되면 액션 전투 몬스터로 바꿈)
 var _foe_nodes := {}
 ## 레벨업 고르기 창과, 고를 것이 남았는지 다시 볼 때까지 남은 시간
@@ -360,7 +367,7 @@ func _build_marks() -> void:
 					_fog_add(c, [t])
 			"foe":
 				var g := str(m.get("group", ""))
-				if scn.cleared.has(g) or not scn.group_active(g) or bool(m.get("hidden", false)):
+				if scn.cleared.has(g) or not scn.group_active(g) or bool(m.get("hidden", false)) or scn.slain.has(key):
 					continue
 				var st2 := scn.monster_stats(str(m.monster))
 				var cm := CharacterModel.new()
@@ -649,6 +656,9 @@ func _start_battle(g: String) -> void:
 	Sfx.play(self, "alert")
 	await get_tree().create_timer(0.4).timeout
 	_fight_group = g
+	_foe_actors.clear()
+	_fight_rooms.clear()
+	_engaged = false
 	var d := scn.dungeon()
 	var fs := scn.foes_of(g)
 	var blk: Dictionary = scn.blocked().duplicate()
@@ -676,6 +686,8 @@ func _start_battle(g: String) -> void:
 		_foe_nodes.erase(key)
 		var m: Node3D = action.add_foe(str(f.monster), f.cell, -1, scn.monster_stats(str(f.monster)))
 		m.visible = true
+		_foe_actors[action.ac.actors.back()] = key
+		_fight_rooms[scn.room_of(scn.level, f.cell)] = true
 	action.ac.wake_room(-1)
 	# 기습: 1 = 적이 기습당함(1.5초 굳음), 0 = 파티가 기습당함(1초 굳음)
 	var surprised := int(scn.battle_setup(g).get("surprised", -1))
@@ -692,6 +704,22 @@ func _start_battle(g: String) -> void:
 	action.party_changed.connect(_party_from_action)
 	action.fight_over.connect(func(xp: int) -> void: _end_fight("win", xp))
 	action.defeated.connect(func() -> void: _end_fight("lose", 0))
+
+
+## 물러날 수 있는가: 한 번 맞붙은 뒤, 살아 있는 적 모두에게서 RETREAT_DIST 넘게 떨어지고 적이 있던 방 밖에 있음 [변경]
+func fight_retreat_ok() -> bool:
+	if members.is_empty() or not members[0].alive():
+		return false
+	var me: ActionCombat.Actor = members[0]
+	var here := Vector2i(floori(me.pos.x), floori(me.pos.y))
+	var rk := scn.room_of(scn.level, here)
+	var away := not (rk != "" and _fight_rooms.has(rk))
+	for b in action.ac.actors:
+		if b.brain == "monster" and b.alive() and b.pos.distance_to(me.pos) < RETREAT_DIST:
+			away = false
+	if not away:
+		_engaged = true
+	return away and _engaged
 
 
 func _mark_key(f: Dictionary) -> String:
@@ -731,7 +759,14 @@ func _end_fight(result: String, xp: int) -> void:
 	if action == null:
 		return
 	var g := _fight_group
-	if result == "win":
+	if result == "retreat":
+		action.ac.revive_party()
+		_party_from_action()
+		for a in _foe_actors:
+			if not (a as ActionCombat.Actor).alive():
+				scn.slain[_foe_actors[a]] = true
+		Sfx.play(self, "click")
+	elif result == "win":
 		var share := xp / maxi(scn.heroes.size(), 1)
 		var level_up := 0
 		for i in mini(scn.heroes.size(), members.size()):
@@ -745,7 +780,7 @@ func _end_fight(result: String, xp: int) -> void:
 		Sfx.play(self, "lose")
 	var layer := action
 	action = null
-	await get_tree().create_timer(1.0 if result == "win" else 2.0).timeout
+	await get_tree().create_timer(0.0 if result == "retreat" else (1.0 if result == "win" else 2.0)).timeout
 	# 액션 화면을 걷고 탐험으로 돌아감
 	var ally_pos := Vector3.ZERO
 	if members.size() > 1 and layer.views.has(members[1]):
@@ -784,6 +819,8 @@ func _process(delta: float) -> void:
 				explorer.active = false
 	_update_follower(delta)
 	_update_prompt()
+	if action != null and _fight_group != "" and fight_retreat_ok():
+		_end_fight("retreat", 0)
 
 
 func _unhandled_input(event: InputEvent) -> void:

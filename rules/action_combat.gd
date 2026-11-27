@@ -100,6 +100,9 @@ class Actor:
 	var orbit := 1.0 if randf() < 0.5 else -1.0
 	## 동료가 이미 반응한 공격 예고 (몬스터 id)
 	var reacted := {}
+	## 날기 (낮은 장애물 위로 지나감), 비실체 (벽·문을 지나감, 그 안에서는 절반 속도)
+	var fly := false
+	var ghost := false
 
 	func _init(cr: Creature, p: Vector2) -> void:
 		c = cr
@@ -139,6 +142,8 @@ func add(c: Creature, p: Vector2, brain: String, room := -1) -> Actor:
 	a.room = room
 	a.weapon = primary_weapon(c)
 	a.awake = brain != "monster"
+	a.fly = c.stats.has_feature("flying")
+	a.ghost = c.stats.has_feature("incorporeal")
 	actors.append(a)
 	return a
 
@@ -179,21 +184,33 @@ func foes_of(a: Actor) -> Array[Actor]:
 	return actors.filter(func(b: Actor) -> bool: return b.alive() and b.c.is_hostile_to(a.c))
 
 
-func can_stand(p: Vector2) -> bool:
+func can_stand(p: Vector2, who: Actor = null) -> bool:
 	for sx in [-RADIUS, RADIUS]:
 		for sy in [-RADIUS, RADIUS]:
-			var cc := Vector2i(floori(p.x + sx), floori(p.y + sy))
-			if not dungeon.is_walkable(cc) or blocked.has(cc):
+			if not passable(Vector2i(floori(p.x + sx), floori(p.y + sy)), who):
 				return false
 	return true
 
 
-## a에서 b까지 벽에 막히지 않았는지 (칸을 따라 걸음)
-func clear_line(a: Vector2, b: Vector2) -> bool:
+## 이 칸을 지날 수 있는가. who가 날면 낮은 장애물(높이 1 이하) 위로, 비실체면 벽·문·장애물도 지남
+## (Incorporeal Movement [SRD]. 날기는 combat_grid.step_cost와 같은 규칙)
+func passable(cc: Vector2i, who: Actor = null) -> bool:
+	if who != null and who.ghost:
+		return dungeon.in_bounds(cc)
+	if blocked.has(cc):
+		return false
+	if dungeon.is_walkable(cc):
+		return true
+	return who != null and who.fly and dungeon.is_floor(cc) and float(dungeon.obstacles.get(cc, 99.0)) <= 1.001
+
+
+## a에서 b까지 벽에 막히지 않았는지 (칸을 따라 걸음). who를 주면 그 크리처가 지날 수 있는지로 봄
+func clear_line(a: Vector2, b: Vector2, who: Actor = null) -> bool:
 	var n := ceili(a.distance_to(b) / 0.35)
 	for i in range(1, n):
 		var p := a.lerp(b, float(i) / n)
-		if not dungeon.is_walkable(Vector2i(floori(p.x), floori(p.y))):
+		var cc := Vector2i(floori(p.x), floori(p.y))
+		if (who == null and not dungeon.is_walkable(cc)) or (who != null and not passable(cc, who)):
 			return false
 	return true
 
@@ -270,6 +287,8 @@ func _step(a: Actor, delta: float) -> void:
 			else:
 				var m := a.move.limit_length(1.0)
 				vel = m * speed_of(a)
+				if a.ghost and not dungeon.is_walkable(Vector2i(floori(a.pos.x), floori(a.pos.y))):
+					vel *= 0.5  # 물체 속은 험지처럼
 				if m.length() > 0.1:
 					a.facing = m.normalized()
 	a.want_dodge = false
@@ -283,9 +302,9 @@ func _move(a: Actor, step: Vector2) -> void:
 	if step == Vector2.ZERO:
 		return
 	var p := a.pos
-	if can_stand(p + Vector2(step.x, 0)):
+	if can_stand(p + Vector2(step.x, 0), a):
 		p.x += step.x
-	if can_stand(p + Vector2(0, step.y)):
+	if can_stand(p + Vector2(0, step.y), a):
 		p.y += step.y
 	a.pos = p
 
@@ -764,12 +783,13 @@ func steer(a: Actor, goal: Vector2) -> Vector2:
 	var to := goal - a.pos
 	if to.length() < 0.01:
 		return Vector2.ZERO
-	if _clear_wide(a.pos, goal):
-		return to.normalized()
+	if a.ghost or _clear_wide(a.pos, goal, a):
+		return to.normalized()  # 비실체는 벽을 지나 곧장
 	var gc := Vector2i(floori(goal.x), floori(goal.y))
-	if not _flow.has(gc):
-		_flow[gc] = _bfs(gc)
-	var field: Dictionary = _flow[gc]
+	var key := Vector3i(gc.x, gc.y, 1 if a.fly else 0)
+	if not _flow.has(key):
+		_flow[key] = _bfs(gc, a)
+	var field: Dictionary = _flow[key]
 	var here := Vector2i(floori(a.pos.x), floori(a.pos.y))
 	var best := here
 	var bd: int = field.get(here, 1 << 20)
@@ -789,7 +809,7 @@ func steer(a: Actor, goal: Vector2) -> Vector2:
 	return (Vector2(best) + Vector2(0.5, 0.5) - a.pos).normalized()
 
 
-func _bfs(goal: Vector2i) -> Dictionary:
+func _bfs(goal: Vector2i, who: Actor = null) -> Dictionary:
 	var dist := {goal: 0}
 	var queue: Array[Vector2i] = [goal]
 	var i := 0
@@ -800,7 +820,7 @@ func _bfs(goal: Vector2i) -> Dictionary:
 		if dc >= FLOW_LIMIT:
 			continue
 		for n in [c + Vector2i.RIGHT, c + Vector2i.LEFT, c + Vector2i.UP, c + Vector2i.DOWN]:
-			if dist.has(n) or not dungeon.is_walkable(n) or blocked.has(n):
+			if dist.has(n) or not passable(n, who):
 				continue
 			dist[n] = dc + 1
 			queue.append(n)
@@ -808,9 +828,9 @@ func _bfs(goal: Vector2i) -> Dictionary:
 
 
 ## 몸 너비(양옆 RADIUS)로 막히지 않고 곧장 갈 수 있는지
-func _clear_wide(a: Vector2, b: Vector2) -> bool:
+func _clear_wide(a: Vector2, b: Vector2, who: Actor = null) -> bool:
 	var side := (b - a).normalized().orthogonal() * (RADIUS + 0.02)
-	return clear_line(a, b) and clear_line(a + side, b + side) and clear_line(a - side, b - side)
+	return clear_line(a, b, who) and clear_line(a + side, b + side, who) and clear_line(a - side, b - side, who)
 
 
 func wake_room(room: int) -> void:

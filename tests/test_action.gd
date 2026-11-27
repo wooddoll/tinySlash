@@ -411,3 +411,35 @@ func test_shadow_drains_strength() -> void:
 	ac.dice.forced = [19, 3, 1, 2]
 	ac.strike(s, p, s.weapon)
 	check(p.c.str_loss > 0, "strength drained (%d)" % p.c.str_loss)
+
+
+func test_flyer_crosses_low_obstacle() -> void:
+	# 날면 높이 1 이하 장애물 위로 지나가고, 걷는 몬스터는 못 지남. 높은 장애물은 둘 다 못 지남
+	var ac := arena()
+	ac.dungeon.obstacles[Vector2i(5, 3)] = 1.0
+	ac.dungeon.obstacles[Vector2i(6, 3)] = 3.0
+	var bat := ac.add(foe("swarm_bats"), Vector2(2.5, 3.5), "monster")
+	var g := ac.add(foe(), Vector2(2.5, 5.5), "monster")
+	check(bat.fly and not g.fly, "flying feature read")
+	check(ac.passable(Vector2i(5, 3), bat), "bat over the low obstacle")
+	check(not ac.passable(Vector2i(5, 3), g), "walker blocked by the low obstacle")
+	check(not ac.passable(Vector2i(6, 3), bat), "tall obstacle blocks the bat")
+	check(not ac.passable(Vector2i(0, 3), bat), "wall blocks the bat")
+
+
+func test_ghost_walks_through_wall() -> void:
+	# 비실체는 끝까지 막힌 벽을 지나 곧장 다가옴 (벽 속에서는 절반 속도), 걷는 몬스터는 못 지남
+	var ac := arena()
+	for y in range(1, 7):
+		ac.dungeon.set_tile(Vector2i(5, y), Dungeon.Tile.WALL)
+	var p := ac.add(pc("fighter"), Vector2(8.5, 3.5), "player")
+	p.c.stats.max_hp = 999
+	p.c.hp = 999
+	var sp := ac.add(foe("specter"), Vector2(2.5, 3.5), "monster")
+	var g := ac.add(foe(), Vector2(2.5, 5.5), "monster")
+	sp.awake = true
+	g.awake = true
+	check(sp.ghost and sp.fly, "specter is incorporeal and flies")
+	run(ac, 6.0)
+	check(sp.pos.distance_to(p.pos) < 2.0, "specter came through the wall (dist %.2f)" % sp.pos.distance_to(p.pos))
+	check(g.pos.x < 5.0, "walker stays behind the wall")

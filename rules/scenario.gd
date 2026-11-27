@@ -59,6 +59,8 @@ var revealed := {}
 var opened := {}
 ## 이긴 조우: 그룹 id -> true
 var cleared := {}
+## 물러나기 전에 쓰러뜨린 적 표식 (다시 나오지 않음)
+var slain := {}
 ## 들어가 본 방, 수색한 방, 한 번만 되는 물건을 쓴 것
 var visited := {}
 var searched := {}
@@ -292,6 +294,7 @@ func new_game() -> void:
 	revealed = {}
 	opened = {}
 	cleared = {}
+	slain = {}
 	visited = {}
 	searched = {}
 	used = {}
@@ -326,7 +329,7 @@ func snapshot() -> Dictionary:
 	return {
 		"level": level, "cell": cell, "flags": flags.duplicate(true), "items": items.duplicate(true),
 		"gold": gold, "heroes": hs, "revealed": revealed.duplicate(), "opened": opened.duplicate(),
-		"cleared": cleared.duplicate(), "visited": visited.duplicate(), "searched": searched.duplicate(),
+		"cleared": cleared.duplicate(), "slain": slain.duplicate(), "visited": visited.duplicate(), "searched": searched.duplicate(),
 		"used": used.duplicate(), "seen": seen.duplicate(true), "journal": journal.duplicate(true),
 	}
 
@@ -346,6 +349,7 @@ func load_checkpoint() -> void:
 	revealed = s.revealed.duplicate()
 	opened = s.opened.duplicate()
 	cleared = s.cleared.duplicate()
+	slain = s.get("slain", {}).duplicate()
 	visited = s.visited.duplicate()
 	searched = s.searched.duplicate()
 	used = s.used.duplicate()
@@ -491,7 +495,7 @@ func foes_of(g: String) -> Array:
 	var fs: Array = []
 	for key in marks:
 		var m: Dictionary = marks[key]
-		if m.type == "foe" and str(m.get("group", "")) == g and cond(m.get("if", null)):
+		if m.type == "foe" and str(m.get("group", "")) == g and cond(m.get("if", null)) and not slain.has(key):
 			fs.append(m)
 	return fs
 
@@ -1222,4 +1226,5 @@ func battle_result(g: String, result: String, retreat: Vector2i) -> void:
 		_:
 			cell = retreat
 			room_key = room_of(level, cell)
+			out.append({"type": "refresh"})
 			out.append({"type": "toast", "text": "물러났다"})

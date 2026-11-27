@@ -191,3 +191,24 @@ func test_well_needs_rope() -> void:
 	eq(s.level, "b1", "rope down the well")
 	s.on_arrived()
 	eq((s.heroes[0] as HeroState).level(), 2, "undercroft milestone")
+
+
+func test_slain_foe_stays_dead_after_retreat() -> void:
+	var s := fresh()
+	s.go_to("f2", "D")
+	s.on_arrived()
+	var fs := s.foes_of("roof")
+	var key := ""
+	for k in s.marks:
+		if s.marks[k] == fs[0]:
+			key = k
+	s.slain[key] = true
+	s.out.clear()
+	s.battle_result("roof", "retreat", s.mark_cell("f2", "L"))
+	check(types(s).has("refresh"), "foe models rebuilt after retreat")
+	eq(s.foes_of("roof").size(), 1, "slain foe is gone")
+	check(not s.blocked().has(fs[0].cell), "slain foe cell is free")
+	s.save_checkpoint()
+	s.slain.clear()
+	s.load_checkpoint()
+	check(s.slain.has(key), "slain survives checkpoint")
