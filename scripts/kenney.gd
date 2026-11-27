@@ -330,6 +330,8 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				walls.append(d)
 		if walls.is_empty() or skip.call(c):
 			continue
+		# 폭 1칸 통로(양쪽이 벽)에는 큰 가구·잡동사니를 두지 않음 (길을 막아 보임)
+		var corridor := (Vector2i(1, 0) in walls and Vector2i(-1, 0) in walls) or (Vector2i(0, 1) in walls and Vector2i(0, -1) in walls)
 		for d in walls:
 			var roll := absi(hash(c * 3 + d * 7)) % 100
 			var yaw := atan2(-float(d.x), -float(d.y))
@@ -355,14 +357,14 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				var rack: String = RACKS[roll % RACKS.size()]
 				if mesh(rack, DARK_PROPS) != null:
 					put.call(DARK_PROPS + "/" + rack, Transform3D(face, center + dv * 0.38), c)
-			elif roll < 33:
+			elif roll < 33 and not corridor:
 				var item: String = DARK_WALL[(roll + c.x + c.y) % DARK_WALL.size()]
 				var m := mesh(item, DARK_PROPS)
 				if m != null:
 					# 뒷면이 벽(0.5)에 닿게
 					put.call(DARK_PROPS + "/" + item, Transform3D(face, center + dv * (0.48 - m.get_aabb().size.z * 0.5)), c)
 		var r2 := absi(hash(c * 11 + Vector2i(5, 3))) % 100
-		var dark := not cave and mesh(DARK_CLUTTER[0], DARK_PROPS) != null
+		var dark := not cave and not corridor and mesh(DARK_CLUTTER[0], DARK_PROPS) != null
 		if r2 < (7 if cave else (16 if dark else 5)):
 			var d: Vector2i = walls[r2 % walls.size()]
 			var spin := Basis(Vector3.UP, (r2 % 4) * PI / 2.0 + 0.3)
