@@ -124,6 +124,7 @@ var xp_pool := 0
 var _shot_id := 0
 ## 길 찾기: 목표 칸 → {칸: 걸음 수}. 한 걸음마다 새로 만듦
 var _flow := {}
+var _stench_t := 0.0
 const FLOW_LIMIT := 40
 
 
@@ -209,6 +210,7 @@ func tick(delta: float) -> void:
 		_step(a, delta)
 	_separate()
 	_fly(delta)
+	_stench(delta)
 
 
 func _step(a: Actor, delta: float) -> void:
@@ -231,6 +233,10 @@ func _step(a: Actor, delta: float) -> void:
 		if a.c.hp > 0:
 			a.state = "idle"
 		return
+	if a.c.has_effect("paralyzed") and a.state != "stun":
+		a.state = "stun"
+	if a.c.has_effect("paralyzed"):
+		a.t = maxf(a.t, 0.05)
 	a.t -= delta
 	if a.want_dodge:
 		a.dodge_buf = DODGE_BUFFER
@@ -420,12 +426,19 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 		event.emit({"type": "text", "actor": b, "text": "회피!"})
 		return {"dodged": true}
 	var m := attack_mods(a.c, w)
-	var r := dice.d20(0)
+	# 중독되면 공격 불리점 [SRD]
+	var r := dice.d20(-1 if a.c.has_effect("poisoned") else 0)
 	var nat: int = r.value
 	var total: int = nat + m.bonus
 	var full: bool = nat == 20 or (nat != 1 and total >= b.c.ac())
 	var crit: bool = nat >= a.c.crit_threshold()
-	var count := w.dice_count * (2 if crit else 1)
+	# 마비된 대상을 바로 옆에서 맞히면 치명타 [SRD]
+	if full and b.c.has_effect("paralyzed") and a.pos.distance_to(b.pos) <= 1.6:
+		crit = true
+	var count := w.dice_count
+	if a.c.stats.has_feature("swarm") and a.c.is_bloodied():
+		count = maxi(1, count / 2)  # 떼: HP가 절반 이하면 주사위 절반 [SRD]
+	count *= 2 if crit else 1
 	var dmg: int = Dice.sum(dice.roll(count, w.dice_sides)) + (m.mod if w.add_mod else 0)
 	if a.c.has_effect("raging") and not w.ranged:
 		dmg += ClassFeatures.rage_damage(a.c.stats.level)
@@ -440,6 +453,15 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 		event.emit({"type": "text", "actor": b, "text": "막음"})
 		return {"blocked": true, "damage": 0}
 	var res := Damage.apply(b.c, dmg, w.damage_type, crit)
+	if res.killed and b.c.stats.has_feature("undead_fortitude") and w.damage_type != "radiant" and not crit:
+		# Undead Fortitude [SRD]: 광휘 피해나 치명타가 아니면 CON 내성 DC 5+피해로 HP 1로 버팀
+		if save(b.c, Rules.Ability.CON, 5 + res.dealt):
+			b.c.dead = false
+			b.c.hp = 1
+			res.killed = false
+			event.emit({"type": "text", "actor": b, "text": "버팀!"})
+	if full and res.dealt >= 0 and b.c.is_alive():
+		_on_hit(a, b, w, res.dealt)
 	b.awake = true
 	if b.target == null:
 		b.target = a
@@ -457,6 +479,74 @@ func strike(a: Actor, b: Actor, w: WeaponData) -> Dictionary:
 	if b.c.hp <= 0:
 		_fall(b)
 	return ev
+
+
+## 내성 굴림 (마비·기절이면 STR·DEX 자동 실패, Bless +1d4)
+func save(c: Creature, ability: int, dc: int) -> bool:
+	if c.has_effect("paralyzed") and (ability == STR or ability == DEX):
+		return false
+	var r := dice.d20(signi(ClassFeatures.save_adv(c, ability)))
+	var total: int = r.value + c.save_bonus(ability)
+	if c.has_effect("blessed"):
+		total += dice.roll_die(4)
+	return total >= dc
+
+
+## 몬스터 공격의 추가 효과 (턴제 Combat._apply_on_hit과 같음): 구울 마비, 섀도 근력 흡수, 스펙터 생명 흡수
+func _on_hit(a: Actor, b: Actor, w: WeaponData, dealt: int) -> void:
+	var eff := w.on_hit_always
+	if w.on_hit_save >= 0 and w.on_hit_effect != "":
+		if w.on_hit_effect == "paralyzed" and (b.c.stats.creature_type == "undead" or b.c.stats.condition_immunities.has("paralyzed")):
+			return
+		if save(b.c, w.on_hit_save, w.on_hit_dc):
+			return
+		eff = w.on_hit_effect
+	match eff:
+		"paralyzed":
+			# [변경] 마비는 1라운드 대신 PARALYZE_TIME초
+			b.c.remove_effects("paralyzed")
+			b.c.add_effect("paralyzed", a.c, "never")
+			b.timers["paralyzed"] = PARALYZE_TIME
+			event.emit({"type": "text", "actor": b, "text": "마비!"})
+		"drain_max":
+			if dealt <= 0:
+				return
+			b.c.max_hp_loss += dealt
+			b.c.stats.max_hp = maxi(0, b.c.stats.max_hp - dealt)
+			b.c.hp = mini(b.c.hp, b.c.stats.max_hp)
+			event.emit({"type": "text", "actor": b, "text": "최대 HP -%d" % dealt})
+			if b.c.stats.max_hp <= 0:
+				Damage._kill(b.c)
+				_fall(b)
+		"str_drain":
+			var loss := dice.roll_die(4)
+			b.c.str_loss += loss
+			event.emit({"type": "text", "actor": b, "text": "근력 -%d" % loss})
+			if b.c.stats.scores[STR] - b.c.str_loss <= 0:
+				Damage._kill(b.c)
+				_fall(b)
+
+
+## 가스트 Stench [SRD]: 1.6유닛 안에 있으면 6초(1라운드)마다 CON DC 10. 실패하면 6초 중독, 성공하면 그 가스트에 면역
+func _stench(delta: float) -> void:
+	_stench_t -= delta
+	if _stench_t > 0.0:
+		return
+	_stench_t = ROUND
+	for g in actors:
+		if not g.alive() or not g.c.stats.has_feature("stench"):
+			continue
+		for b in actors:
+			if b == g or not b.alive() or not b.c.is_hostile_to(g.c) or b.pos.distance_to(g.pos) > 1.6:
+				continue
+			if b.c.has_effect("poisoned") or b.c.stats.condition_immunities.has("poisoned") 					or not b.c.find_effect("stench_immune", g.c).is_empty():
+				continue
+			if save(b.c, Rules.Ability.CON, 10):
+				b.c.add_effect("stench_immune", b.c, "never", 0, g.c)
+			else:
+				b.c.add_effect("poisoned", b.c, "never")
+				b.timers["poisoned"] = ROUND
+				event.emit({"type": "text", "actor": b, "text": "악취: 중독!"})
 
 
 func _fall(b: Actor) -> void:
@@ -769,7 +859,10 @@ func revive_party() -> void:
 # 물약과 클래스 기술 (rules 10.4)
 # =====================================================================
 
-const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식"}
+const EFFECT_NAMES := {"raging": "분노", "dashing": "질주", "marked": "표식", "paralyzed": "마비", "poisoned": "중독"}
+## 실시간에서 D&D 1라운드로 치는 시간, 구울 마비 시간 (초)
+const ROUND := 6.0
+const PARALYZE_TIME := 2.0
 const SKILL_COOLDOWN := 1.0
 ## 동료 AI가 회복 기술을 쓰는 클래스
 const HEALERS := ["cleric", "bard", "druid", "paladin"]

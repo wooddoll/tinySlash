@@ -11,6 +11,9 @@ const Explorer = preload("res://scripts/dungeon_explorer.gd")
 const Sfx = preload("res://scripts/sfx.gd")
 const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
+const ActionLayer = preload("res://scripts/action_layer.gd")
+const HELP_EXPLORE := "WASD: 이동 · F: 조사/문/대화 · R: 방 수색 · J: 일지 · Q/E: 카메라 회전 · 휠: 줌 · Esc: 바깥으로"
+const HELP_FIGHT := "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 카메라: LB·RB/Q·E"
 
 const SCENE := "res://scenes/scenario.tscn"
 
@@ -32,7 +35,13 @@ var torch: OmniLight3D
 var _trail: Array[Vector3] = []
 var _fog := {}  # 칸 -> [항목]
 var _shown := {}  # 안개를 걷은 칸
-var _busy := false  # 전투로 넘어가는 중
+var _busy := false  # 전투 중
+## 실시간 액션 전투 (전투 중에만). members: scn.heroes와 같은 순서의 Actor
+var action: ActionLayer
+var members: Array = []
+var _fight_group := ""
+## 표식 키 → 서 있는 몬스터 모델 (전투가 시작되면 액션 전투 몬스터로 바꿈)
+var _foe_nodes := {}
 ## 레벨업 고르기 창과, 고를 것이 남았는지 다시 볼 때까지 남은 시간
 var level_dialog: LevelUpDialog
 var _level_poll := 0.0
@@ -365,6 +374,7 @@ func _build_marks() -> void:
 					cm.hold(str(m.pose))
 				cm.tint(st2.tint)
 				_fog_add(c, [cm])
+				_foe_nodes[key] = cm
 			"npc":
 				if scn.hidden(key):
 					continue
@@ -629,6 +639,7 @@ func _rebuild_keep() -> void:
 	_apply_fog()
 
 
+## 그 자리에서 실시간 액션 전투 (docs/rules.md 10장). 끝나면 scn.battle_result로 결과를 넘김
 func _start_battle(g: String) -> void:
 	_busy = true
 	if explorer:
@@ -636,13 +647,126 @@ func _start_battle(g: String) -> void:
 	var gd := scn.group_def(g)
 	_log("[color=#f88]전투![/color] " + str(gd.get("label", g)))
 	Sfx.play(self, "alert")
-	Battle.custom = scn.battle_setup(g)
-	Battle.custom["party"] = scn.heroes
-	Battle.custom["return_scene"] = SCENE
-	if retreat.x < 0 or not scn.dungeon().is_walkable(retreat):
-		retreat = scn.cell
-	await get_tree().create_timer(0.7).timeout
-	get_tree().change_scene_to_file("res://scenes/battle.tscn")
+	await get_tree().create_timer(0.4).timeout
+	_fight_group = g
+	var d := scn.dungeon()
+	var fs := scn.foes_of(g)
+	var blk: Dictionary = scn.blocked().duplicate()
+	for f in fs:
+		blk.erase(f.cell)
+	action = ActionLayer.new()
+	world.add_child(action)
+	action.camera_rig = rig
+	action.setup(d, blk)
+	members.clear()
+	for i in scn.heroes.size():
+		var h: HeroState = scn.heroes[i]
+		var cell := explorer.cell
+		if i > 0:
+			cell = _free_near(_cell_of(follower.position) if follower else explorer.cell, blk)
+		members.append(action.add_member(h.make_creature(), cell, "player" if i == 0 else "ally", explorer.body if i == 0 else null))
+	if follower:
+		follower.visible = false
+	members[0].pos = Vector2(explorer.position.x, explorer.position.z)
+	explorer.actor = members[0]
+	for f in fs:
+		var key := _mark_key(f)
+		if _foe_nodes.has(key) and is_instance_valid(_foe_nodes[key]):
+			(_foe_nodes[key] as Node3D).queue_free()
+		_foe_nodes.erase(key)
+		var m: Node3D = action.add_foe(str(f.monster), f.cell, -1, scn.monster_stats(str(f.monster)))
+		m.visible = true
+	action.ac.wake_room(-1)
+	# 기습: 1 = 적이 기습당함(1.5초 굳음), 0 = 파티가 기습당함(1초 굳음)
+	var surprised := int(scn.battle_setup(g).get("surprised", -1))
+	for a in action.ac.actors:
+		if (surprised == 1 and a.brain == "monster") or (surprised == 0 and a.brain != "monster"):
+			a.state = "stun"
+			a.t = 1.5 if surprised == 1 else 1.0
+	if surprised == 1:
+		_log("적이 기습당했다!")
+	elif surprised == 0:
+		_log("기습당했다!")
+	action.message.connect(_log)
+	help_label.text = HELP_FIGHT
+	action.party_changed.connect(_party_from_action)
+	action.fight_over.connect(func(xp: int) -> void: _end_fight("win", xp))
+	action.defeated.connect(func() -> void: _end_fight("lose", 0))
+
+
+func _mark_key(f: Dictionary) -> String:
+	for k in scn.marks:
+		if scn.marks[k] == f:
+			return k
+	return ""
+
+
+func _cell_of(p: Vector3) -> Vector2i:
+	return Vector2i(floori(p.x), floori(p.z))
+
+
+## c(또는 그 옆)의 서 있을 수 있는 빈 칸
+func _free_near(c: Vector2i, blk: Dictionary) -> Vector2i:
+	var d := scn.dungeon()
+	if d.is_walkable(c) and not blk.has(c) and c != explorer.cell:
+		return c
+	for dir in Dungeon.DIRS8:
+		var n: Vector2i = c + dir
+		if d.is_walkable(n) and not blk.has(n) and n != explorer.cell:
+			return n
+	return c
+
+
+## 전투 중 크리처 상태를 HeroState에 담아 화면 정보를 고침
+func _party_from_action() -> void:
+	for i in mini(scn.heroes.size(), members.size()):
+		var h: HeroState = scn.heroes[i]
+		var c: Creature = members[i].c
+		h.hp = maxi(c.hp, 0)
+		h.resources = c.resources.duplicate()
+	_refresh_info()
+
+
+func _end_fight(result: String, xp: int) -> void:
+	if action == null:
+		return
+	var g := _fight_group
+	if result == "win":
+		var share := xp / maxi(scn.heroes.size(), 1)
+		var level_up := 0
+		for i in mini(scn.heroes.size(), members.size()):
+			var up: Dictionary = (scn.heroes[i] as HeroState).absorb(members[i].c, share)
+			if up.has("level_up"):
+				level_up = up.level_up
+		_log("전투 끝! XP +%d씩%s" % [share, ("  — 레벨 업! %d레벨" % level_up) if level_up > 0 else ""])
+		Sfx.play(self, "level_up" if level_up > 0 else "win")
+	else:
+		_log("[color=#f88]파티가 모두 쓰러졌다…[/color]")
+		Sfx.play(self, "lose")
+	var layer := action
+	action = null
+	await get_tree().create_timer(1.0 if result == "win" else 2.0).timeout
+	# 액션 화면을 걷고 탐험으로 돌아감
+	var ally_pos := Vector3.ZERO
+	if members.size() > 1 and layer.views.has(members[1]):
+		ally_pos = (layer.views[members[1]].model as Node3D).position
+	layer.release_model(members[0])
+	explorer.actor = null
+	explorer.body.set_base("idle")
+	if follower:
+		follower.visible = true
+		if ally_pos != Vector3.ZERO:
+			follower.position = ally_pos
+		_trail = [explorer.position]
+	layer.queue_free()
+	members.clear()
+	_fight_group = ""
+	scn.cell = explorer.cell
+	scn.room_key = scn.room_of(scn.level, explorer.cell)
+	_busy = false
+	help_label.text = HELP_EXPLORE
+	scn.battle_result(g, result, scn.cell)
+	_pump()
 
 
 # =====================================================================
@@ -774,7 +898,7 @@ func _build_ui() -> void:
 	layer.add_child(prompt_label)
 
 	help_label = Label.new()
-	help_label.text = "WASD: 이동 · F: 조사/문/대화 · R: 방 수색 · J: 일지 · Q/E: 카메라 회전 · 휠: 줌 · Esc: 바깥으로"
+	help_label.text = HELP_EXPLORE
 	help_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	help_label.offset_top = -30
 	help_label.offset_left = 12

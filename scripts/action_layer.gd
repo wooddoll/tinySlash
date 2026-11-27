@@ -55,8 +55,9 @@ func add_member(c: Creature, cell: Vector2i, brain: String, model: CharacterMode
 	return a
 
 
-func add_foe(id: String, cell: Vector2i, room: int) -> Node3D:
-	var c := Creature.new(Catalog.monster(id), 1)
+## 몬스터 추가. stats를 주면 그것(시나리오 전용 몬스터), 아니면 카탈로그에서
+func add_foe(id: String, cell: Vector2i, room: int, stats: CreatureStats = null) -> Node3D:
+	var c := Creature.new(stats if stats else Catalog.monster(id), 1)
 	var a := ac.add(c, Vector2(cell.x + 0.5, cell.y + 0.5), "monster", room)
 	a.facing = Vector2.from_angle(randf() * TAU)
 	var m := _new_model(c.stats)
@@ -368,6 +369,17 @@ func _popup(m: Node3D, text: String, col: Color, size: float) -> void:
 
 
 ## 파티원 크리처를 HeroState에서 다시 만듦 (휴식, 레벨업, 물약 사기 뒤). 위치와 모델은 그대로
+## 빌려 쓴 모델(탐험자 몸)에서 HP 바 등을 떼고 이 화면의 관리에서 뺌 (전투가 끝나 화면을 지우기 전에)
+func release_model(a: ActionCombat.Actor) -> void:
+	if not views.has(a):
+		return
+	var v: Dictionary = views[a]
+	for k in ["bar", "ring"]:
+		if v.has(k) and is_instance_valid(v[k]):
+			(v[k] as Node).queue_free()
+	views.erase(a)
+
+
 func refresh_member(a: ActionCombat.Actor, c: Creature) -> void:
 	a.c = c
 	a.weapon = ActionCombat.primary_weapon(c)

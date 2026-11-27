@@ -364,3 +364,50 @@ func test_ally_dodges_telegraph() -> void:
 		if cl.want_dodge:
 			dodged += 1
 	check(dodged >= 8 and dodged <= 19, "ally dodges about 70%% of the time (%d/20)" % dodged)
+
+
+func test_ghoul_paralyzes_then_wears_off() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe("ghoul"), Vector2(4.0, 3.5), "monster")
+	p.c.stats.max_hp = 99
+	p.c.hp = 99
+	ac.dice.forced = [20, 3, 3, 1]  # 맞힘(치명타), 피해, 내성 1 → 실패
+	ac.strike(g, p, g.weapon)
+	check(p.c.has_effect("paralyzed"), "fighter paralyzed")
+	p.want_attack = true
+	ac.tick(1.0 / 60.0)
+	eq(p.state, "stun", "can't act while paralyzed")
+	run(ac, ActionCombat.PARALYZE_TIME + 0.2)
+	check(not p.c.has_effect("paralyzed"), "paralysis wears off")
+
+
+func test_zombie_undead_fortitude() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var z := ac.add(foe("zombie"), Vector2(4.0, 3.5), "monster")
+	z.c.hp = 3
+	ac.dice.forced = [15, 2, 2, 20]  # 맞힘, 피해 2+2+3=7 (치명타 아님), CON 내성 20 → 버팀
+	ac.strike(p, z, p.weapon)
+	eq(z.c.hp, 1, "zombie stays at 1 HP")
+	check(z.alive(), "still up")
+
+
+func test_ghast_stench_poisons() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	ac.add(foe("ghast"), Vector2(4.0, 3.5), "monster")
+	ac.dice.forced = [1]
+	ac._stench(0.0)
+	check(p.c.has_effect("poisoned"), "failed CON save → poisoned")
+
+
+func test_shadow_drains_strength() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var s := ac.add(foe("shadow"), Vector2(4.0, 3.5), "monster")
+	p.c.stats.max_hp = 99
+	p.c.hp = 99
+	ac.dice.forced = [19, 3, 1, 2]
+	ac.strike(s, p, s.weapon)
+	check(p.c.str_loss > 0, "strength drained (%d)" % p.c.str_loss)
