@@ -355,7 +355,7 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				var rack: String = RACKS[roll % RACKS.size()]
 				if mesh(rack, DARK_PROPS) != null:
 					put.call(DARK_PROPS + "/" + rack, Transform3D(face, center + dv * 0.38), c)
-			elif roll < 25:
+			elif roll < 33:
 				var item: String = DARK_WALL[(roll + c.x + c.y) % DARK_WALL.size()]
 				var m := mesh(item, DARK_PROPS)
 				if m != null:
@@ -363,12 +363,12 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 					put.call(DARK_PROPS + "/" + item, Transform3D(face, center + dv * (0.48 - m.get_aabb().size.z * 0.5)), c)
 		var r2 := absi(hash(c * 11 + Vector2i(5, 3))) % 100
 		var dark := not cave and mesh(DARK_CLUTTER[0], DARK_PROPS) != null
-		if r2 < (7 if cave else (8 if dark else 5)):
+		if r2 < (7 if cave else (16 if dark else 5)):
 			var d: Vector2i = walls[r2 % walls.size()]
 			var spin := Basis(Vector3.UP, (r2 % 4) * PI / 2.0 + 0.3)
 			var off := 0.28
 			var model := pick(CAVE_CLUTTER if cave else CLUTTER, c)
-			if dark and r2 % 3 != 0:
+			if dark and r2 % 4 != 0:
 				var item: String = pick(DARK_CLUTTER, c)
 				var m := mesh(item, DARK_PROPS)
 				if m != null:
