@@ -228,7 +228,8 @@ func _sync_view(a: ActionCombat.Actor, delta: float) -> void:
 	m.face(Vector3(a.facing.x, 0, a.facing.y))
 	var moving := a.state == "idle" and a.move.length() > 0.1
 	if a.state == "idle" or a.state == "stun":
-		m.set_base("sprint" if moving else "idle")
+		# 체력 절반 이하로 서 있으면 다친 자세 (모델에 없으면 보통 서 있기)
+		m.set_base("sprint" if moving else ("hurt" if a.c.hp * 2 <= a.c.stats.max_hp else "idle"))
 	var ratio := clampf(float(a.c.hp) / a.c.stats.max_hp, 0.0, 1.0)
 	var fill: MeshInstance3D = v.fill
 	fill.scale.x = maxf(ratio, 0.001)

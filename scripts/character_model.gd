@@ -21,7 +21,7 @@ const DARK := "res://assets/dark/%s/%s.scn"
 ## 나는 떼의 몸마다 더하는 높이 (월드 유닛). 같은 높이로 붙어 다니지 않게
 const SWARM_LIFT := [0.14, -0.1, 0.24, 0.02, -0.14]
 const SWARM_SPOTS := [Vector3(-0.2, 0, -0.12), Vector3(0.22, 0, -0.05), Vector3(0.0, 0, 0.22), Vector3(-0.15, 0, 0.2), Vector3(0.2, 0, 0.24)]
-const LOOPING := ["idle", "walk", "sprint", "crouch"]
+const LOOPING := ["idle", "walk", "sprint", "crouch", "hurt"]
 const CHAR_LAYER := 2
 ## Kenney 모델 원래 키는 약 0.8 유닛. 1칸(1 유닛)에 맞게 키웁니다.
 const BASE_SCALE := 1.6
@@ -69,6 +69,8 @@ const ALIASES := {
 ## Quaternius 이름은 "CharacterArmature|Idle"처럼 뼈대 이름이 앞에 붙어 있어 끝부분으로 찾습니다
 const ANIMS := {
 	"idle": ["Idle", "Flying_Idle", "Rat_Idle"],
+	# 체력 절반 이하일 때 서 있는 자세 (없는 모델은 보통 서 있기)
+	"hurt": ["Idle", "Flying_Idle", "Rat_Idle"],
 	"walk": ["Walking_A", "Walk", "Fast_Flying", "Flying_Idle", "Rat_Walk"],
 	"sprint": ["Running_A", "Run", "Gallop", "Walk", "Fast_Flying", "Rat_Run"],
 	"crouch": ["Lie_Idle", "Duck", "Idle_2_HeadLow", "Idle", "Flying_Idle", "Rat_Idle"],

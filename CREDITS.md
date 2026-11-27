@@ -45,6 +45,11 @@ Store EULA (used outside Unity as embedded game content; the package must not be
 crates, pots, a fire bin, bookshelves and chests are unpacked by `tools/unitypackage_extract.py` and baked
 by `tools/bake_unity_props.gd` into `assets/dark/props/`. They stand against or near dungeon walls.
 
+Universal Animation Library (Standard) by Quaternius, CC0 1.0, from the Godot Asset Store. RPG Animations
+GLB FREE by Explosive LLC, MIT License, from the Godot Asset Store. Selected clips (crouch, injured idle,
+jump, and the zombie's injured walk, swipes, hit and death) are retargeted onto the dark fantasy
+characters by `tools/bake_extra_anims.gd`.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.

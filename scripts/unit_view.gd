@@ -116,7 +116,7 @@ func refresh() -> void:
 	_update_pose()
 
 
-## 쓰러짐 > 넘어짐(웅크림) > 걷기 > 서 있기
+## 쓰러짐 > 넘어짐(웅크림) > 걷기 > 서 있기 (체력 절반 이하면 다친 자세로)
 func _update_pose() -> void:
 	if body == null or creature == null:
 		return
@@ -126,5 +126,7 @@ func _update_pose() -> void:
 		body.set_base("crouch")
 	elif walking:
 		body.set_base("walk")
+	elif shown_hp * 2 <= creature.stats.max_hp:
+		body.set_base("hurt")
 	else:
 		body.set_base("idle")
