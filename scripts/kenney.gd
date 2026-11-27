@@ -185,6 +185,10 @@ static func mesh(model: String, pack := DUNGEON) -> Mesh:
 
 ## 애니메이션이 있는 모델(상자, 캐릭터)은 장면째로 씁니다
 static func instance(model: String, pack := DUNGEON) -> Node3D:
+	if pack == DUNGEON and model == "chest":
+		var q := _quat_chest()
+		if q:
+			return q
 	if pack == DUNGEON and (QUAT_SWAP.has(model) or VILLAGE_PARTS.has(model)):
 		var m := mesh(model)
 		if m is ArrayMesh and (_quat_paths.has(m) or VILLAGE_PARTS.has(model) and ResourceLoader.exists(VILLAGE % VILLAGE_PARTS[model])):
@@ -211,6 +215,40 @@ static func instance(model: String, pack := DUNGEON) -> Node3D:
 
 
 static var _quat_paths := {}
+
+
+## MegaKit 보물상자: 몸통과 경첩(뒤쪽 위)에 매단 뚜껑, 여는 "open" 동작 (파일이 없으면 null)
+static func _quat_chest() -> Node3D:
+	var base_path := "res://assets/quaternius/props/Chest_Wood_Base.res"
+	var lid_path := "res://assets/quaternius/props/Chest_Wood_Lid.res"
+	if not ResourceLoader.exists(base_path) or not ResourceLoader.exists(lid_path):
+		return null
+	var base := load(base_path) as Mesh
+	var lid := load(lid_path) as Mesh
+	var all := base.get_aabb().merge(lid.get_aabb())
+	var box: Vector3 = QUAT_SWAP["chest"][1]
+	var k := minf(box.x / all.size.x, minf(box.y / all.size.y, box.z / all.size.z))
+	var root := Node3D.new()
+	root.name = "chest"
+	var model := Node3D.new()
+	model.name = "Model"
+	model.scale = Vector3.ONE * k
+	root.add_child(model)
+	var bm := MeshInstance3D.new()
+	bm.mesh = base
+	model.add_child(bm)
+	var la := lid.get_aabb()
+	var hinge := Vector3(la.get_center().x, la.position.y, la.position.z)
+	var pivot := Node3D.new()
+	pivot.name = "chest_lid"
+	pivot.position = hinge
+	model.add_child(pivot)
+	var lm := MeshInstance3D.new()
+	lm.mesh = lid
+	lm.position = -hinge
+	pivot.add_child(lm)
+	_add_lid_anim(root)
+	return root
 
 
 ## QUAT_SWAP 조각: 정한 크기 안에 들도록 고르게 줄이고 원점을 맞춘 메시 (파일이 없으면 null)
@@ -314,6 +352,7 @@ static func _add_lid_anim(root: Node3D) -> void:
 	var lib := AnimationLibrary.new()
 	lib.add_animation("open", a)
 	var ap := AnimationPlayer.new()
+	ap.name = "AnimationPlayer"  # 열 때 이름으로 찾음
 	ap.add_animation_library("", lib)
 	root.add_child(ap)
 
@@ -394,13 +433,42 @@ static func _kaykit_walls(parent: Node3D, floors: Array, is_floor: Callable, hei
 			lists["wall-post"][0].append(Transform3D(Basis.IDENTITY, Vector3(key.x / 2.0, v[3], key.y / 2.0)))
 			lists["wall-post"][1].append(v[2])
 	var out: Array = []
+	var fade_parts: Array = []
 	for kind in lists:
 		var xfs: Array[Transform3D] = []
 		xfs.assign(lists[kind][0])
-		var inst := _multimesh(parent, mesh(kind), xfs)
+		var inst := _multimesh(parent, _fade_mesh(mesh(kind)), xfs, true)
 		if inst:
 			out.append([inst.multimesh, lists[kind][1], xfs])
+			fade_parts.append([inst.multimesh, xfs])
+	# 캐릭터를 가리는 벽은 반투명하게
+	var fader = load("res://scripts/wall_fade.gd").new()
+	fader.name = "WallFade"
+	fader.setup(fade_parts)
+	parent.add_child(fader)
 	return out
+
+
+static var _fade_meshes := {}
+
+
+## 인스턴스 색의 알파로 비칠 수 있는 벽 메시 (재질만 바꾼 사본: 정점 색을 곱하고 알파 해시)
+static func _fade_mesh(src: Mesh) -> Mesh:
+	if src == null:
+		return null
+	if _fade_meshes.has(src):
+		return _fade_meshes[src]
+	var m := src.duplicate() as Mesh
+	for i in m.get_surface_count():
+		var mat := m.surface_get_material(i) as BaseMaterial3D
+		if mat == null:
+			continue
+		var f := mat.duplicate() as BaseMaterial3D
+		f.vertex_color_use_as_albedo = true
+		f.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_HASH
+		m.surface_set_material(i, f)
+	_fade_meshes[src] = m
+	return m
 
 
 ## 꾸미기: 벽에 횃불(불빛 포함)·선반·깃발을 걸고, 벽 앞 바닥에 잡동사니를 조금 둡니다.
@@ -545,15 +613,18 @@ static func _corner_basis(dx: int, dy: int) -> Basis:
 	return Basis.IDENTITY
 
 
-static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D]) -> MultiMeshInstance3D:
+static func _multimesh(parent: Node3D, m: Mesh, xfs: Array[Transform3D], colors := false) -> MultiMeshInstance3D:
 	if xfs.is_empty() or m == null:
 		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = colors  # 인스턴스 수를 정하기 전에 정해야 함
 	mm.mesh = m
 	mm.instance_count = xfs.size()
 	for i in xfs.size():
 		mm.set_instance_transform(i, xfs[i])
+		if colors:
+			mm.set_instance_color(i, Color.WHITE)
 	var inst := MultiMeshInstance3D.new()
 	inst.multimesh = mm
 	parent.add_child(inst)

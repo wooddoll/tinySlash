@@ -52,6 +52,20 @@ func _bake(file: String) -> ArrayMesh:
 		parts.append([mi, xf])
 	var shift := Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * M), Vector3.ZERO) \
 			* Transform3D(Basis.IDENTITY, -Vector3(box.get_center().x, box.position.y, box.get_center().z))
+	# 보물상자는 뚜껑을 열 수 있게 몸통·뚜껑을 따로도 저장 (Chest_Wood_Base.res, Chest_Wood_Lid.res)
+	if file == "Chest_Wood.gltf":
+		for p in parts:
+			var pmi := p[0] as MeshInstance3D
+			var one := ArrayMesh.new()
+			for s in pmi.mesh.get_surface_count():
+				var sm := pmi.mesh.surface_get_material(s)
+				var stl := SurfaceTool.new()
+				stl.begin(Mesh.PRIMITIVE_TRIANGLES)
+				stl.append_from(pmi.mesh, s, shift * (p[1] as Transform3D))
+				stl.generate_tangents()
+				stl.commit(one)
+				one.surface_set_material(one.get_surface_count() - 1, _material(sm.resource_name if sm else "none", sm))
+			ResourceSaver.save(one, OUT + String(pmi.name) + ".res", ResourceSaver.FLAG_COMPRESS)
 	# 재질 이름마다 면을 모음
 	var groups := {}
 	for p in parts:

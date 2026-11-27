@@ -106,6 +106,11 @@ var _extra_anims: Array[AnimationPlayer] = []
 var _bodies: Array[Node3D] = []
 
 
+## 벽이 가리면 그 벽을 반투명하게 (wall_fade.gd)
+func _enter_tree() -> void:
+	add_to_group("wall_fade_target")
+
+
 func setup(path: String, size := 1.0, weapon := "") -> void:
 	path = ALIASES.get(path, path)
 	var copies := 1
