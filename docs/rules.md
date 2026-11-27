@@ -16,8 +16,8 @@ SRD 5.2.1을 바탕으로, 2.5D **턴제 + 격자** 전투 게임에 맞게 다�
 
 | 항목 | v1에 포함 | 나중에 |
 |---|---|---|
-| 파티 | 파이터 + 동료 클레릭 (둘 다 플레이어가 조종) | 동료 더, 동료 고르기 |
-| 클래스 | 파이터 (Champion), 클레릭 (Life Domain), 레벨 1~5 | 다른 클래스, 2레벨 이상 주문 |
+| 파티 | 주인공 + 동료 1명 (둘 다 플레이어가 조종, 클래스 고르기) | 동료 더 |
+| 클래스 | SRD 12 클래스 모두: 파이터 (Champion), 클레릭 (Life), 바바리안 (Berserker), 로그 (Thief), 몽크 (Open Hand), 팔라딘 (Devotion), 레인저 (Hunter), 위저드 (Evoker), 소서러 (Draconic), 워락 (Fiend), 바드 (Lore), 드루이드 (Land), 레벨 1~5 | 다른 하위 클래스, 6레벨 이상 |
 | 종족·배경 | 고정 캐릭터 (Soldier 배경만 반영) | 종족·배경 선택 |
 | 전투 | 격자 이동, 공격, 기본 행동, 기회 공격, 엄폐, 고저차 | 숨기, 준비 행동, 잡기·밀치기 |
 | 상태 | 넘어짐, 의식 없음, 행동 불능 | 나머지 상태이상 |
@@ -391,6 +391,330 @@ SRD 5.2.1을 바탕으로, 2.5D **턴제 + 격자** 전투 게임에 맞게 다�
 - **Sear Undead** (5레벨): Turn Undead에 실패한 언데드에게 WIS 수정치만큼 d8(최소 1개) 광휘 피해. 이 피해로는 Turn이 풀리지 않습니다.
 - 크리처 종류: 스켈레톤은 언데드, 늑대는 야수, 고블린은 인간형입니다.
 
+### 7.7 바바리안 [SRD 규칙으로 만듦]
+출처: `classes.md` – Barbarian, Path of the Berserker
+
+- 고르기: 던전 생성기 왼쪽 위의 "주인공 / 동료", 또는 시나리오 고르기 창의 "파티". 고른 클래스는 탐험을 새로 시작할 때 적용됩니다. 물약은 주인공이 들고 다닙니다 [변경].
+- 능력치: 표준 배열(STR 15, DEX 13, CON 14, INT 10, WIS 12, CHA 8)에 Soldier 배경(STR +2, CON +1). 기원 재주 Savage Attacker.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 17 (+3) | 13 (+1) | 15 (+2) | 10 (+0) | 12 (+1) | 8 (−1) |
+
+- **Unarmored Defense**: 갑옷 없이 AC = 10 + DEX + CON = **13**. 히트 다이스 d12, 레벨업 HP 고정값 `7 + CON`.
+- 내성 숙련 STR·CON. 기술: 운동, 위협, 지각, 생존.
+- 장비: 시작 장비 A. Greataxe(1d12 참격, Heavy, 양손, 숙달 Cleave), Handaxe(1d6 참격, Light, 투척 4/12칸, 숙달 Vex). [변경] 핸드액스 개수는 세지 않습니다(탄약 규칙이 아직 없음).
+
+| 레벨 | PB | 최대 HP | Rage | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 14 | 2 | Rage, Unarmored Defense, Weapon Mastery ×2 |
+| 2 | +2 | 23 | 2 | Danger Sense, Reckless Attack |
+| 3 | +2 | 32 | 3 | Path of the Berserker: Frenzy. Primal Knowledge |
+| 4 | +2 | 41 | 3 | 능력치 향상: STR 17→19 |
+| 5 | +3 | 50 | 3 | Extra Attack, Fast Movement (속도 8칸) |
+
+- **Rage** (보너스 행동): 분노하는 동안
+  - 타격·관통·참격 피해에 저항.
+  - 근력으로 하는 공격(근접 무기, 근력으로 던진 핸드액스)이 맞으면 피해 +2.
+  - 근력 내성(과 판정)에 이점. 집중을 유지할 수 없어서, 분노하면 집중 중인 주문이 끝납니다.
+  - 지속: 시작한 턴의 다음 턴 끝까지. 그 턴에 공격 굴림을 하거나 보너스 행동 "분노 유지"를 쓰면 다시 다음 턴 끝까지 이어집니다. 쓰러지거나 행동 불능이 되면 끝납니다. [변경] 10분 한도는 세지 않습니다(전투가 그보다 길지 않음).
+  - 짧은 휴식에 1회, 긴 휴식에 전부 돌아옵니다.
+- **Danger Sense** (2레벨): 행동 불능이 아니면 DEX 내성에 이점.
+- **Reckless Attack** (2레벨): 내 턴의 첫 공격 전에 스킬 메뉴에서 고릅니다(행동을 쓰지 않음). 다음 내 턴 시작까지 내 근력 공격에 이점, 나를 노리는 공격에도 이점.
+- **Frenzy** (3레벨): 분노 중에 무모한 공격을 했다면, 내 턴에 근력 공격으로 처음 맞힌 대상에게 Rage 피해 보너스만큼 d6(2d6, 치명타면 4d6)을 더합니다.
+- **Primal Knowledge** (3레벨): 기술 숙련 하나 더. [제외] 분노 중 근력으로 판정하는 부분은 탐험 판정이 늘면 넣습니다.
+- **[제외]** Weapon Mastery 세 번째(4레벨): 무기가 둘뿐이라 효과가 없습니다.
+
+### 7.8 로그 [SRD 규칙으로 만듦]
+출처: `classes.md` – Rogue, Thief / `character-origins.md` – Criminal / `feats.md` – Alert
+
+- 능력치: 표준 배열(DEX 15, CON 14, WIS 13, INT 12, CHA 10, STR 8)에 Criminal 배경(DEX +2, CON +1). 기원 재주 **Alert**: 이니셔티브에 PB를 더함.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 8 (−1) | 17 (+3) | 15 (+2) | 12 (+1) | 13 (+1) | 10 (+0) |
+
+- Leather Armor: AC 11 + DEX = **14**. 히트 다이스 d8, 레벨업 HP `5 + CON`. 이니셔티브 +5 (5레벨 +6).
+- 내성 숙련 DEX·INT. 기술: 은신, 손재주, 곡예, 지각, 조사, 기만. **Expertise**: 은신과 지각은 PB를 두 번 더함.
+- 장비: Shortsword(1d6 관통, Finesse·Light, 숙달 Vex), Shortbow(1d6 관통, 16/64칸, 숙달 Vex), Dagger(1d4, 던지기 4/12칸). 숙달은 숏소드·숏보우 두 가지.
+
+| 레벨 | PB | 최대 HP | Sneak Attack | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 10 | 1d6 | Sneak Attack, Expertise, Weapon Mastery ×2 |
+| 2 | +2 | 17 | 1d6 | Cunning Action |
+| 3 | +2 | 24 | 2d6 | Thief: Fast Hands, Second-Story Work. Steady Aim |
+| 4 | +2 | 31 | 2d6 | 능력치 향상: DEX 17→19 |
+| 5 | +3 | 38 | 3d6 | Cunning Strike, Uncanny Dodge |
+
+- **Sneak Attack**: 턴에 한 번(남의 턴의 기회 공격도 됨), Finesse나 원거리 무기로 맞혔을 때 피해 주사위를 더합니다. 조건은 공격에 이점이 있거나, 대상 1칸 안에 행동 가능한 아군이 있고 내 공격에 불리점이 없는 것. 치명타면 주사위 두 배.
+- **Cunning Action** (2레벨): 보너스 행동으로 질주 또는 이탈. [제외] 숨기(숨기 규칙이 아직 없음).
+- **Steady Aim** (3레벨): 이번 턴에 움직이지 않았으면 보너스 행동으로 이번 턴 다음 공격에 이점. 대신 이번 턴에는 더 못 움직입니다.
+- **Thief** (3레벨): Fast Hands(보너스 행동으로 물건 쓰기), Second-Story Work(오르기). 지금은 물약이 이미 보너스 행동이고 오르기 규칙이 없어서 효과가 없습니다.
+- **Cunning Strike** (5레벨): 스킬 메뉴의 "교활한 일격: 넘어뜨리기"를 켜 두면 다음 Sneak Attack에서 d6 하나를 빼고, 대상(대형 이하)이 DEX 내성(DC = 8 + DEX + PB)에 실패하면 넘어집니다. [제외] Poison(독 도구가 없음), Withdraw(공격 뒤 이동 UI가 없음).
+- **Uncanny Dodge** (5레벨): 공격에 맞으면 반응으로 피해 절반. [변경] 반응이 남아 있으면 첫 명중에 자동으로 씁니다.
+
+### 7.9 몽크 [SRD 규칙으로 만듦]
+출처: `classes.md` – Monk, Warrior of the Open Hand
+
+- 능력치: 표준 배열(DEX 15, WIS 14, CON 13, STR 12, INT 10, CHA 8)에 Soldier 배경(DEX +2, CON +1). 기원 재주 Savage Attacker.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 12 (+1) | 17 (+3) | 14 (+2) | 10 (+0) | 14 (+2) | 8 (−1) |
+
+- **Unarmored Defense**: AC = 10 + DEX + WIS = **15**. 히트 다이스 d8, 레벨업 HP `5 + CON`. 갑옷·방패 없음.
+- 내성 숙련 STR·DEX. 기술: 운동, 위협, 곡예, 통찰. 무기 숙달 기능이 없습니다.
+- **Martial Arts**: 맨손 타격과 창(몽크 무기)은 DEX를 쓸 수 있고, 피해 주사위로 무술 주사위(d6, 5레벨 d8)를 씁니다. 창은 던질 수 있습니다(4/12칸).
+
+| 레벨 | PB | 최대 HP | Focus | 속도 | 얻는 것 |
+|---|---|---|---|---|---|
+| 1 | +2 | 10 | – | 6 | Martial Arts, Unarmored Defense |
+| 2 | +2 | 17 | 2 | 8 | Monk's Focus, Unarmored Movement, Uncanny Metabolism |
+| 3 | +2 | 24 | 3 | 8 | Deflect Attacks, Open Hand Technique |
+| 4 | +2 | 31 | 4 | 8 | 능력치 향상: DEX 17→19 (AC 16), Slow Fall |
+| 5 | +3 | 38 | 5 | 8 | Extra Attack, Stunning Strike, 무술 주사위 d8 |
+
+- **보너스 맨손 타격**: 보너스 행동으로 맨손 타격 1회. 스킬 메뉴에서 고르면 무기가 맨손으로 바뀌고, 적을 누르면 칩니다. 공격 행동보다 먼저 써도 됩니다.
+- **Focus**(2레벨): 레벨만큼. 짧은 휴식에 전부 돌아옵니다. Focus 내성 DC = 8 + WIS + PB.
+  - **Flurry of Blows** (보너스, Focus 1): 맨손 타격 2회.
+  - **Patient Defense** (보너스): 이탈. Focus 1을 쓰면 이탈 + 회피.
+  - **Step of the Wind** (보너스): 질주. Focus 1을 쓰면 이탈 + 질주.
+- **Uncanny Metabolism** (2레벨): 이니셔티브를 굴릴 때 Focus를 모두 되찾고 `무술 주사위 + 레벨`만큼 회복. 긴 휴식에 1회. [변경] Focus를 썼거나 다쳤으면 자동으로 씁니다.
+- **Deflect Attacks** (3레벨): 타격·관통·참격 공격에 맞으면 반응으로 피해를 `1d10 + DEX + 레벨`만큼 줄입니다. 0으로 줄이면 Focus 1로 되돌려 보냄: 대상이 DEX 내성에 실패하면 `무술 주사위 2개 + DEX`. [변경] 반응이 있으면 자동으로 쓰고, 되돌리는 대상은 공격한 크리처입니다(근접이면 1칸, 원거리면 12칸 안).
+- **Open Hand Technique** (3레벨): 연타가 맞을 때마다 스킬 메뉴에서 고른 기술 하나: 넘어뜨리기(DEX 내성 실패 시 넘어짐), 밀쳐내기(STR 내성 실패 시 3칸), 어지럽히기(대상의 다음 턴 시작까지 기회 공격 못 함).
+- **Slow Fall** (4레벨): 낙하 규칙이 아직 없어서 효과가 없습니다.
+- **Stunning Strike** (5레벨): 스킬 메뉴에서 켜 두면, 턴에 한 번 몽크 무기로 맞힐 때 Focus 1을 써서 대상이 CON 내성. 실패하면 내 다음 턴 시작까지 **기절**(행동 불능, 속도 0, STR·DEX 내성 자동 실패, 나를 노리는 공격에 이점). 성공해도 속도 절반, 다음 공격에 이점.
+
+### 7.10 팔라딘 [SRD 규칙으로 만듦]
+출처: `classes.md` – Paladin, Oath of Devotion / `spells.md`
+
+- 능력치: 표준 배열(STR 15, CHA 14, CON 13, WIS 12, DEX 10, INT 8)에 Soldier 배경(STR +2, CON +1). 기원 재주 Savage Attacker.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 17 (+3) | 10 (+0) | 14 (+2) | 8 (−1) | 12 (+1) | 14 (+2) |
+
+- Chain Mail + Shield: AC **18**, 2레벨부터 Fighting Style **Defense**로 19. 히트 다이스 d10, 레벨업 HP `6 + CON`.
+- 내성 숙련 WIS·CHA. 기술: 운동, 위협, 통찰, 설득. 무기: Longsword(1d8 참격, 숙달 Sap), Javelin(숙달 Slow).
+- 주문: CHA. 주문 내성 DC = 8 + PB + CHA. 슬롯은 반쪽 시전자 표.
+
+| 레벨 | PB | 최대 HP | 슬롯 (1·2레벨) | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 12 | 2 · – | Lay on Hands, 주문(Bless, Cure Wounds), Weapon Mastery ×2 |
+| 2 | +2 | 20 | 2 · – | Fighting Style(Defense), Paladin's Smite(Divine Smite), Heroism |
+| 3 | +2 | 28 | 3 · – | Channel Divinity ×2, Oath of Devotion: Sacred Weapon, 서약 주문(Protection from Evil and Good, Shield of Faith) |
+| 4 | +2 | 36 | 3 · – | 능력치 향상: CHA 14→16 |
+| 5 | +3 | 44 | 4 · 2 | Extra Attack, 서약 주문 Aid |
+
+- **Lay on Hands** (보너스 행동, 옆 칸): 치유 풀(5 × 레벨, 긴 휴식에 돌아옴)에서 회복. [변경] 필요한 만큼(최대 HP까지) 자동으로 씁니다. [제외] 5를 써서 중독 풀기.
+- **Divine Smite** (1레벨 주문, 보너스 행동): 근접 공격이 맞은 직후 2d8 광휘(+1d8/슬롯 레벨, 언데드·악마면 +1d8). [변경] 주문 메뉴에서 켜 두면 근접 공격이 맞을 때 보너스 행동과 가장 낮은 슬롯을 써서 자동으로 씁니다. 다시 누르면 꺼집니다. **Paladin's Smite**(2레벨): 긴 휴식마다 1회는 슬롯 없이 씁니다(먼저 씀).
+- **Heroism** (1레벨, 행동, 옆 칸, 집중): 대상이 턴을 시작할 때마다 임시 HP = CHA(최소 1). [변경] 대상은 하나(높은 슬롯으로 늘리지 않음).
+- **Protection from Evil and Good** (1레벨, 행동, 옆 칸, 집중): 언데드·악마 같은 이계 존재(이형체, 천상체, 정령, 요정, 악마, 언데드)가 대상을 공격하면 불리점. [제외] 홀림·공포 보호(그 상태가 아직 없음), 성수 재료.
+- **Sacred Weapon** (Channel Divinity): 공격 행동을 할 때 행동을 쓰지 않고 켭니다. 근접 무기 공격 굴림에 CHA(최소 +1). [변경] 10분 대신 전투가 끝날 때까지. [제외] 광휘 피해로 바꾸기, 빛. Divine Sense는 탐험 규칙이 늘면 넣습니다.
+- 준비 주문 [변경]: SRD 준비 개수보다 적게 둡니다(위 표의 주문만). 나머지 팔라딘 주문은 아직 없습니다. **[제외]** Faithful Steed.
+
+### 7.11 레인저 [SRD 규칙으로 만듦]
+출처: `classes.md` – Ranger, Hunter / `spells.md` – Hunter's Mark
+
+- 능력치: 표준 배열(DEX 15, WIS 14, CON 13, STR 12, INT 10, CHA 8)에 Soldier 배경(DEX +2, CON +1). 기원 재주 Savage Attacker.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 12 (+1) | 17 (+3) | 14 (+2) | 10 (+0) | 14 (+2) | 8 (−1) |
+
+- Studded Leather: AC 12 + DEX = **15**. 히트 다이스 d10, 레벨업 HP `6 + CON`.
+- 내성 숙련 STR·DEX. 기술: 운동, 위협, 지각, 생존, 은신. **Deft Explorer**(2레벨): 지각 Expertise.
+- 무기: Longbow(1d8 관통, 30/120칸, 숙달 Slow), Shortsword(숙달 Vex), Scimitar.
+- 주문: WIS, 반쪽 시전자 슬롯(팔라딘과 같음). 준비 주문: Hunter's Mark, Cure Wounds, 5레벨 Aid. [변경] 나머지 레인저 주문은 아직 없습니다.
+
+| 레벨 | PB | 최대 HP | 슬롯 (1·2레벨) | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 12 | 2 · – | 주문, Favored Enemy, Weapon Mastery ×2 |
+| 2 | +2 | 20 | 2 · – | Fighting Style(Archery), Deft Explorer |
+| 3 | +2 | 28 | 3 · – | Hunter: Hunter's Prey(Colossus Slayer), Hunter's Lore |
+| 4 | +2 | 36 | 3 · – | 능력치 향상: DEX 17→19 |
+| 5 | +3 | 44 | 4 · 2 | Extra Attack, Aid |
+
+- **Hunter's Mark** (1레벨, 보너스 행동, 18칸, 집중): 표식한 적을 맞힐 때마다 1d6 역장. 표식한 적이 쓰러지면 보너스 행동 "표식 옮기기"로 다른 적에게 옮깁니다(슬롯 없이). **Favored Enemy**: 긴 휴식마다 2번은 슬롯 없이 씁니다(먼저 씀).
+- **Archery** (2레벨): 원거리 무기 공격 굴림 +2.
+- **Colossus Slayer** (3레벨): 턴에 한 번, HP가 깎인 적을 무기로 맞히면 1d8 추가. Hunter's Lore는 탐험 판정이 늘면 넣습니다.
+- [제외] Deft Explorer의 언어, Roving(5레벨까지 없음).
+
+### 7.12 위저드 [SRD 규칙으로 만듦]
+출처: `classes.md` – Wizard, Evoker / `spells.md`
+
+- 능력치: 표준 배열(INT 15, CON 14, DEX 13, WIS 12, CHA 10, STR 8)에 Sage 배경(INT +2, CON +1). [제외] Sage의 기원 재주(Magic Initiate).
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 8 (−1) | 13 (+1) | 15 (+2) | 17 (+3) | 12 (+1) | 10 (+0) |
+
+- AC **14** = Mage Armor 13 + DEX. [변경] Mage Armor는 8시간 가므로 하루를 시작할 때 써 둔 것으로 보고 슬롯을 빼지 않습니다. 히트 다이스 d6, 레벨업 HP `4 + CON`.
+- 내성 숙련 INT·WIS. 기술: 비전, 역사, 조사, 통찰. **Scholar**(2레벨): 비전 Expertise. 무기: Quarterstaff, Dagger.
+- 주문: INT. 내성 DC = 8 + PB + INT (1레벨 13). 주문 공격 = PB + INT. 슬롯은 온전한 시전자 표(클레릭과 같음).
+
+| 레벨 | PB | 최대 HP | 슬롯 (1·2·3레벨) | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 8 | 2 · – · – | 주문, Arcane Recovery |
+| 2 | +2 | 14 | 3 · – · – | Scholar |
+| 3 | +2 | 20 | 4 · 2 · – | Evoker: Potent Cantrip. 2레벨 주문 Scorching Ray, Shatter |
+| 4 | +2 | 26 | 4 · 3 · – | 능력치 향상: INT 17→19 |
+| 5 | +3 | 32 | 4 · 3 · 2 | 3레벨 주문 Fireball, 소마법 강화 |
+
+| 주문 | 종류 | 시간 | 사거리 | 효과 |
+|---|---|---|---|---|
+| Fire Bolt | 소마법 | 행동 | 24칸 | 원거리 주문 공격 1d10 화염 (5레벨 2d10) |
+| Ray of Frost | 소마법 | 행동 | 12칸 | 원거리 주문 공격 1d8 냉기, 맞으면 내 다음 턴까지 속도 −2칸 |
+| Shocking Grasp | 소마법 | 행동 | 1칸 | 근접 주문 공격 1d8 번개, 맞으면 기회 공격 못 함 |
+| Magic Missile | 1레벨 | 행동 | 24칸 | 빗나가지 않는 다트 3개(+1/슬롯 레벨), 하나에 1d4+1 역장. [변경] 다트는 모두 한 대상에게 |
+| Burning Hands | 1레벨 | 행동 | 자신 3칸 원뿔 | DEX 내성: 실패 3d6 화염(+1d6/슬롯), 성공 절반 |
+| Thunderwave | 1레벨 | 행동 | 자신 | CON 내성: 실패 2d8 천둥(+1d8/슬롯)과 2칸 밀림, 성공 절반 |
+| Shield | 1레벨 | 반응 | 자신 | 공격에 맞을 때 다음 내 턴 시작까지 AC +5 (그 공격 포함) |
+| Scorching Ray | 2레벨 | 행동 | 24칸 | 불줄기 3개(+1/슬롯), 하나마다 원거리 주문 공격 2d6 화염. [변경] 모두 한 대상에게 |
+| Shatter | 2레벨 | 행동 | 12칸 | 대상 주위 2칸 CON 내성: 실패 3d8 천둥(+1d8/슬롯), 성공 절반 |
+| Fireball | 3레벨 | 행동 | 30칸 | 대상 주위 4칸 DEX 내성: 실패 8d6 화염(+1d6/슬롯), 성공 절반 |
+
+- **범위 주문** [변경]: 구(Shatter, Fireball)의 중심은 고른 크리처의 칸입니다(빈 칸은 못 고름). 원뿔은 시전자에서 고른 대상 쪽으로, 방향이 45° 안쪽인 칸입니다. Thunderwave의 15ft 정육면체는 시전자 주위 1칸으로 바꿨습니다. 범위 안의 **아군도 맞고**, 대상에 마우스를 올리면 맞을 수와 아군 수를 보여줍니다. 피해는 한 번 굴려 모두에게 같게 줍니다 [SRD]. 완전 엄폐 뒤는 맞지 않습니다.
+- **Shield** [변경]: 반응과 1레벨 이상 슬롯이 남아 있고, +5로 그 공격을 막을 수 있을 때만 자동으로 씁니다.
+- **Arcane Recovery**: 긴 휴식마다 한 번, 짧은 휴식(모닥불)을 마칠 때 레벨 절반(올림)만큼의 슬롯 레벨을 되찾습니다(높은 슬롯부터).
+- **Potent Cantrip** (3레벨): 주문 공격 소마법이 빗나가도 피해의 절반.
+- [제외] Ritual Adept, Evocation Savant, Memorize Spell(전투 밖 기능). 나머지 위저드 주문.
+
+### 7.13 소서러 [SRD 규칙으로 만듦]
+출처: `classes.md` – Sorcerer, Draconic Sorcery / `spells.md`
+
+- 능력치: 표준 배열(CHA 15, CON 14, DEX 13, WIS 12, INT 10, STR 8)에 Acolyte 배경(CHA +2, WIS +1). [제외] Acolyte의 기원 재주.
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 8 (−1) | 13 (+1) | 14 (+2) | 10 (+0) | 13 (+1) | 17 (+3) |
+
+- AC: 1~2레벨 **14** = Mage Armor 13 + DEX ([변경] 위저드처럼 써 둔 것으로 봄). 3레벨부터 **Draconic Resilience** 10 + DEX + CHA(14, 4레벨 15), 최대 HP +레벨. 히트 다이스 d6, 레벨업 HP `4 + CON`.
+- 내성 숙련 CON·CHA. 무기: Dagger, Quarterstaff. 주문: CHA, 슬롯은 온전한 시전자 표.
+
+| 레벨 | PB | 최대 HP | 슬롯 | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 8 | 2 · – · – | 주문, Innate Sorcery |
+| 2 | +2 | 14 | 3 · – · – | Font of Magic(마법 점수 2), Metamagic, Burning Hands·Thunderwave |
+| 3 | +2 | 23 | 4 · 2 · – | Draconic Resilience, Chromatic Orb(용 주문), Scorching Ray·Shatter |
+| 4 | +2 | 30 | 4 · 3 · – | 능력치 향상: CHA 17→19 |
+| 5 | +3 | 37 | 4 · 3 · 2 | Fireball, Sorcerous Restoration |
+
+- 주문: Fire Bolt, Ray of Frost, Shocking Grasp, Magic Missile, Shield (위저드 표 7.12와 같음). **Chromatic Orb** 1레벨, 행동, 18칸: 원거리 주문 공격 3d8(+1d8/슬롯). [변경] 원소는 화염으로 고정, 튕기기 없음.
+- **Innate Sorcery**: 보너스 행동, 긴 휴식마다 2회. [변경] 1분 대신 그 전투가 끝날 때까지 주문 내성 DC +1, 주문 공격에 이점.
+- **Font of Magic**: 마법 점수 = 레벨(2레벨부터, 긴 휴식에 회복). 보너스 행동으로 점수를 슬롯으로(1레벨 2점, 2레벨 3점, 3레벨 5점; 만들 수 있는 최소 레벨은 SRD 표대로), 무료로 슬롯을 점수(슬롯 레벨만큼)로.
+- **Metamagic**: 스킬 메뉴의 토글. **Quickened Spell**(2점): 다음 행동 주문을 보너스 행동으로. **Careful Spell**(1점): 다음 내성 범위 주문에서 아군은 저절로 성공하고 피해 없음. [변경] 대상 수 제한(CHA)은 없고, 메타매직은 두 가지만.
+- **Sorcerous Restoration** (5레벨): 긴 휴식마다 한 번, 짧은 휴식 때 마법 점수를 레벨 절반만큼 되찾음.
+- [제외] Dragon Wings, Elemental Affinity, Sorcery Incarnate, 나머지 메타매직.
+
+### 7.14 워락 [SRD 규칙으로 만듦]
+출처: `classes.md` – Warlock, Fiend Patron / `spells.md`
+
+- 능력치: 소서러와 같음(CHA 17, Acolyte 배경). 4레벨 CHA 19.
+- AC **14** = **Armor of Shadows**(1레벨 영창: Mage Armor를 슬롯 없이) 13 + DEX. 히트 다이스 d8, 레벨업 HP `5 + CON`.
+- 내성 숙련 WIS·CHA. 무기: Dagger, Quarterstaff. 주문: CHA.
+- **Pact Magic**: 슬롯이 모두 같은 레벨이고 **짧은 휴식(모닥불)에 모두 돌아옵니다**.
+
+| 레벨 | PB | 최대 HP | 계약 슬롯 | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 10 | 1레벨 ×1 | Eldritch Blast, Chill Touch, Hex, Hellish Rebuke, Armor of Shadows |
+| 2 | +2 | 17 | 1레벨 ×2 | 영창 Agonizing Blast, Repelling Blast |
+| 3 | +2 | 24 | 2레벨 ×2 | Fiend: Dark One's Blessing, Burning Hands·Scorching Ray |
+| 4 | +2 | 31 | 2레벨 ×2 | 능력치 향상: CHA 17→19 |
+| 5 | +3 | 38 | 3레벨 ×2 | Fireball, 영창 Eldritch Mind, Eldritch Blast 줄기 2개 |
+
+| 주문 | 종류 | 시간 | 사거리 | 효과 |
+|---|---|---|---|---|
+| Eldritch Blast | 소마법 | 행동 | 24칸 | 원거리 주문 공격 1d10 역장. 5레벨에 줄기 2개(줄기마다 공격) |
+| Chill Touch | 소마법 | 행동 | 1칸 | 근접 주문 공격 1d10 사령, 맞으면 내 다음 턴 끝까지 HP 회복 못 함 |
+| Hex | 1레벨 | 보너스 | 18칸 | 집중. 저주한 적을 맞힐 때마다 1d6 사령. 그 적이 쓰러지면 다음 턴부터 보너스 행동으로 다른 적에게 옮김(슬롯 없이) |
+| Hellish Rebuke | 1레벨 | 반응 | 12칸 | 나를 다치게 한 적이 DEX 내성: 실패 2d10 화염(+1d10/슬롯), 성공 절반 |
+
+- **Agonizing Blast**: Eldritch Blast 피해에 CHA. **Repelling Blast**: Eldritch Blast가 맞으면 2칸 밀어냄.
+- **Hellish Rebuke** [변경]: 공격에 맞고도 서 있고, 반응과 슬롯이 있고, 공격자가 12칸 안이면 자동으로 씁니다.
+- **Dark One's Blessing** (3레벨): 적을 0 HP로 만들면 임시 HP = CHA + 워락 레벨.
+- **Eldritch Mind** (5레벨): 집중 유지 내성에 이점.
+- [변경] Hex의 "능력 판정 불리점"은 빠졌습니다(전투에 능력 판정이 없음). [제외] Magical Cunning, Pact Boon, 나머지 영창, Fiendish Resilience.
+
+### 7.15 바드 [SRD 규칙으로 만듦]
+출처: `classes.md` – Bard, College of Lore / `spells.md`
+
+- 능력치: 표준 배열(CHA 15, DEX 14, CON 13, WIS 12, INT 10, STR 8)에 Entertainer 배경(CHA +2, DEX +1).
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 8 (−1) | 15 (+2) | 13 (+1) | 10 (+0) | 12 (+1) | 17 (+3) |
+
+- AC **13** = 가죽 갑옷 11 + DEX. 히트 다이스 d8, 레벨업 HP `5 + CON`. 내성 숙련 DEX·CHA. 무기: Dagger, Shortbow. 주문: CHA, 온전한 시전자 슬롯.
+
+| 레벨 | PB | 최대 HP | 슬롯 | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 9 | 2 · – · – | Bardic Inspiration(d6, CHA 수정치 회), 주문 |
+| 2 | +2 | 15 | 3 · – · – | Expertise(설득·기만), Jack of All Trades, Cure Wounds |
+| 3 | +2 | 21 | 4 · 2 · – | Lore: Cutting Words, 기술 3개 더, Shatter |
+| 4 | +2 | 27 | 4 · 3 · – | 능력치 향상: CHA 17→19 |
+| 5 | +3 | 33 | 4 · 3 · 2 | 영감 d8, Font of Inspiration, Mass Healing Word |
+
+| 주문 | 종류 | 시간 | 사거리 | 효과 |
+|---|---|---|---|---|
+| Vicious Mockery | 소마법 | 행동 | 12칸 | WIS 내성 실패: 1d6 정신(5레벨 2d6), 다음 공격 굴림에 불리점 |
+| Dissonant Whispers | 1레벨 | 행동 | 12칸 | WIS 내성: 실패 3d6 정신(+1d6/슬롯)과 반응을 잃음, 성공 절반 |
+| Healing Word / Cure Wounds | 1레벨 | 보너스 / 행동 | 12칸 / 1칸 | 클레릭과 같음 (수정치는 CHA) |
+| Faerie Fire | 1레벨 | 행동 | 12칸 | 집중. 대상 주위 2칸의 적이 DEX 내성, 실패하면 그를 노리는 공격 굴림에 이점 |
+| Thunderwave / Shatter | 1 / 2레벨 | 행동 | – | 위저드와 같음 |
+| Mass Healing Word | 3레벨 | 보너스 | 12칸 | 다친 아군 6명까지 2d4 + CHA 회복 (HP 비율이 낮은 순) |
+
+- **Bardic Inspiration**: 보너스 행동, 12칸 안의 **다른** 아군 하나에게 영감 주사위. 크리처는 하나만 가질 수 있음. [변경] 그 아군이 공격 굴림이나 내성 굴림에 실패했을 때 주사위로 성공할 수 있으면 저절로 굴려 더합니다. 긴 휴식에 회복, 5레벨부터 짧은 휴식에도(**Font of Inspiration**).
+- **Cutting Words** (3레벨, 반응): 12칸 안의 적 공격이 아군을 맞힐 때, 영감 주사위를 빼서 빗나가게 할 수 있으면 저절로 씁니다. [변경] 피해 굴림·능력 판정에는 쓰지 않습니다.
+- [변경] Dissonant Whispers의 "반응으로 물러나기"는 반응을 잃는 것으로, Faerie Fire의 정육면체는 대상 주위 2칸(적만)으로 바꿨습니다. [제외] Font of Inspiration의 슬롯 → 영감, Countercharm 이후, Magical Discoveries.
+
+### 7.16 드루이드 [SRD 규칙으로 만듦]
+출처: `classes.md` – Druid, Circle of the Land / `spells.md`, `animals.md`(Wolf)
+
+- 능력치: 표준 배열(WIS 15, CON 14, DEX 13, INT 12, CHA 10, STR 8)에 Sage 배경(WIS +2, CON +1).
+
+  | STR | DEX | CON | INT | WIS | CHA |
+  |---|---|---|---|---|---|
+  | 8 (−1) | 13 (+1) | 15 (+2) | 12 (+1) | 17 (+3) | 10 (+0) |
+
+- **Primal Order: Warden** — 군용 무기와 중갑 훈련. AC **15** = Hide 12 + DEX + 방패 2. 무기: Scimitar, Javelin.
+- 히트 다이스 d8, 레벨업 HP `5 + CON`. 내성 숙련 INT·WIS. 주문: WIS, 온전한 시전자 슬롯.
+
+| 레벨 | PB | 최대 HP | 슬롯 | 얻는 것 |
+|---|---|---|---|---|
+| 1 | +2 | 10 | 2 · – · – | 주문 (Starry Wisp, Cure Wounds, Healing Word, Faerie Fire, Thunderwave) |
+| 2 | +2 | 17 | 3 · – · – | Wild Shape (2회) |
+| 3 | +2 | 24 | 4 · 2 · – | Circle of the Land(메마른 땅): Fire Bolt, Burning Hands, Land's Aid |
+| 4 | +2 | 31 | 4 · 3 · – | 능력치 향상: WIS 17→19 |
+| 5 | +3 | 38 | 4 · 3 · 2 | Fireball (메마른 땅) |
+
+- **Starry Wisp** (소마법, 행동, 12칸): 원거리 주문 공격 1d8 광휘(5레벨 2d8). [제외] 빛나는 효과.
+- **Wild Shape** (2레벨): 보너스 행동, 짧은 휴식에 1회·긴 휴식에 모두 회복. [변경] 모습은 **늑대** 하나(STR 14·DEX 15·CON 12, AC 12, 속도 8칸, 물기, Pack Tactics). HP·INT·WIS·CHA·숙련·클래스 기능은 그대로이고, 임시 HP = 드루이드 레벨. 주문은 못 쓰지만 이미 건 집중은 유지. 보너스 행동으로 본모습, 행동 불능이 되면 저절로 본모습.
+- **Land's Aid** (3레벨): 행동, Wild Shape 1회. 12칸 안의 크리처를 골라 그 주위 2칸: 적은 CON 내성 2d6 사령(성공 절반), 그 안에서 가장 다친 아군 하나 2d6 회복.
+- [제외] Wild Companion, Wild Resurgence, Blur(메마른 땅 주문), 다른 땅.
+
+### 7.17 레벨업 고르기 [SRD + 변경]
+출처: `feats.md` – Ability Score Improvement / `classes.md` 각 클래스의 Prepared Spells
+
+레벨이 오르면 던전·시나리오 화면에 고르기 창이 뜹니다. 파티원마다, 고를 것이 남은 레벨마다 차례로 보여 줍니다. 창을 거치지 않은 레벨(단독 전투, 예전 저장)은 아래 기본값으로 계산하고, 다음에 화면으로 돌아오면 창이 다시 뜹니다.
+
+- **능력치 향상 (4레벨, 모든 클래스)** [SRD]: 한 능력치 +2, 또는 두 능력치 +1씩. 20을 넘을 수 없음. 고르지 않았으면 주 능력치 +2(7.1~7.16의 표와 같음).
+  - 올린 능력치는 그대로 따라 바뀝니다: CON → 최대 HP(수정치 1마다 레벨만큼), DEX → 이니셔티브, AC에 능력치를 더하는 클래스는 AC(바바리안 DEX·CON, 몽크 DEX·WIS, 드루이드 DEX 최대 +2, 소서러 3레벨부터 CHA, 가벼운 갑옷과 Mage Armor는 DEX). 공격·주문 DC·자원 횟수는 원래 능력치에서 바로 계산됩니다.
+  - [제외] 능력치 향상 대신 다른 재주.
+- **새 주문 하나 (2~5레벨, 주문을 쓰는 클래스)** [변경]: SRD에서는 레벨마다 준비 주문 수가 늘어납니다. 이 게임은 클래스마다 정해진 주문(7.4~7.16)을 주고, 레벨마다 그 클래스 주문 목록에서 **하나를 더** 고릅니다.
+  - 후보: 클래스 목록 중 이 게임에 있는 주문 가운데, 정해진 구성이 언젠가 주는 것과 이미 고른 것을 뺀, 그 레벨에서 쓸 수 있는 슬롯 레벨까지의 주문. 소마법도 됩니다.
+  - 후보가 없으면 그 레벨은 고르지 않습니다(파이터·바바리안·로그·몽크는 늘 없음).
+
+| 클래스 | 고를 수 있는 주문 (5레벨까지 전부) |
+|---|---|
+| 클레릭 | Protection from Evil and Good, Mass Healing Word(5레벨) |
+| 위저드 | Chill Touch, Chromatic Orb, Protection from Evil and Good |
+| 소서러 | Chill Touch |
+| 워락 | Protection from Evil and Good |
+| 바드 | Starry Wisp, Heroism, Aid(3레벨부터) |
+| 드루이드 | Spare the Dying, Protection from Evil and Good, Aid(3레벨부터) |
+| 팔라딘·레인저 | 없음 (정해진 구성이 이미 목록의 주문을 모두 가짐) |
+
 ---
 
 ## 8. 몬스터 (v1)
@@ -476,3 +800,57 @@ SRD 5.2.1을 바탕으로, 2.5D **턴제 + 격자** 전투 게임에 맞게 다�
 ### 9.3 보물 [변경]
 - 상자 하나에 2d6 × 5 × 파티 레벨 골드가 들어 있습니다. 보스 방은 두 배입니다.
 - SRD 보물표를 넣기 전까지 쓰는 임시값입니다.
+
+## 10. 실시간 액션 전투 [변경]
+던전 탐험 모드의 전투는 턴 없이 실시간으로 진행합니다. 숫자(AC, 공격 보너스, 피해 주사위, HP, 주문 슬롯)는 D&D 그대로 쓰고, 언제 맞는지는 움직임으로 정합니다. 시나리오 화면과 단독 전투(B 키)는 아직 턴제(3장)입니다.
+
+### 10.1 움직임과 공격
+- 이동 속도: 파티는 D&D 속도(칸) × 0.75 유닛/초, 몬스터는 × 0.6. 30피트(6칸) 파이터는 초당 4.5유닛입니다.
+- 공격 한 번 = 준비(파티 0.16초, 무거운 무기 +0.12초 / 몬스터 0.7초) → 판정 → 회복(파티 0.26초 / 몬스터 0.7초). 공격 버튼을 누르고 있으면 계속 휘두릅니다.
+- 몬스터는 준비하는 동안 발밑에 빨간 고리를 띄웁니다. 고리가 보이면 구르세요.
+- 근접 공격은 앞쪽 부채꼴(약 145도) 안, 사거리 0.85 + 0.6 × (닿는 거리 칸 − 1) 유닛에 닿습니다. 무거운(Heavy) 무기는 부채꼴 안의 적을 모두 칩니다.
+- 원거리 공격과 공격 소마법(Fire Bolt 등)은 초당 13유닛으로 날아가는 투사체입니다. 벽에 막힙니다.
+- 조준 보조: 바라보는 방향 ±35도 안에서 가장 가까운 적을 향해 돌아섭니다.
+
+### 10.2 맞았는지 [변경]
+공격이 닿으면 d20 + 공격 보너스를 AC와 비교합니다.
+- 넘기면 피해 전부, 20이 나오면 치명타(피해 주사위 두 번).
+- 못 넘기면: 파티의 공격은 피해 절반(최소 1, "막힘"), 몬스터의 공격은 0("막음").
+- 맞으면 살짝 밀려나고 잠깐 움찔합니다.
+- Rage 피해 보너스, 표식(Hunter's Mark·Hex) +1d6은 그대로 붙습니다.
+
+### 10.3 구르기
+- 0.34초 동안 빠르게 굴러 이동, 처음 0.3초는 무적. 다시 구르려면 0.45초 기다립니다.
+
+### 10.4 기술과 물약
+| 클래스 | 기술 (B / K) |
+|---|---|
+| 파이터 | Second Wind |
+| 바바리안 | Rage (30초) |
+| 클레릭·바드·드루이드 | Healing Word: 가장 다친 동료, 주문 슬롯 사용 |
+| 팔라딘 | Lay on Hands |
+| 위저드·소서러 | Magic Missile: (2 + 슬롯 레벨) × (1d4+1), 빗나가지 않음 |
+| 워락·레인저 | 표식(Hex / Hunter's Mark) |
+| 로그 | 질주: 3초 동안 1.6배 빠르게 (재사용 6초) |
+| 몽크 | 맨손 두 번 (Focus 사용) |
+
+물약(십자↑ / 1): 2d4+2 회복.
+
+### 10.5 몬스터와 동료
+- 몬스터는 자기 방에 들어오거나, 6.5유닛 안에서 시야가 닿거나, 맞으면 깨어납니다. 근접 몬스터는 다가와 휘두르고, 원거리 몬스터는 거리를 둡니다.
+- 동료는 리더를 1.4유닛 거리로 따라오다가 깨어난 적이 있으면 싸우고, 회복 기술이 있으면 다친 동료를 고칩니다.
+- 파티원이 0 HP가 되면 쓰러집니다(죽음 내성 굴림 없음). 싸움이 끝나면 1 HP로 일어납니다. 모두 쓰러지면 마지막 저장으로 돌아갑니다.
+- 잡은 몬스터의 XP는 모아 두었다가 싸움이 끝나면 파티원 수로 나눕니다.
+
+### 10.6 조작 (Xbox 게임패드 / 키보드)
+| 동작 | 게임패드 | 키보드 |
+|---|---|---|
+| 이동 | 왼쪽 스틱 | WASD |
+| 공격 | X | J |
+| 구르기 | A | Space / Shift |
+| 기술 | B | K |
+| 물약 | 십자 ↑ | 1 |
+| 상호작용 | Y | Enter / F |
+| 카메라 회전 | LB / RB | Q / E |
+| 생성기로 | Back | Tab |
+쉼터 창에서는 X 물약 사기, Y 긴 휴식, B 닫기입니다.

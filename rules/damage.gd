@@ -3,12 +3,18 @@ class_name Damage
 extends RefCounted
 
 
+## 피해 종류 이름
+const TYPE_NAMES := {"slashing": "참격", "piercing": "관통", "bludgeoning": "타격", "fire": "화염", "cold": "냉기",
+	"lightning": "번개", "thunder": "천둥", "force": "역장", "radiant": "광휘", "necrotic": "사령", "psychic": "정신",
+	"poison": "독", "acid": "산"}
+
+
 ## 면역 → 저항(절반, 내림) → 취약(2배) 순서로 적용
 static func modify(target: Creature, amount: int, type: String) -> int:
 	if target.stats.immunities.has(type):
 		return 0
 	var a := maxi(0, amount)
-	if target.stats.resistances.has(type):
+	if target.stats.resistances.has(type) or ClassFeatures.resists(target, type):
 		a = floori(a / 2.0)
 	if target.stats.vulnerabilities.has(type):
 		a *= 2
@@ -66,7 +72,7 @@ static func apply(target: Creature, amount: int, type: String, is_crit := false)
 
 
 static func heal(target: Creature, amount: int) -> int:
-	if not target.is_alive() or amount <= 0:
+	if not target.is_alive() or amount <= 0 or target.has_effect("no_heal"):
 		return 0
 	var before := target.hp
 	target.hp = mini(target.stats.max_hp, target.hp + amount)

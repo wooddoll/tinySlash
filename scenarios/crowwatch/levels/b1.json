@@ -1,0 +1,280 @@
+{
+ "id": "b1",
+ "name": "저수조와 납골당",
+ "style": "rooms",
+ "map": [
+  "###########################",
+  "#......#.......#..........#",
+  "#..z...#..k.l..#..~~~~~...#",
+  "#..A...a...C...b..~~B~~.w.#",
+  "#......#.......#..~~~~~...#",
+  "#......#..q.y..#......r...#",
+  "###d########e##############",
+  "#......#.............#....#",
+  "#..I...#..m.......n..#.v..#",
+  "#...D..g.....F..p....x..H.#",
+  "#..c...#.............#....#",
+  "#......#.............#....#",
+  "####s######################",
+  "#..........################",
+  "#..h....t..################",
+  "#....E.....################",
+  "#..........################",
+  "###########################"
+ ],
+ "marks": {
+  "A": {
+   "type": "room",
+   "name": "들창 아래 저장고",
+   "text": "들창 사다리 아래는 곡식 저장고다. 자루가 터져 곡식이 흩어져 있고, 그 위로 무언가 무거운 것을 끌고 간 자국이 남쪽으로 이어진다.\n\n여기 오기까지 겪은 일들이 당신들을 단련시켰다.",
+   "on_enter": [
+    {
+     "do": "level_to",
+     "level": 2
+    }
+   ]
+  },
+  "B": {
+   "type": "room",
+   "name": "저수조",
+   "text": "둥근 천장 아래 고인 물. 우물 줄이 위에서 늘어져 있다. 물 위에 쥐 시체가 떠다니고, 벽 틈마다 붉은 눈들이 반짝인다.",
+   "on_enter": [
+    {
+     "do": "level_to",
+     "level": 2
+    }
+   ]
+  },
+  "C": {
+   "type": "room",
+   "name": "납골당",
+   "text": "벽감마다 해골이 줄지어 놓인 납골당. 수비대가 대대로 묻힌 곳이다. 그런데 벽감 몇 개가 비어 있다. 바닥에 서 있는 셋이 그 주인이다."
+  },
+  "D": {
+   "type": "room",
+   "name": "경비 초소",
+   "text": "봉인된 문을 지키던 초소. 꺼진 화로와 간이 침상. 벽에 기대앉은 시신 위로 푸르스름한 형체가 떠 있다."
+  },
+  "F": {
+   "type": "room",
+   "name": "봉인의 회랑",
+   "text": "긴 회랑 끝에 거대한 쇠문이 있다. 문 한가운데 봉화 문양이 새겨져 있고, 그 둘레로 녹슨 쇠사슬이 끊어져 늘어져 있다."
+  },
+  "H": {
+   "type": "room",
+   "name": "무덤 계단",
+   "text": "쇠문 너머로 거친 바위 계단이 아래로 내려간다. 차가운 바람에 녹 냄새가 섞여 있다.",
+   "on_enter": [
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "봉인 너머로"
+    }
+   ]
+  },
+  "E": {
+   "type": "room",
+   "name": "잊힌 무덤",
+   "text": "먼지 쌓인 작은 무덤방. 뚜껑이 열린 석관 옆에 쭈그려 앉은 것이 무언가를 뜯고 있다. 고블린이었던 것이다. 이제는 굶주림만 남았다."
+  },
+  "a": {
+   "type": "door",
+   "name": "저장고 문"
+  },
+  "b": {
+   "type": "door",
+   "name": "저수조 문"
+  },
+  "d": {
+   "type": "door",
+   "name": "초소 문"
+  },
+  "e": {
+   "type": "door",
+   "name": "회랑 문"
+  },
+  "g": {
+   "type": "door",
+   "name": "초소 옆문"
+  },
+  "x": {
+   "type": "door",
+   "name": "봉인된 쇠문",
+   "locked": true,
+   "key": "barrow_key",
+   "force_dc": 20,
+   "locked_text": "쇠문은 꿈쩍도 하지 않는다. 봉화 문양 한가운데 큼직한 열쇠 구멍이 있다.",
+   "text": "열쇠가 돌아가자 쇠문 안쪽에서 무언가 숨을 들이쉬는 듯한 소리가 난다. 문이 열린다."
+  },
+  "s": {
+   "type": "secret",
+   "name": "무너진 벽 틈",
+   "dc_find": 13,
+   "found_text": "초소 남쪽 벽의 돌 몇 개가 헐겁다. 그 너머에서 썩은 냄새가 새어 나온다. 밀어내면 들어갈 수 있겠다.",
+   "text": "돌을 밀어내자 좁은 틈이 열린다.",
+   "do": [
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "숨은 틈"
+    }
+   ]
+  },
+  "z": {
+   "type": "stairs",
+   "name": "들창 사다리",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "f1",
+   "to_mark": "z"
+  },
+  "w": {
+   "type": "stairs",
+   "name": "우물 밧줄",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "f1",
+   "to_mark": "w"
+  },
+  "v": {
+   "type": "stairs",
+   "name": "무덤 계단",
+   "verb": "내려가기",
+   "to_level": "b2",
+   "to_mark": "v"
+  },
+  "k": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "ossuary"
+  },
+  "l": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "ossuary"
+  },
+  "y": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "ossuary"
+  },
+  "r": {
+   "type": "foe",
+   "monster": "swarm_rats",
+   "group": "rats"
+  },
+  "h": {
+   "type": "foe",
+   "monster": "starved",
+   "group": "tomb"
+  },
+  "m": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "rising",
+   "if": "escape"
+  },
+  "n": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "rising",
+   "if": "escape"
+  },
+  "p": {
+   "type": "trap",
+   "name": "떨어지는 돌판",
+   "dc_find": 13,
+   "save": "dex",
+   "dc": 12,
+   "damage": "2d6",
+   "dtype": "bludgeoning",
+   "text": "발밑 돌판이 덜컥 내려앉고, 천장에서 돌덩이가 쏟아진다!",
+   "found_text": "회랑 바닥 돌판 하나가 주변보다 반 뼘 높다. 그 위 천장에 금이 가 있다. 밟으면 돌이 떨어지는 함정이다. 이제 피해 갈 수 있다."
+  },
+  "I": {
+   "type": "npc",
+   "name": "일제 바른의 원혼",
+   "dialogue": "ilse",
+   "model": "mini-characters/character-female-d",
+   "fx": 1,
+   "fy": 0
+  },
+  "c": {
+   "type": "feature",
+   "name": "간이 침상",
+   "text": "일제의 원혼이 침상 곁을 지킨다. 여기서라면 안전하게 쉴 수 있다. (긴 휴식)",
+   "model": "survival-kit/bedroll",
+   "once": true,
+   "if": "ilse_rest",
+   "after_text": "이미 쉬었다.",
+   "do": [
+    {
+     "do": "long_rest"
+    },
+    {
+     "do": "text",
+     "title": "경비 초소",
+     "text": "푸른 빛이 지켜 주는 동안 깊이 잠들었다. 상처가 아물고 기운이 돌아왔다."
+    }
+   ]
+  },
+  "q": {
+   "type": "feature",
+   "name": "뼈 무더기",
+   "text": "벽감에서 떨어진 뼈 무더기.",
+   "once": true,
+   "after_text": "흩어진 뼈뿐이다.",
+   "do": [
+    {
+     "do": "check",
+     "skill": "religion",
+     "dc": 11,
+     "success": [
+      {
+       "do": "text",
+       "title": "뼈 무더기",
+       "text": "수비대의 장례 의식을 따라 뼈를 다시 벽감에 모신다. 묘하게 공기가 가벼워진다."
+      },
+      {
+       "do": "xp",
+       "amount": 25,
+       "why": "장례 의식"
+      }
+     ],
+     "fail": [
+      {
+       "do": "text",
+       "title": "뼈 무더기",
+       "text": "그저 오래된 뼈다."
+      }
+     ]
+    }
+   ]
+  },
+  "t": {
+   "type": "feature",
+   "name": "열린 석관",
+   "text": "석관 안에 녹슨 칼과 함께 동전이 흩어져 있다.",
+   "once": true,
+   "model": "mini-dungeon/chest",
+   "solid": true,
+   "if": "cleared:tomb",
+   "after_text": "빈 석관이다.",
+   "do": [
+    {
+     "do": "gold",
+     "amount": 40
+    },
+    {
+     "do": "potion",
+     "count": 1
+    },
+    {
+     "do": "text",
+     "title": "열린 석관",
+     "text": "이름 모를 옛 수비병의 부장품이다. 금화와 물약 한 병."
+    }
+   ]
+  }
+ }
+}

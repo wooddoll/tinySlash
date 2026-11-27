@@ -1,0 +1,38 @@
+{
+ "format": 1,
+ "id": "crowwatch",
+ "title": "꺼진 봉화",
+ "description": "불이 꺼진 산길의 봉화대와 그 아래 잠든 철투구의 군주. 1레벨로 시작해 3레벨로 끝나는 오리지널 모험.",
+ "author": "game25d",
+ "version": "1.0",
+ "party": [
+  "fighter",
+  "cleric"
+ ],
+ "start_level": 1,
+ "start": {
+  "level": "f1",
+  "mark": "S"
+ },
+ "intro": "intro.json",
+ "levels": [
+  "levels/f1.json",
+  "levels/f2.json",
+  "levels/b1.json",
+  "levels/b2.json"
+ ],
+ "encounters": [
+  "encounters.json"
+ ],
+ "dialogues": [
+  "dialogues/teo.json",
+  "dialogues/grak.json",
+  "dialogues/ilse.json",
+  "dialogues/harval.json",
+  "dialogues/beacon.json",
+  "dialogues/gate.json"
+ ],
+ "monsters": [
+  "monsters.json"
+ ]
+}

@@ -18,9 +18,12 @@
 | `dice.gd` | `Dice` | 모든 주사위 굴림. 시드 고정, 테스트용 `forced` 값 | 1.3 |
 | `weapon_data.gd` | `WeaponData` | 무기 데이터 (Resource) | 4.4 |
 | `creature_stats.gd` | `CreatureStats` | 크리처 스탯 블록 (Resource). 화면용 `model`, `weapon_model`, `sprite_scale`(크기)도 여기 | 7, 8장 |
-| `catalog.gd` | `Catalog` | 무기 12종, 파이터·클레릭 레벨 1~5 (`pc(cls, level)`), 몬스터 5종 데이터 | 4.4, 7, 8장 |
-| `spells.gd` | `Spells` | 클레릭 주문과 Channel Divinity: 쓸 수 있는지(`why_not`, `target_error`), 시전(`cast(cb, c, id, t, slot)`), 슬롯 고르기(`slot_levels`, `pick_slot`, `upcast_text`), 집중, Spirit Guardians 범위(`on_step`, `on_turn_end`), 화면 설명 | 7.5, 7.6 |
-| `hero_state.gd` | `HeroState` | 던전 탐험 중 전투 사이에 이어지는 파티원 상태 (`cls`: fighter / cleric) | 5.3, 9 |
+| `catalog.gd` | `Catalog` | 무기, SRD 12 클래스 레벨 1~5 (`CLASSES`, `pc(cls, level)`, 기술 숙련·Expertise 포함, 슬롯 표 `FULL_CASTER_SLOTS`·`HALF_CASTER_SLOTS`·`PACT_SLOTS`), 몬스터 데이터 | 4.4, 7, 8장 |
+| `class_features.gd` | `ClassFeatures` | 클래스 기능을 한곳에: 자원(`init_resources`, `resource_labels`, 짧은 휴식 `after_short_rest`·`short_rest_extra`), 스킬 메뉴 행동(`actions`, `use`), 전투 훅(`attack_bonus`, `attack_mods`, `bonus_damage`, `save_adv`, `resists`, `on_hit_taken`, `after_hit`, `on_damaged`, `on_kill`, `on_creature_down`, `on_turn_start/end`, `on_incapacitated`), 반응 자동 사용(`try_shield`, `cutting_words`, `use_inspiration`), Wild Shape(`beast_form`, `wild_shape`, `revert`) | 7.3, 7.7~7.16 |
+| `spells.gd` | `Spells` | 모든 클래스의 주문과 Channel Divinity, 자원 기능(level -3). 피해 주문은 `DMG` 표 하나로 (공격·자동·내성, 모양 single/sphere/cone/burst, 부가 효과 `_rider`, `area_targets`), 메타매직(Quickened·Careful), 표식 주문(`MARKS`: Hunter's Mark·Hex). 그 밖에 쓸 수 있는지(`why_not`, `target_error`), 시전(`cast(cb, c, id, t, slot)`), 슬롯 고르기(`slot_levels`, `pick_slot`, `upcast_text`), 집중, Spirit Guardians 범위(`on_step`, `on_turn_end`), 화면 설명 | 7.5, 7.6 |
+| `level_up.gd` | `LevelUp` | 레벨업 고르기: 4레벨 능력치 향상(`apply_asi`, AC·HP·이니셔티브 맞춤, `DEFAULT_ASI`), 클래스 주문 목록(`SPELL_LISTS`)과 고를 수 있는 주문(`spell_pool`), 남은 고르기(`pending`). `Catalog.pc(cls, level, choices)`가 `Catalog.build`(빌더 그대로)에 이걸 더함 | 7.17 |
+| `action_combat.gd` | `ActionCombat` | 실시간 액션 전투: `Actor`(위치, 상태 idle/windup/recover/dodge/stun/down/dead, AI 종류), `tick`, 공격 판정 `strike`(d20 vs AC, 막히면 파티 절반·몬스터 0), 구르기 무적, 투사체, 몬스터·동료 AI, 방 깨우기, XP 모으기, 쓰러진 파티 일으키기, 클래스 기술 `use_skill`, 물약 | 10 |
+| `hero_state.gd` | `HeroState` | 던전 탐험 중 전투 사이에 이어지는 파티원 상태 (`cls`: 12 클래스 중 하나. `party_classes`로 파티 구성을 고름. 레벨업 때 고른 것 `choices`, `pending_choices`, `choose`) | 5.3, 9 |
 | `creature.gd` | `Creature` | 전투 중 상태: HP, 상태, 일시 효과, 턴 자원, 주문 슬롯(`slot1`~), 집중(`concentration`, `conc_slot`), 영적 무기 칸(`spirit_cell`), Aid(`aid_bonus`) | 3.3, 6장 |
 | `damage.gd` | `Damage` | 피해 수정, 임시 HP, 회복, 사망 내성, 즉사 | 4.2, 5장 |
 | `combat_grid.gd` | `CombatGrid` | 높이, 벽, 험지, 점유, 이동 비용, 길찾기, 엄폐 | 2장 |
@@ -29,6 +32,7 @@
 | `dungeon_params.gd` | `DungeonParams` | 던전 생성 파라미터 (Resource) | 9.2 |
 | `dungeon_generator.gd` | `DungeonGenerator` | 던전 생성 | 9.2, 9.3 |
 | `dungeon.gd` | `Dungeon` | 생성된 던전 데이터, 텍스트 지도, 전투용 지도 잘라내기 | |
+| `scenario.gd` | `Scenario` | 시나리오 팩(폴더 + `scenario.json`) 찾기·읽기·합치기, 팩 몬스터, 실행: 층, 방, 문, 조사, 대화, 함정, 수색, 조우, 체크포인트. 결과를 `out` 큐로 내보냄 ([scenario.md](scenario.md)) | |
 
 ### 1.2 화면 (`scenes/`, `scripts/`)
 | 장면 | 스크립트 | 조작 |
@@ -36,12 +40,20 @@
 | `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, B 전투, G 던전 생성기 |
 | `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 파티원 차례마다 그 캐릭터를 조종. 왼쪽 파티 창. 좌클릭 이동·공격, 1~3 무기, 스킬·주문·아이템 버튼 → 원형 메뉴(숫자 키로도 고름) → 대상 클릭(우클릭·Esc 취소), Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
 | `dungeon.tscn` 던전 생성기 | `dungeon_view.gd` | 왼쪽 패널 파라미터, 좌클릭 방 고르기, B 그 방에서 전투, Tab 탐험 모드, Esc 바깥으로 |
-| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD 이동, Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트·상인 옆에서 Enter 쉼터 창(긴 휴식, 물약 사기), 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
+| `scenario.tscn` 시나리오 | `scenario_view.gd` | 메인에서 H (팩이 여럿이면 고르기 창). WASD 이동, F 상호작용, R 수색, J 일지, Esc 메인으로 ([scenario.md](scenario.md)) |
+| `dungeon.tscn` 탐험 모드 | `dungeon_view.gd`, `dungeon_explorer.gd` | WASD/왼쪽 스틱 이동, 실시간 액션 전투(rules 10장), Q/E 카메라 회전, 휠 줌, 모닥불 옆에서 Enter 짧은 휴식, 텐트·상인 옆에서 Enter 쉼터 창(긴 휴식, 물약 사기), 출구 계단에서 Enter 다음 층, Tab/Esc 생성기로 |
 
 공통:
+- `level_up_dialog.gd`: 레벨업 고르기 창. 던전 생성기·탐험과 시나리오 화면이 0.5초마다 고를 것이 남았는지 보고 띄웁니다(떠 있는 동안 이동 멈춤). 능력치 향상은 +2 하나 또는 +1 둘, 주문은 후보 목록에서 하나, 고르면 바뀌는 능력치·AC·최대 HP를 미리 보여 줌.
 - `camera_rig.gd`: 아이소메트릭 카메라입니다. 직교 투영, 30° 내려다보기, 45° 회전이고, `isometric`을 끄면 원근 시점이 됩니다.
-- `character_model.gd`: Kenney 3D 캐릭터 하나. 기본 동작(idle, walk, sprint, crouch)은 반복하고, 공격 같은 동작은 한 번 하고 돌아옵니다. 쓰러지면 die 자세로 멈춥니다. 맞으면 붉게 번쩍이고, 오른팔 뼈에 무기 모델을 붙입니다 (위치는 손을 따라가고 방향은 몸 기준으로 고정).
-- `input_setup.gd`: 입력 맵을 코드로 등록합니다.
+- `character_model.gd`: 3D 캐릭터 하나. 모델 경로는 "팩/이름"으로 `kaykit/…`(KayKit 캐릭터), `quaternius/…`(Quaternius 몬스터), `animals/…`(Quaternius 동물), 그 밖은 Kenney입니다. 끝에 `*3`처럼 수를 붙이면 작은 몸 여럿을 한 칸에 모아 세우는 떼가 됩니다(`animals/rat*3`). 몸마다 방향과 동작 빠르기가 조금씩 달라 함께 움직여도 똑같아 보이지 않습니다. 나는 떼(박쥐)는 몸마다 높이가 달라(`SWARM_LIFT`) 따로 출렁이고, 쓰러지면 모두 바닥으로 내려앉습니다. 옛 Kenney 캐릭터 이름(`mini-characters/character-knight` 등)은 `ALIASES`로 새 모델에 이어져 예전 시나리오 팩도 그대로 돕니다. 엔진은 `idle`, `walk`, `sprint`, `crouch`, `die`, `jump`, `hit`, `attack-melee-right`, `holding-right-shoot` 같은 이름으로 부르고, `ANIMS` 표가 팩마다 다른 실제 이름(`Walking_A`, `CharacterArmature|Walk`, `Fast_Flying` 등)으로 바꿉니다. KayKit은 쥔 무기에 따라 양손·맨손 공격, 쇠뇌, 주문 동작을 고릅니다. Kenney 아닌 모델은 보이는 메시 키를 재서 1.28 유닛에 맞추고, 잘못 재지는 모델만 `RAW_HEIGHT`에 키를 적습니다. 기본 동작은 반복하고, 공격·피격은 한 번 하고 돌아오며, 쓰러지면 die 자세로 멈춥니다. 맞으면 붉게 번쩍이고 `tint`로 몸 색을 곱합니다.
+  - 무기: Kenney 모델은 `weapon_model` "팩/이름" 하나를 오른팔 뼈에 붙입니다. KayKit 모델은 "+"로 이은 장비 이름입니다. 모델 안에 든 장비(예: Knight의 `2H_Sword`, `Rectangle_Shield`)는 그것만 보이게 하고, 없는 것은 `assets/kaykit/items/<이름>.gltf`를 손 뼈(`handslot.r`, 방패는 `handslot.l`)에 쥐어 줍니다.
+- 탐험 분위기 (`dungeon_view._set_mood`): 탐험 중에는 해를 달빛처럼 약하게(그림자 끔), 주변광·배경을 어둡게, 안개. 주인공이 등불(OmniLight, 그림자 없음)을 들고, 카메라 쪽 보조광이 캐릭터(렌더 층 2, `CharacterModel.CHAR_LAYER`)만 비춥니다. 생성기 화면은 원래 밝기.
+- `tools/bake_dark.gd`: Fab 다크 판타지 캐릭터(기사, 마녀, 고블린)를 가볍게 굽는 도구. 원본(`F:/workspace/fab_downloads/src`)에서 텍스처를 1024(ORM 512)로 줄이고, Godot LOD 생성으로 삼각형을 약 1만 6천 개로 줄이고(무기는 그대로, weapon_r 뼈에 붙임), 동작 10개만 골라 루트 이동을 빼고 길이를 맞춰 `assets/dark/<이름>/<이름>.scn`으로 저장. `character_model.gd`에서 "dark/knight"처럼 씁니다. 파이터·팔라딘·움직이는 갑옷=기사, 위저드·소서러·워락=마녀, 고블린 셋=고블린.
+- `tools/retarget.gd`: 쉬는 자세가 다른 뼈대로 동작을 옮기는 도구. 뼈마다 '자식 관절을 향하는 방향'을 원본과 같게 돌리고, 골반은 위·옆 방향으로 몸통 방향을 맞춥니다(좌우 회전은 뺌). 두 모델이 바라보는 방향이 달라도 align 회전으로 맞춥니다. 트리 밖 뼈대는 전역 자세가 갱신되지 않으므로 지역 자세로 직접 계산합니다.
+- `tools/bake_zombie.gd`: `assets/dark/zombie/szombie.glb`(CC 뼈대, 동작 없음)에 고블린 동작을 옮겨 `zombie.scn`으로 굽습니다. 좀비·구울·가스트가 색만 바꿔 씁니다.
+- `input_setup.gd`: 입력 맵을 코드로 등록합니다. 키보드와 Xbox 배치 게임패드(버튼, 왼쪽 스틱 데드존 0.2).
+- `action_layer.gd`: 탐험 중 실시간 전투 화면. 입력을 카메라 기준으로 읽어 `ActionCombat`에 넘기고, 모델 위치·동작, HP 막대, 몬스터 준비 고리, 피해 숫자, 투사체, 효과음을 맞춥니다. 싸움이 끝나면 `fight_over(xp)`, 모두 쓰러지면 `defeated`.
 - `party_panel.gd`: 화면 왼쪽 파티 창. 파티원마다 초상화, HP 바(숫자 `현재/최대`, 임시 HP), 버프·디버프 칩(초록 버프, 빨강 디버프, 회색 정보, 마우스를 올리면 설명). 지금 차례인 파티원은 금색 테두리, 쓰러지면 초상화가 어두워집니다.
   - 초상화는 파티원마다 작은 `SubViewport`(따로 쓰는 3D 월드)에 캐릭터 모델과 카메라를 놓고 그 텍스처를 씁니다. 그래서 대기 애니메이션이 움직입니다.
   - 전투에서는 `battle.gd`의 `effects_of(creature)`가 상태(의식 없음, 넘어짐, 사망 내성, 안정)와 효과(Bless, Shield of Faith, 회피, Vex, Guiding Bolt, Sap, Slow, Turn Undead, 집중)를 칩으로 만듭니다. 이벤트를 재생할 때마다 갱신합니다.
@@ -51,16 +63,34 @@
   - 전투 아래 줄: 무기 버튼(일반 공격) | 스킬 · 주문 · 아이템 | 턴 종료.
   - 스킬: 질주, 이탈, 회피, Second Wind, Action Surge, Channel Divinity. 주문: 소마법과 슬롯 주문 (영적 무기가 떠 있으면 "영적 무기 공격"도). 쓸 수 있는 슬롯 레벨이 여럿이면 슬롯 고르기 원형 메뉴가 한 번 더 열립니다. 아이템: 회복 물약. 해당 항목이 없는 분류 버튼은 숨깁니다.
 - `kenney.gd`: `assets/kenney/`의 GLB 모델에서 메시를 꺼내 줍니다. 동굴 소품, 나무, 풀 목록과 칸 좌표로 변형을 고르는 `pick`도 있습니다. Nature Kit은 가져온 색이 한 번 더 밝아져 있어 sRGB→선형으로 되돌리고, 원래 청록색인 잎과 풀(`leafsGreen`, `leafsDark`, `grass`)은 녹색으로 바꿉니다 (`_recolor`).
+  - Mini Dungeon 이름(`floor`, `column`, `table`, `chest`, `stairs`, `banner` …)은 `SWAP` 표를 따라 KayKit Dungeon Remastered 조각으로 바뀝니다. 크기와 원점을 메시에 구워 넣어(`_bake`, SurfaceTool) 부르는 쪽은 예전처럼 1x1 칸 기준으로 씁니다. 바닥 변형은 `FLOOR_DETAILS`(깨진 타일, 풀 난 타일). KayKit 상자는 애니메이션이 없어 뚜껑을 여는 "open" 동작을 만들어 붙입니다.
+  - 방 던전 벽은 `_kaykit_walls`: 칸 모서리 가운데에 KayKit 벽판(1/4 크기, 높이 1)을 세우고 일곱에 하나쯤은 금 간 벽, 가로·세로 벽이 만나는 꼭짓점에는 가는 기둥을 세웁니다. 동굴 벽은 그대로 Modular Cave Kit이고, 동굴 바닥은 KayKit 흙바닥(`CAVE_FLOORS`, 풀 난 흙 섞음)입니다.
+  - 꾸미기 `decorate`: 칸 좌표로 정해서 같은 맵은 늘 같은 모습입니다. 방 던전은 벽면에 횃불(주황 불빛 OmniLight3D, 범위 2.6, 불꽃 둘레에 늘 카메라를 보는 빛무리. `torch_flicker.gd` 노드 하나가 모든 횃불의 밝기와 빛무리를 사인파 몇 개로 흔듦), 깃발, 촛불 선반을 걸고, 벽 앞 바닥에 촛대·병·접시 같은 작은 잡동사니를 둡니다. 동굴은 버섯과 작은 돌만 둡니다. 문·표식·장애물·험지·물·보물·모닥불 칸은 비워 둡니다. 탐험(던전, 시나리오)과 던전 전투 모두 씁니다. 장식과 불빛도 전장의 안개를 따릅니다.
+  - 시나리오의 닫힌 문은 KayKit 문틀(`wall_doorway`), 드러난 비밀문은 금 간 벽, 잠긴 문에는 금빛 손잡이를 붙입니다.
+- 전투 연출 (`battle.gd`): 근접 공격은 앞으로 내딛고, 원거리 공격은 KayKit 화살이 낮은 포물선으로 날아갑니다 (빗나가면 대상 옆을 지나 떨어짐). 적에게 거는 주문은 빛을 내는 구슬이 날아가 터집니다. 쓰러지면 쓰러지는 동작을 마친 뒤 바닥으로 가라앉습니다. 전투 기록은 오른쪽 위 작은 창(스크롤로 지난 기록)입니다.
+- 시나리오 글·대화 창은 화면 아래쪽에 띄워 가운데의 파티를 가리지 않습니다.
 - `sfx.gd`: 효과음. 전투(휘두르기, 명중, 치명타, 빗나감, 쓰러짐, 회복, 발소리, 시작 "Fight", 승리·패배·레벨 업 음성), 탐험(발소리 0.6유닛마다, 상자와 금화, 몬스터 발견, 계단, 모닥불 휴식), 모든 버튼 클릭.
-- `dungeon_explorer.gd`: 던전 안을 걷는 플레이어입니다. 물리 엔진 대신 던전 격자로 충돌을 봅니다. 반지름 0.28 원의 네 귀퉁이가 모두 서 있을 수 있는 칸이어야 하고, 축마다 따로 시험해서 벽을 따라 미끄러집니다. 높이는 지금 칸의 바닥 높이를 따라갑니다 (0.5, 1.0 단상도 걸어서 오름).
+- `dungeon_explorer.gd`: 던전 안을 걷는 플레이어입니다. `actor`가 있으면(액션 전투) 입력 대신 그 Actor 위치를 따라가며 칸 이벤트만 냅니다. 물리 엔진 대신 던전 격자로 충돌을 봅니다. 반지름 0.28 원의 네 귀퉁이가 모두 서 있을 수 있는 칸이어야 하고, 축마다 따로 시험해서 벽을 따라 미끄러집니다. 높이는 지금 칸의 바닥 높이를 따라갑니다 (0.5, 1.0 단상도 걸어서 오름).
 
-### 1.3 에셋 (`assets/kenney/`, CC0)
+### 1.3 에셋 (모두 CC0)
+
+캐릭터와 몬스터 (`assets/kaykit/`, `assets/quaternius/`):
+
+| 팩 | 받은 곳 | 쓰는 곳 |
+|---|---|---|
+| KayKit Adventurers 1.0 (Kay Lousberg) | GitHub KayKit-Game-Assets | 파이터(`Knight`, `2H_Sword`), 클레릭(`Mage`, `2H_Staff`), 움직이는 갑옷(어둡게 칠한 `Knight`), NPC |
+| KayKit Skeletons 1.0 | GitHub KayKit-Game-Assets | 스켈레톤(`Skeleton_Minion` + `Skeleton_Blade`), 좀비(초록으로 칠한 `Skeleton_Minion`, 맨손), 하르발(`Skeleton_Warrior`) |
+| KayKit Dungeon Remastered 1.0 | GitHub KayKit-Game-Assets | 동굴 흙바닥, 벽 장식(횃불, 깃발, 촛불 선반), 바닥 잡동사니(촛대, 병, 접시), 방 던전의 바닥 타일, 벽, 벽 기둥, 문, 기둥(`pillar`), 가구(`table_small`, `barrel_small`, `chair`, `keg`, `box_large`), 잔해(`rubble_half` 납작하게), 상자(`chest`), 계단, 깃발, 함정 가시 (`kenney.gd`의 `SWAP`) |
+| Quaternius Ultimate Monsters (45개) | poly.pizza 묶음 (glb) | (고블린·좀비·구울·가스트는 이제 dark 모델) 섀도(`ghost`), 스펙터(`ghost_skull`), 박쥐 떼(`demon*3`), 벌레 떼(`armabee*3`) |
+| Quaternius Animated Animal Pack + Rat | poly.pizza (glb, CC0) | 늑대(`wolf`, 걷기·질주·물기·피격·쓰러짐), 쥐 떼(`rat*3`). 여우·허스키도 받아 둠 |
+
+던전, 소품, 효과음 (`assets/kenney/`):
+
 | 팩 | 크기 기준 | 쓰는 곳 |
 |---|---|---|
-| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 방 던전(BSP, 흩뿌리기)의 바닥, 기둥(`column`), 바위(`rocks`), 잔해(`stones`, 동굴은 Nature Kit 바위), 상자(`chest`), 출구(`stairs`). 고블린 3종(`character-orc`, 크기로 구분) |
-| Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 파이터(`character-knight`), 클레릭(`character-female-b`, 메이스 대신 Survival Kit `tool-hammer`), 스켈레톤 대신 `character-zombie`, 늑대 대신 `character-raider`(임시), 무기 |
-| Modular Dungeon Kit | 4 유닛 단위 큰 조각 | 방 던전의 벽(`template-wall`, `template-wall-corner`)을 1/4로 줄여 씀 |
-| Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽과 바닥(`template-floor`)을 1/4로 줄여 씀 |
+| Mini Dungeon | 바닥 1×1 유닛, 격자 칸과 같음 | 이름만 씀: 모델은 KayKit 조각으로 바뀜 (`SWAP`에 없는 것만 Kenney 그대로) |
+| Mini Characters | 키 약 0.8 유닛(1.6배로 키워 씀), 애니메이션 32종 | 예전 캐릭터 (지금은 `ALIASES`로 KayKit·Quaternius 모델로 바뀜). 영적 무기는 Survival Kit `tool-hammer` |
+| Modular Cave Kit | 4 유닛 단위 큰 조각 | 동굴 던전의 벽을 1/4로 줄여 씀 |
 | Survival Kit | 작은 소품 (모닥불 2.6배, 텐트 1.7배로 키워 씀) | 던전 모닥불(`campfire-pit`), 쉼터 텐트(`tent-canvas`) |
 | Nature Kit | 작은 소품 (나무 2.0~2.8배, 전투 나무 1.5배) | 동굴의 기둥(`rock_tall*`, 세로 1.7배), 바위(`rock_large*`, 세로 2.6배), 잔해(`rock_small*`). 바깥 장면과 바깥 전투의 나무, 풀, 꽃, 그루터기·버섯·통나무 |
 
@@ -107,7 +137,7 @@
 | 동료 클레릭: 주문 10종(2레벨 Aid, Spiritual Weapon, 3레벨 Spirit Guardians 포함), Channel Divinity 3종, 집중, Bless, 슬롯 주문 턴당 1개, 슬롯 고르기 |
 | 무기 숙달: Graze, Sap, Slow, Vex, Topple, Push, Cleave |
 | 저항·취약·면역, 임시 HP, 사망 내성, 즉사 |
-| 몬스터 5종과 특성 (Pack Tactics, Redirect Attack, Nimble Escape 등), AI |
+| 몬스터 14종과 특성 (Pack Tactics, Redirect Attack, Nimble Escape 등), AI |
 | 이니셔티브 동점 처리, 승리·패배, XP |
 | 던전 생성기 (BSP / 흩뿌리기 / 동굴), SRD XP 예산 조우, 보물, 방에서 전투 시작 |
 | 던전 탐험: 걸어 다니다 몬스터 방에 들어서면 전투, 보물 상자 열기, 출구 계단으로 다음 층 |
@@ -117,7 +147,10 @@
 | 전장의 안개, 층이 깊을수록 조우 예산 증가 |
 | 쉼터: 긴 휴식, 저장, 지면 마지막 저장으로 돌아가기 |
 | 쉼터 상인: 금화로 회복 물약 사기 |
-| 아이소메트릭 카메라, Kenney 3D 모델 (지형, 캐릭터 애니메이션) |
+| 아이소메트릭 카메라, Kenney 3D 지형, KayKit·Quaternius 캐릭터 (애니메이션) |
+| 시나리오 모드: JSON 모험 엔진과 오리지널 모험 「소금바람 저택」 |
+| 언데드·스웜 몬스터 9종 (좀비, 구울, 가스트, 섀도, 스펙터, 움직이는 갑옷, 쥐·박쥐·벌레 떼): 마비, Undead Fortitude, STR 흡수, 스웜 |
+| 기술 숙련과 패시브 Perception |
 
 아직 안 된 것은 [todo.md](todo.md)를 보세요.
 
@@ -189,6 +222,8 @@ Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/r
 ```
 
 - `tests/test_rules.gd`: 규칙 엔진 31개 (수정치, 치명타, 피해 순서, 엄폐, 기회 공격, 무기 숙달, AI 전투 등)
+- `tests/test_crowwatch.gd`: 「꺼진 봉화」 진행 (대화로 푸는 길, 그락과 싸우는 길, 등잔 없이 봉화, 일찍 떠나는 결말, 우물 밧줄)
+- `tests/test_scenario.gd`: 데이터 검사는 모든 팩에 돌림.  시나리오 엔진과 새 몬스터 규칙 (데이터 연결, 도달 가능, 문·함정·수색, 대화 판정, 전투 연결, 체크포인트, 처음부터 끝까지 진행, 마비·스웜·Undead Fortitude 등)
 - `tests/test_dungeon.gd`: 던전 생성기와 탐험 27개 (같은 시드 재현, 모든 방 도달 가능, XP 예산, 높이차, 전투 지도, 들어선 칸에서 전투 시작, 탐험 충돌, 전투 사이 상태와 레벨업, 모닥불 배치, 짧은·긴 휴식, 효과음 파일 존재, 층 깊이 예산, 안개 시야, 쉼터 위치, 물약 사기 등)
 - 실행기는 테스트 중 생긴 스크립트 오류도 실패로 셉니다.
 - 새로 만든 `class_name`이 인식되지 않으면 먼저 `--headless --path . --import`를 한 번 실행합니다.

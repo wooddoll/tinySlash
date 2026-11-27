@@ -3,6 +3,9 @@ extends Node3D
 
 const CharacterModel = preload("res://scripts/character_model.gd")
 
+## 비행 크리처가 떠 있는 높이 (가구 높이 1.0 근처)
+const FLY_HEIGHT := 0.9
+
 var creature: Creature
 var body: CharacterModel
 var label: Label3D
@@ -21,9 +24,12 @@ func setup(c: Creature) -> void:
 	body = CharacterModel.new()
 	add_child(body)
 	body.setup(c.stats.model, s, c.stats.weapon_model)
+	body.tint(c.stats.tint)
+	if c.stats.has_feature("flying"):
+		body.set_hover(FLY_HEIGHT)
 
 	label = _make_label(40)
-	label.position.y = body.height + 0.35
+	label.position.y = body.height + body.hover + 0.35
 	add_child(label)
 	marker = _make_label(64)
 	marker.text = "▼"
@@ -40,12 +46,26 @@ func setup(c: Creature) -> void:
 	cap.radius = 0.35
 	cap.height = maxf(body.height, 0.8)
 	shape.shape = cap
-	shape.position.y = cap.height / 2.0
+	shape.position.y = cap.height / 2.0 + body.hover
 	col.add_child(shape)
 	add_child(col)
 
 	shown_hp = c.hp
 	set_facing(c.facing, true)
+	refresh()
+
+
+## 스탯의 모델이 바뀌었을 때 (Wild Shape) 몸을 새로 만듦
+func reshape() -> void:
+	if body:
+		body.queue_free()
+	body = CharacterModel.new()
+	add_child(body)
+	body.setup(creature.stats.model, creature.stats.sprite_scale, creature.stats.weapon_model)
+	body.tint(creature.stats.tint)
+	label.position.y = body.height + body.hover + 0.35
+	marker.position.y = label.position.y + 0.45
+	set_facing(creature.facing, true)
 	refresh()
 
 
@@ -81,6 +101,8 @@ func attack(ranged: bool) -> void:
 
 func hit_flash() -> void:
 	body.flash()
+	if creature and not creature.dead:
+		body.play_once("hit")
 
 
 func refresh() -> void:

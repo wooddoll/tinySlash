@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/scenario_view.gd" id="1_sv"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="2_cam"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.02, 0.02, 0.03, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.45, 0.5, 0.65, 1)
+ambient_light_energy = 0.35
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="Scenario" type="Node3D"]
+script = ExtResource("1_sv")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Moon" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, 0.2868, -0.4096, 0, 0.8192, 0.5736, 0.5, -0.4967, 0.7094, 0, 10, 0)
+light_color = Color(0.6, 0.68, 0.9, 1)
+light_energy = 0.35
+shadow_enabled = true
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("2_cam")
+ortho_size = 11.0
+max_ortho_size = 30.0
+iso_distance = 60.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+far = 200.0

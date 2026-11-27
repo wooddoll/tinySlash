@@ -1,4 +1,4 @@
-## 클레릭 주문과 Channel Divinity (docs/rules.md 7.5, 7.6). 화면과 분리된 규칙입니다.
+## 주문과 Channel Divinity, 대상을 고르는 클래스 기능 (docs/rules.md 7.5~). 화면과 분리된 규칙입니다.
 ## 시전은 Combat의 행동 자원과 피해/회복 처리를 그대로 씁니다.
 class_name Spells
 extends RefCounted
@@ -7,8 +7,8 @@ const DEX := Rules.Ability.DEX
 const CON := Rules.Ability.CON
 const WIS := Rules.Ability.WIS
 
-## level: 0 소마법, 1 이상 슬롯 주문, -1 Channel Divinity
-## time: action / bonus. range: 칸. conc: 집중
+## level: 0 소마법, 1 이상 슬롯 주문, -1 Channel Divinity, -2 이미 쓴 주문의 후속 행동, -3 자원을 쓰는 클래스 기능
+## time: action / bonus / free(행동을 쓰지 않음). range: 칸. conc: 집중
 ## target: enemy(적 하나), ally(아군 하나, 자신 포함), downed(쓰러진 아군), any(누구든), area(대상 없이 바로)
 const DATA := {
 	"sacred_flame": {"name": "Sacred Flame", "level": 0, "time": "action", "range": 12, "target": "enemy"},
@@ -26,7 +26,67 @@ const DATA := {
 	"divine_spark": {"name": "Divine Spark", "level": -1, "time": "action", "range": 6, "target": "any"},
 	"turn_undead": {"name": "Turn Undead", "level": -1, "time": "action", "range": 6, "target": "area"},
 	"preserve_life": {"name": "Preserve Life", "level": -1, "time": "action", "range": 6, "target": "area"},
+	# 팔라딘 (rules 7.10)
+	"divine_smite": {"name": "Divine Smite", "level": 1, "time": "bonus", "range": 1, "target": "toggle"},
+	"heroism": {"name": "Heroism", "level": 1, "time": "action", "range": 1, "target": "ally", "conc": true},
+	"protection_from_evil": {"name": "Protection from Evil and Good", "level": 1, "time": "action", "range": 1, "target": "ally", "conc": true},
+	"lay_on_hands": {"name": "Lay on Hands", "level": -3, "time": "bonus", "range": 1, "target": "ally"},
+	"sacred_weapon": {"name": "Sacred Weapon", "level": -1, "time": "free", "range": 0, "target": "area"},
+	# 레인저 (rules 7.11)
+	"hunters_mark": {"name": "Hunter's Mark", "level": 1, "time": "bonus", "range": 18, "target": "enemy", "conc": true},
+	"mark_move": {"name": "표식 옮기기", "level": -2, "time": "bonus", "range": 18, "target": "enemy"},
+	# 위저드·소서러·워락·바드·드루이드 피해 주문 (DMG 표가 효과를 정함)
+	"fire_bolt": {"name": "Fire Bolt", "level": 0, "time": "action", "range": 24, "target": "enemy"},
+	"ray_of_frost": {"name": "Ray of Frost", "level": 0, "time": "action", "range": 12, "target": "enemy"},
+	"shocking_grasp": {"name": "Shocking Grasp", "level": 0, "time": "action", "range": 1, "target": "enemy"},
+	"magic_missile": {"name": "Magic Missile", "level": 1, "time": "action", "range": 24, "target": "enemy"},
+	"burning_hands": {"name": "Burning Hands", "level": 1, "time": "action", "range": 3, "target": "enemy"},
+	"thunderwave": {"name": "Thunderwave", "level": 1, "time": "action", "range": 1, "target": "area"},
+	"shield": {"name": "Shield", "level": 1, "time": "reaction", "range": 0, "target": "auto"},
+	"scorching_ray": {"name": "Scorching Ray", "level": 2, "time": "action", "range": 24, "target": "enemy"},
+	"shatter": {"name": "Shatter", "level": 2, "time": "action", "range": 12, "target": "enemy"},
+	"fireball": {"name": "Fireball", "level": 3, "time": "action", "range": 30, "target": "enemy"},
+	"chromatic_orb": {"name": "Chromatic Orb", "level": 1, "time": "action", "range": 18, "target": "enemy"},
+	"eldritch_blast": {"name": "Eldritch Blast", "level": 0, "time": "action", "range": 24, "target": "enemy"},
+	"chill_touch": {"name": "Chill Touch", "level": 0, "time": "action", "range": 1, "target": "enemy"},
+	"hex": {"name": "Hex", "level": 1, "time": "bonus", "range": 18, "target": "enemy", "conc": true},
+	"hellish_rebuke": {"name": "Hellish Rebuke", "level": 1, "time": "reaction", "range": 12, "target": "auto"},
+	# 바드
+	"bardic_inspiration": {"name": "Bardic Inspiration", "level": -3, "time": "bonus", "range": 12, "target": "ally"},
+	"vicious_mockery": {"name": "Vicious Mockery", "level": 0, "time": "action", "range": 12, "target": "enemy"},
+	"dissonant_whispers": {"name": "Dissonant Whispers", "level": 1, "time": "action", "range": 12, "target": "enemy"},
+	"faerie_fire": {"name": "Faerie Fire", "level": 1, "time": "action", "range": 12, "target": "enemy", "conc": true},
+	"mass_healing_word": {"name": "Mass Healing Word", "level": 3, "time": "bonus", "range": 12, "target": "area"},
+	# 드루이드
+	"starry_wisp": {"name": "Starry Wisp", "level": 0, "time": "action", "range": 12, "target": "enemy"},
+	"lands_aid": {"name": "Land's Aid", "level": -3, "time": "action", "range": 12, "target": "any"},
 }
+## level -3 기능이 쓰는 자원 이름 (없으면 주문 id와 같음)
+const RESOURCE_OF := {"lands_aid": "wild_shape"}
+## 피해 주문의 효과. kind: attack(주문 공격 beams번), auto(자동 명중 다트), save(내성)
+## shape: single(대상 하나), sphere(대상 칸 중심 radius칸), cone(시전자에서 대상 쪽으로 radius칸), burst(시전자 주위 radius칸)
+## per_slot: 높은 슬롯 레벨마다 더하는 주사위 / beams_per_slot: 더하는 줄기·다트
+## rider: slow(속도 -2칸), no_reaction(기회 공격 못 함), push(2칸 밀림), mock(다음 공격 불리점)
+const DMG := {
+	"fire_bolt": {"kind": "attack", "dice": 1, "sides": 10, "type": "fire", "ranged": true},
+	"ray_of_frost": {"kind": "attack", "dice": 1, "sides": 8, "type": "cold", "ranged": true, "rider": "slow"},
+	"shocking_grasp": {"kind": "attack", "dice": 1, "sides": 8, "type": "lightning", "ranged": false, "rider": "no_reaction"},
+	"magic_missile": {"kind": "auto", "dice": 1, "sides": 4, "plus": 1, "type": "force", "beams": 3, "beams_per_slot": 1},
+	"burning_hands": {"kind": "save", "save": DEX, "dice": 3, "sides": 6, "type": "fire", "per_slot": 1, "shape": "cone", "radius": 3},
+	"thunderwave": {"kind": "save", "save": CON, "dice": 2, "sides": 8, "type": "thunder", "per_slot": 1, "shape": "burst", "radius": 1, "rider": "push"},
+	"scorching_ray": {"kind": "attack", "dice": 2, "sides": 6, "type": "fire", "ranged": true, "beams": 3, "beams_per_slot": 1},
+	"shatter": {"kind": "save", "save": CON, "dice": 3, "sides": 8, "type": "thunder", "per_slot": 1, "shape": "sphere", "radius": 2},
+	"fireball": {"kind": "save", "save": DEX, "dice": 8, "sides": 6, "type": "fire", "per_slot": 1, "shape": "sphere", "radius": 4},
+	"chromatic_orb": {"kind": "attack", "dice": 3, "sides": 8, "type": "fire", "ranged": true, "per_slot": 1},
+	"eldritch_blast": {"kind": "attack", "dice": 1, "sides": 10, "type": "force", "ranged": true, "scale": "beams"},
+	"chill_touch": {"kind": "attack", "dice": 1, "sides": 10, "type": "necrotic", "ranged": false, "rider": "no_heal"},
+	"hellish_rebuke": {"kind": "save", "save": DEX, "dice": 2, "sides": 10, "type": "fire", "per_slot": 1},
+	"vicious_mockery": {"kind": "save", "save": WIS, "dice": 1, "sides": 6, "type": "psychic", "half": false, "rider": "mock"},
+	"dissonant_whispers": {"kind": "save", "save": WIS, "dice": 3, "sides": 6, "type": "psychic", "per_slot": 1, "rider": "flee"},
+	"starry_wisp": {"kind": "attack", "dice": 1, "sides": 8, "type": "radiant", "ranged": true},
+}
+## 슬롯 없이 쓸 수 있는 횟수 자원 (긴 휴식에 돌아옴)
+const FREE_CASTS := {"divine_smite": "free_smite", "hunters_mark": "free_mark"}
 ## 원형 메뉴에 보여줄 한 줄 설명
 const SUMMARY := {
 	"sacred_flame": "적 하나가 DEX 내성에 실패하면 1d8 광휘. 엄폐로 피할 수 없음",
@@ -43,9 +103,38 @@ const SUMMARY := {
 	"divine_spark": "아군은 1d8 + WIS 회복, 적은 CON 내성 실패 시 1d8 + WIS 광휘",
 	"turn_undead": "6칸 안 언데드가 WIS 내성에 실패하면 행동 불능",
 	"preserve_life": "클레릭 레벨 × 5 HP를 다친 아군에게 나눔 (최대 HP 절반까지)",
+	"divine_smite": "켜 두면 근접 공격이 맞을 때 보너스 행동과 슬롯을 써서 2d8 광휘 추가 (언데드 +1d8). 다시 누르면 끔",
+	"heroism": "옆 칸 아군(자신 포함)이 턴을 시작할 때마다 임시 HP + CHA (집중)",
+	"protection_from_evil": "옆 칸 아군(자신 포함)을 언데드 같은 이계 존재가 공격하면 불리점 (집중)",
+	"lay_on_hands": "옆 칸 아군(자신 포함)을 치유 풀에서 필요한 만큼 회복",
+	"sacred_weapon": "근접 무기 공격 굴림에 CHA 더함 (최소 +1, 전투가 끝날 때까지). 공격 행동과 함께, 행동을 쓰지 않음",
+	"hunters_mark": "적 하나에 표식. 맞힐 때마다 1d6 역장 추가 (집중). 표식한 적이 쓰러지면 보너스 행동으로 옮김",
+	"mark_move": "쓰러진 적의 표식을 다른 적에게 옮김 (슬롯 없이)",
+	"fire_bolt": "원거리 주문 공격 1d10 화염",
+	"ray_of_frost": "원거리 주문 공격 1d8 냉기. 맞으면 속도 -2칸",
+	"shocking_grasp": "근접 주문 공격 1d8 번개. 맞으면 기회 공격을 못 함",
+	"magic_missile": "빗나가지 않는 다트 3개, 하나에 1d4 + 1 역장",
+	"burning_hands": "내 앞 3칸 원뿔 안의 모두가 DEX 내성: 실패 3d6 화염, 성공 절반. 아군도 맞음",
+	"thunderwave": "내 주위 1칸의 모두가 CON 내성: 실패 2d8 천둥과 2칸 밀림, 성공 절반. 아군도 맞음",
+	"shield": "맞을 공격을 반응으로 막음: 다음 내 턴까지 AC +5 (자동)",
+	"scorching_ray": "불줄기 3개, 하나마다 원거리 주문 공격 2d6 화염",
+	"shatter": "대상 주위 2칸의 모두가 CON 내성: 실패 3d8 천둥, 성공 절반. 아군도 맞음",
+	"fireball": "대상 주위 4칸의 모두가 DEX 내성: 실패 8d6 화염, 성공 절반. 아군도 맞음",
+	"chromatic_orb": "원거리 주문 공격 3d8 화염 (용의 숨결 같은 원소 구슬)",
+	"eldritch_blast": "원거리 주문 공격 1d10 역장. 5레벨에 줄기 2개",
+	"chill_touch": "근접 주문 공격 1d10 사령. 맞으면 내 다음 턴이 끝날 때까지 회복 못 함",
+	"hex": "적 하나에 저주. 맞힐 때마다 1d6 사령 추가 (집중). 저주한 적이 쓰러지면 보너스 행동으로 옮김",
+	"hellish_rebuke": "나를 다치게 한 적에게 반응으로 (자동): DEX 내성 실패 2d10 화염, 성공 절반",
+	"bardic_inspiration": "다른 아군 하나에게 영감 주사위. 그 아군이 공격이나 내성에 실패하면 저절로 굴려 더함",
+	"vicious_mockery": "WIS 내성 실패: 1d6 정신, 다음 공격에 불리점",
+	"dissonant_whispers": "WIS 내성 실패: 3d6 정신, 반응을 잃음. 성공 절반",
+	"faerie_fire": "대상 주위 2칸의 적이 DEX 내성. 실패하면 빛에 둘러싸여 그를 노리는 공격에 이점 (집중)",
+	"mass_healing_word": "12칸 안의 아군 6명까지 2d4 + CHA 회복. 쓰러진 아군도 일으킴",
+	"starry_wisp": "원거리 주문 공격 1d8 광휘",
+	"lands_aid": "Wild Shape 1회를 써서, 고른 크리처 주위 2칸의 적은 CON 내성 2d6 사령(성공 절반), 그 안의 아군 하나는 2d6 회복",
 }
 ## 집중이 끝나면 같이 사라지는 효과
-const CONC_EFFECTS := ["blessed", "shield_of_faith"]
+const CONC_EFFECTS := ["blessed", "shield_of_faith", "heroism", "protected", "marked", "outlined"]
 const HEALS := ["cure_wounds", "healing_word"]
 
 
@@ -93,7 +182,23 @@ static func pick_slot(c: Creature, id: String, slot := 0) -> int:
 static func knows(c: Creature, id: String) -> bool:
 	if id == "spirit_strike":
 		return c.concentration == "spiritual_weapon" and c.spirit_cell.x >= 0
+	if id == "mark_move":
+		return c.concentration in MARKS and c.toggles.get("mark_free", false)
 	return c.stats.spells.has(id)
+
+
+## 표식 주문과 그 추가 피해 종류
+const MARKS := {"hunters_mark": "force", "hex": "necrotic"}
+
+
+## Quickened Spell을 켜 두었고 마법 점수가 2 이상인가
+static func quickened(c: Creature) -> bool:
+	return c.toggles.get("quicken", false) and c.resources.get("sp", 0) >= 2
+
+
+## 슬롯 없이 쓸 수 있는 횟수가 남았는가 (Paladin's Smite, Favored Enemy)
+static func has_free(c: Creature, id: String) -> bool:
+	return FREE_CASTS.has(id) and c.resources.get(FREE_CASTS[id], 0) > 0
 
 
 static func cantrip_dice(c: Creature) -> int:
@@ -111,13 +216,36 @@ static func why_not(cb: Combat, c: Creature, id: String, slot := 0) -> String:
 	if not knows(c, id):
 		return "Spiritual Weapon이 없음" if id == "spirit_strike" else "모르는 주문"
 	var d: Dictionary = DATA[id]
-	if d.time == "action" and not c.action_available:
+	if d.target == "toggle":
+		return ""  # 켜고 끄기만 함. 슬롯과 보너스 행동은 맞힐 때 확인
+	if d.target == "auto":
+		return "반응으로 저절로 씀"
+	if d.time == "action" and not c.action_available and not quickened(c):
 		return "행동을 이미 썼음"
-	if d.time == "bonus" and not c.bonus_available:
+	if d.time == "action" and quickened(c) and not c.bonus_available and not c.action_available:
+		return "보너스 행동을 이미 썼음"
+	if d.time == "bonus" and not c.bonus_available and d.target != "toggle":
 		return "보너스 행동을 이미 썼음"
 	if d.level == -1 and c.resources.get("channel", 0) <= 0:
 		return "Channel Divinity를 다 썼음"
-	if d.level >= 1:
+	if c.has_effect("raging"):
+		return "분노 중에는 주문을 못 씀"
+	if id == "lay_on_hands" and c.resources.get("lay_on_hands", 0) <= 0:
+		return "치유 풀이 비었음"
+	if id == "bardic_inspiration" and c.resources.get("bardic_inspiration", 0) <= 0:
+		return "남은 횟수 없음"
+	if id == "lands_aid" and c.resources.get("wild_shape", 0) <= 0:
+		return "Wild Shape를 다 썼음"
+	if id == "mass_healing_word" and _mass_heal_targets(cb, c).is_empty():
+		return "12칸 안에 다친 아군이 없음"
+	if id == "sacred_weapon":
+		if c.has_effect("sacred_weapon"):
+			return "이미 축복받은 무기"
+		if not c.action_available and c.attacks_left <= 0:
+			return "공격 행동을 할 때만"
+	if d.level >= 1 and has_free(c, id):
+		pass
+	elif d.level >= 1:
 		if pick_slot(c, id, slot) == 0:
 			return "주문 슬롯이 없음" if slot <= 0 else "%d레벨 슬롯을 쓸 수 없음" % slot
 		if c.once_per_turn.has("slot"):
@@ -150,6 +278,11 @@ static func target_error(cb: Combat, c: Creature, id: String, t: Creature) -> St
 				return "아군에게만"
 			if HEALS.has(id) and t.hp >= t.stats.max_hp:
 				return "HP가 가득 참"
+			if id == "bardic_inspiration":
+				if t == c:
+					return "다른 아군에게만"
+				if t.has_effect("inspired"):
+					return "이미 영감을 받음"
 		"downed":
 			if not ally or not t.is_down():
 				return "쓰러진 아군에게만"
@@ -162,7 +295,7 @@ static func target_error(cb: Combat, c: Creature, id: String, t: Creature) -> St
 
 
 static func needs_target(id: String) -> bool:
-	return DATA[id].target != "area"
+	return not DATA[id].target in ["area", "toggle", "auto"]
 
 
 # =====================================================================
@@ -178,14 +311,29 @@ static func cast(cb: Combat, c: Creature, id: String, t: Creature = null, slot :
 		cb.log_msg("%s: 쓸 수 없음 (%s)" % [spell_name(id), why])
 		return false
 	var d: Dictionary = DATA[id]
-	if d.time == "action":
+	if d.target == "toggle":
+		# Divine Smite: 켜 두면 맞힐 때 씀 (ClassFeatures.after_hit)
+		c.toggles[id] = not c.toggles.get(id, false)
+		cb.log_msg("%s: %s %s" % [c.display_name, spell_name(id), "켬 — 근접 공격이 맞으면 씀" if c.toggles[id] else "끔"])
+		return true
+	var quick: bool = d.time == "action" and quickened(c) and c.bonus_available
+	if quick:
+		c.bonus_available = false
+		c.resources["sp"] -= 2
+		c.toggles["quicken"] = false
+		cb.log_msg("  Quickened Spell (마법 점수 2): 보너스 행동으로")
+	elif d.time == "action":
 		c.action_available = false
 		c.attacks_left = 0
-	else:
+	elif d.time == "bonus":
 		c.bonus_available = false
-	slot = pick_slot(c, id, slot)
 	var cost := ""
-	if d.level >= 1:
+	if d.level >= 1 and slot <= 0 and has_free(c, id):
+		c.resources[FREE_CASTS[id]] -= 1
+		slot = d.level
+		cost = " (슬롯 없이)"
+	elif d.level >= 1:
+		slot = pick_slot(c, id, slot)
 		c.resources["slot%d" % slot] -= 1
 		c.once_per_turn["slot"] = true
 		cost = " (%d레벨 슬롯)" % slot
@@ -219,6 +367,26 @@ static func cast(cb: Combat, c: Creature, id: String, t: Creature = null, slot :
 					cb.log_msg("  %s에 대한 다음 공격에 이점" % t.display_name)
 		"cure_wounds", "healing_word":
 			_heal(cb, c, t, heal_amount(cb.dice, c, id, slot), slot)
+		"mass_healing_word":
+			for x in _mass_heal_targets(cb, c):
+				_heal(cb, c, x, heal_amount(cb.dice, c, id, slot), slot)
+		"bardic_inspiration":
+			c.resources["bardic_inspiration"] -= 1
+			t.add_effect("inspired", c, "never")
+			cb.log_msg("  %s에게 영감 주사위 d%d" % [t.display_name, ClassFeatures.inspiration_die(c)])
+			cb.event.emit({"type": "condition", "creature": t})
+		"lands_aid":
+			_lands_aid(cb, c, t)
+		"faerie_fire":
+			c.concentration = id
+			for x in cb.creatures:
+				if x.is_alive() and x.is_hostile_to(c) and cb.grid.distance(t.cell, x.cell) <= 2:
+					var sv := cb.saving_throw(x, DEX, c.spell_dc())
+					cb.log_msg("  %s" % sv.text)
+					if not sv.success:
+						x.add_effect("outlined", c, "never")
+						cb.log_msg("  %s 요정불에 둘러싸임 (공격에 이점)" % x.display_name)
+						cb.event.emit({"type": "condition", "creature": x})
 		"bless":
 			_bless(cb, c, slot)
 		"shield_of_faith":
@@ -247,8 +415,185 @@ static func cast(cb: Combat, c: Creature, id: String, t: Creature = null, slot :
 			_turn_undead(cb, c)
 		"preserve_life":
 			_preserve_life(cb, c)
+		"heroism":
+			t.add_effect("heroism", c, "never")
+			c.concentration = id
+			cb.log_msg("  %s 용기가 솟음 (턴마다 임시 HP %d, 집중)" % [t.display_name, maxi(c.spell_mod(), 1)])
+			cb.event.emit({"type": "condition", "creature": t})
+		"protection_from_evil":
+			t.add_effect("protected", c, "never")
+			c.concentration = id
+			cb.log_msg("  %s 보호받음 (언데드·악마 같은 이계 존재의 공격에 불리점, 집중)" % t.display_name)
+			cb.event.emit({"type": "condition", "creature": t})
+		"lay_on_hands":
+			var pool: int = c.resources.get("lay_on_hands", 0)
+			var amount := mini(pool, t.stats.max_hp - t.hp)
+			c.resources["lay_on_hands"] = pool - amount
+			_heal(cb, c, t, {"amount": amount, "text": "치유 풀 %d → %d" % [pool, pool - amount]}, 0)
+		"sacred_weapon":
+			c.add_effect("sacred_weapon", c, "never")
+			cb.log_msg("  %s의 무기가 빛남 (근접 공격 굴림 +%d)" % [c.display_name, maxi(c.mod(Rules.Ability.CHA), 1)])
+			cb.event.emit({"type": "condition", "creature": c})
+		_ when DMG.has(id):
+			damage_spell(cb, c, id, t, slot)
+		"hunters_mark", "hex", "mark_move":
+			for x in cb.creatures:
+				x.remove_effects_from(c, ["marked"])
+			t.add_effect("marked", c, "never")
+			c.toggles["mark_free"] = false
+			if id != "mark_move":
+				c.concentration = id
+			cb.log_msg("  %s에게 %s (맞힐 때마다 1d6 %s)" % [t.display_name, spell_name(c.concentration),
+				Damage.TYPE_NAMES.get(MARKS.get(c.concentration, "force"), "")])
+			cb.event.emit({"type": "condition", "creature": t})
 	cb.check_end()
 	return true
+
+
+# =====================================================================
+# 피해 주문 (DMG 표)
+# =====================================================================
+
+## 주사위 수: 소마법은 5레벨에 두 배, 슬롯 주문은 높은 슬롯마다 per_slot
+static func dmg_dice(c: Creature, id: String, slot: int) -> int:
+	var e: Dictionary = DMG[id]
+	if DATA[id].level == 0:
+		return e.dice * (1 if e.get("scale", "") == "beams" else cantrip_dice(c))
+	return e.dice + e.get("per_slot", 0) * (slot - DATA[id].level)
+
+
+## 줄기·다트 수
+static func dmg_beams(c: Creature, id: String, slot: int) -> int:
+	var e: Dictionary = DMG[id]
+	var n: int = e.get("beams", 1)
+	if e.get("scale", "") == "beams":
+		n = cantrip_dice(c)
+	if DATA[id].level >= 1:
+		n += e.get("beams_per_slot", 0) * (slot - DATA[id].level)
+	return n
+
+
+## 주문 공격을 무기처럼: 시전 능력치로 굴리고 수정치는 더하지 않음
+static func spell_weapon(c: Creature, id: String, slot: int) -> WeaponData:
+	var e: Dictionary = DMG[id]
+	var w := WeaponData.new()
+	w.id = id
+	w.display_name = spell_name(id)
+	w.dice_count = dmg_dice(c, id, slot)
+	w.dice_sides = e.sides
+	w.damage_type = e.type
+	w.ranged = e.get("ranged", true)
+	w.range_normal = DATA[id].range
+	w.range_long = DATA[id].range
+	w.ability = c.stats.spell_ability
+	w.add_mod = id == "eldritch_blast" and c.stats.has_feature("agonizing_blast")
+	return w
+
+
+## 범위 안의 크리처 (시전자 c, 고른 대상 t). 완전 엄폐 뒤는 빠짐
+static func area_targets(cb: Combat, c: Creature, id: String, t: Creature) -> Array[Creature]:
+	var e: Dictionary = DMG[id]
+	var shape: String = e.get("shape", "single")
+	var out: Array[Creature] = []
+	if shape == "single":
+		if t != null:
+			out.append(t)
+		return out
+	var r: int = e.radius
+	var center: Vector2i = c.cell if shape in ["burst", "cone"] else t.cell
+	var aim := Vector2(t.cell - c.cell).normalized() if shape == "cone" and t != null else Vector2.ZERO
+	for x in cb.creatures:
+		if not x.is_alive() or (x == c and shape != "sphere"):
+			continue
+		if cb.grid.distance(center, x.cell) > r:
+			continue
+		if x.cell != center and cb.grid.cover(center, x.cell) >= CombatGrid.TOTAL_COVER:
+			continue
+		if shape == "cone" and x != t:
+			var v := Vector2(x.cell - c.cell).normalized()
+			if v.dot(aim) < 0.7:
+				continue
+		out.append(x)
+	return out
+
+
+static func damage_spell(cb: Combat, c: Creature, id: String, t: Creature, slot: int) -> void:
+	var e: Dictionary = DMG[id]
+	match e.kind:
+		"attack":
+			var w := spell_weapon(c, id, slot)
+			for i in dmg_beams(c, id, slot):
+				if not t.is_alive() or t.is_down():
+					break
+				var info := cb.attack_info(c, t, w)
+				if not info.valid:
+					break
+				var res := cb.resolve_attack(c, t, w, info, false, {"spell": id})
+				if res.hit and t.is_alive() and not t.is_down():
+					_rider(cb, c, t, e.get("rider", ""))
+					if id == "eldritch_blast" and c.stats.has_feature("repelling_blast"):
+						cb._push(c, t, 2)
+				elif not res.hit and DATA[id].level == 0 and c.stats.has_feature("potent_cantrip"):
+					var half := Dice.sum(cb.dice.roll(w.dice_count, w.dice_sides)) / 2
+					cb._deal(t, half, w.damage_type, false, "Potent Cantrip")
+		"auto":
+			var n := dmg_beams(c, id, slot)
+			var total := 0
+			var rolls: Array[int] = []
+			for i in n:
+				var r := cb.dice.roll_die(e.sides)
+				rolls.append(r)
+				total += r + int(e.get("plus", 0))
+			cb.log_msg("  다트 %d개: %s" % [n, str(rolls)])
+			cb._deal(t, total, e.type, false, spell_name(id))
+			cb.on_spell_hit(c, t)
+		"save":
+			var n := dmg_dice(c, id, slot)
+			var rolls := cb.dice.roll(n, e.sides)
+			var dmg := Dice.sum(rolls)
+			var dc := c.spell_dc()
+			cb.log_msg("  %dd%d%s %s" % [n, e.sides, str(rolls), Damage.TYPE_NAMES.get(e.type, e.type)])
+			var targets := area_targets(cb, c, id, t)
+			var careful: bool = c.toggles.get("careful", false) and c.resources.get("sp", 0) >= 1 \
+					and targets.any(func(x: Creature) -> bool: return not x.is_hostile_to(c))
+			if careful:
+				c.resources["sp"] -= 1
+				c.toggles["careful"] = false
+				cb.log_msg("  Careful Spell (마법 점수 1): 아군은 저절로 성공하고 피해 없음")
+			for x in targets:
+				if careful and not x.is_hostile_to(c):
+					cb.log_msg("  %s: Careful Spell로 무사" % x.display_name)
+					continue
+				var sv := cb.saving_throw(x, e.save, dc)
+				var amount := dmg if not sv.success else (dmg / 2 if e.get("half", true) else 0)
+				cb.log_msg("  %s" % sv.text)
+				if amount > 0:
+					cb._deal(x, amount, e.type, false, spell_name(id))
+					cb.on_spell_hit(c, x)
+				if not sv.success and x.is_alive() and not x.is_down():
+					_rider(cb, c, x, e.get("rider", ""))
+
+
+static func _rider(cb: Combat, c: Creature, t: Creature, rider: String) -> void:
+	match rider:
+		"slow":
+			if not t.has_effect("slowed"):
+				t.add_effect("slowed", c, "start")
+				cb.log_msg("  %s 속도 -2칸" % t.display_name)
+		"no_reaction":
+			t.reaction_available = false
+			cb.log_msg("  %s 기회 공격을 못 함" % t.display_name)
+		"push":
+			cb._push(c, t, 2)
+		"flee":
+			t.reaction_available = false
+			cb.log_msg("  %s 겁에 질려 반응을 잃음" % t.display_name)
+		"no_heal":
+			t.add_effect("no_heal", c, "end", 1)
+			cb.log_msg("  %s 회복 못 함 (시전자의 다음 턴 끝까지)" % t.display_name)
+		"mock":
+			t.add_effect("sapped", c, "end", 1)
+			cb.log_msg("  %s의 다음 공격에 불리점" % t.display_name)
 
 
 ## Guiding Bolt를 원거리 주문 공격 무기로: 4d6 광휘 + 슬롯 레벨마다 1d6, 수정치는 더하지 않음
@@ -392,13 +737,48 @@ static func on_turn_end(cb: Combat, c: Creature) -> void:
 		guardian_save(cb, g, c)
 
 
+## Land's Aid: t 주위 2칸. 적은 CON 내성 2d6 사령(성공 절반), 그 안에서 가장 다친 아군 하나 2d6 회복
+static func _lands_aid(cb: Combat, c: Creature, t: Creature) -> void:
+	c.resources["wild_shape"] -= 1
+	var rolls := cb.dice.roll(2, 6)
+	var dmg := Dice.sum(rolls)
+	cb.log_msg("  가시 2d6%s 사령" % str(rolls))
+	var heal_to: Creature = null
+	for x in cb.creatures:
+		if not x.is_alive() or cb.grid.distance(t.cell, x.cell) > 2:
+			continue
+		if x.is_hostile_to(c):
+			var sv := cb.saving_throw(x, CON, c.spell_dc())
+			cb.log_msg("  %s" % sv.text)
+			cb._deal(x, dmg if not sv.success else dmg / 2, "necrotic", false, "Land's Aid")
+			cb.on_spell_hit(c, x)
+		elif x.hp < x.stats.max_hp and (heal_to == null or x.hp * heal_to.stats.max_hp < heal_to.hp * x.stats.max_hp):
+			heal_to = x
+	if heal_to != null:
+		var h := cb.dice.roll(2, 6)
+		_heal(cb, c, heal_to, {"amount": Dice.sum(h), "text": "꽃 2d6%s" % str(h)}, 0)
+
+
+## Mass Healing Word: 12칸 안의 다친 아군 6명까지 (쓰러진 이, HP 비율 낮은 이 먼저)
+static func _mass_heal_targets(cb: Combat, c: Creature) -> Array[Creature]:
+	var out: Array[Creature] = []
+	for x in cb.creatures:
+		if x.is_alive() and not x.is_hostile_to(c) and x.hp < x.stats.max_hp \
+				and cb.grid.distance(c.cell, x.cell) <= DATA.mass_healing_word.range:
+			out.append(x)
+	out.sort_custom(func(a: Creature, b: Creature) -> bool:
+		return float(a.hp) / a.stats.max_hp < float(b.hp) / b.stats.max_hp)
+	return out.slice(0, 6)
+
+
 static func heal_amount(dice: Dice, c: Creature, id: String, slot: int) -> Dictionary:
 	var sides := 8 if id == "cure_wounds" else 4
-	var rolls := dice.roll(2 * slot, sides)
+	var n := 2 * (slot - 2) if id == "mass_healing_word" else 2 * slot
+	var rolls := dice.roll(n, sides)
 	var bonus := c.spell_mod()
 	var life := (2 + slot) if c.stats.has_feature("disciple_of_life") else 0
 	return {"amount": maxi(Dice.sum(rolls) + bonus + life, 0),
-		"text": "%dd%d%s %+d%s" % [2 * slot, sides, str(rolls), bonus, (" + Disciple of Life %d" % life) if life > 0 else ""]}
+		"text": "%dd%d%s %+d%s" % [n, sides, str(rolls), bonus, (" + Disciple of Life %d" % life) if life > 0 else ""]}
 
 
 static func _heal(cb: Combat, _c: Creature, t: Creature, h: Dictionary, _slot: int) -> void:
@@ -532,7 +912,7 @@ static func end_concentration(cb: Combat, c: Creature) -> void:
 static func concentration_check(cb: Combat, c: Creature, dealt: int) -> void:
 	if c.concentration == "" or dealt <= 0:
 		return
-	var sv := cb.saving_throw(c, CON, clampi(floori(dealt / 2.0), 10, 30))
+	var sv := cb.saving_throw(c, CON, clampi(floori(dealt / 2.0), 10, 30), 1 if c.stats.has_feature("eldritch_mind") else 0)
 	cb.log_msg("  집중 유지: %s" % sv.text)
 	if not sv.success:
 		end_concentration(cb, c)
@@ -561,10 +941,41 @@ static func describe(cb: Combat, c: Creature, id: String, t: Creature, slot := 0
 			return "%dd8 %+d 회복" % [2 * slot, c.spell_mod() + (2 + slot if c.stats.has_feature("disciple_of_life") else 0)]
 		"healing_word":
 			return "%dd4 %+d 회복" % [2 * slot, c.spell_mod() + (2 + slot if c.stats.has_feature("disciple_of_life") else 0)]
+		"mass_healing_word":
+			return "아군 %d명 %dd4 %+d 회복" % [_mass_heal_targets(cb, c).size(), 2 * (slot - 2), c.spell_mod()]
+		"lands_aid":
+			var foes := 0
+			var allies := 0
+			for x in cb.creatures:
+				if x.is_alive() and cb.grid.distance(t.cell, x.cell) <= 2:
+					if x.is_hostile_to(c):
+						foes += 1
+					elif x.hp < x.stats.max_hp:
+						allies += 1
+			return "적 %d명 CON 내성 DC %d · 2d6 사령%s" % [foes, c.spell_dc(), " · 아군 하나 2d6 회복" if allies > 0 else ""]
+		"bardic_inspiration":
+			return "d%d 영감 (남은 %d)" % [ClassFeatures.inspiration_die(c), c.resources.get("bardic_inspiration", 0)]
+		"faerie_fire":
+			var n := 0
+			for x in cb.creatures:
+				if x.is_alive() and x.is_hostile_to(c) and cb.grid.distance(t.cell, x.cell) <= 2:
+					n += 1
+			return "적 %d명 DEX 내성 DC %d · 실패하면 공격에 이점 (집중)" % [n, c.spell_dc()]
 		"shield_of_faith":
 			return "AC +2 (집중)"
 		"spare_the_dying":
 			return "안정시킴 — 사망 내성을 더 굴리지 않음"
+		"lay_on_hands":
+			return "%d 회복 (풀 %d 남음)" % [mini(c.resources.get("lay_on_hands", 0), t.stats.max_hp - t.hp), c.resources.get("lay_on_hands", 0)]
+		"heroism":
+			return "턴마다 임시 HP %d (집중)" % maxi(c.spell_mod(), 1)
+		"protection_from_evil":
+			return "이계 존재의 공격에 불리점 (집중)"
+		"hunters_mark", "hex", "mark_move":
+			var mt: String = MARKS.get(id, MARKS.get(c.concentration, "force"))
+			return "맞힐 때마다 1d6 %s 추가" % Damage.TYPE_NAMES.get(mt, mt)
+		_ when DMG.has(id):
+			return dmg_describe(cb, c, id, t, slot)
 		"divine_spark":
 			if t.is_hostile_to(c):
 				return "CON 내성 DC %d · 1d8 %+d 광휘 (성공하면 절반)" % [c.spell_dc(), c.spell_mod()]
@@ -590,7 +1001,35 @@ static func upcast_text(c: Creature, id: String, slot: int) -> String:
 			return "%dd8 %+d 역장" % [slot - 1, c.spell_mod()]
 		"spirit_guardians":
 			return "%dd8 광휘" % slot
+		"divine_smite":
+			return "%dd8 광휘" % (slot + 1)
+		_ when DMG.has(id):
+			var beams := dmg_beams(c, id, slot)
+			return ("%d줄기 · " % beams if beams > 1 else "") + "%dd%d" % [dmg_dice(c, id, slot), DMG[id].sides]
 	return "높은 슬롯이어도 효과 같음"
+
+
+## 피해 주문을 대상에 올렸을 때의 설명
+static func dmg_describe(cb: Combat, c: Creature, id: String, t: Creature, slot: int) -> String:
+	var e: Dictionary = DMG[id]
+	var dice := "%dd%d%s %s" % [dmg_dice(c, id, slot), e.sides, (" + %d" % e.plus) if e.has("plus") else "", Damage.TYPE_NAMES.get(e.type, e.type)]
+	var beams := dmg_beams(c, id, slot)
+	var head := ("%d개 × " % beams) if beams > 1 else ""
+	match e.kind:
+		"attack":
+			var info := cb.attack_info(c, t, spell_weapon(c, id, slot))
+			return "명중 확률 %d%% · %s%s" % [roundi(info.chance * 100), head, dice]
+		"auto":
+			return "반드시 맞음 · %s%s" % [head, dice]
+	var hit := area_targets(cb, c, id, t)
+	var allies := hit.filter(func(x: Creature) -> bool: return not x.is_hostile_to(c)).size()
+	var txt := "%s 내성 DC %d · 실패 확률 %d%% · %s" % [Rules.ABILITY_NAMES[e.save], c.spell_dc(),
+		roundi(fail_chance(t.save_bonus(e.save), c.spell_dc()) * 100), dice]
+	if e.get("shape", "single") != "single":
+		txt += " · %d명" % hit.size()
+		if allies > 0:
+			txt += " [color=#ff8080](아군 %d명 포함!)[/color]" % allies
+	return txt
 
 
 ## d20 + bonus < dc 일 확률 (내성은 1, 20 자동 판정 없음)

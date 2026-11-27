@@ -1,0 +1,182 @@
+{
+ "aldous": {
+  "speaker": "올더스 브레넌",
+  "start": "start",
+  "nodes": {
+   "start": {
+    "text": "또 손님이로군. 합창단이 배고파하오. 한 명이면 되오. 단 한 명. 스스로 이 단 위에 올라선다면, 나머지는 문밖으로 걸어 나가게 해 주지. 그녀가 돌아오면… 다 괜찮아질 거요.",
+    "choices": [
+     {
+      "text": "미라의 진주 반지를 내민다.",
+      "if": "item:ring",
+      "check": {
+       "skill": "persuasion",
+       "dc": 12,
+       "success": "ring_ok",
+       "fail": "ring_fail"
+      }
+     },
+     {
+      "text": "제물을 바치겠다고 속여 다가간다.",
+      "check": {
+       "skill": "deception",
+       "dc": 14,
+       "success": "lie_ok",
+       "fail": "lie_fail"
+      }
+     },
+     {
+      "text": "익사자들에게 물러나라고 호통친다.",
+      "check": {
+       "skill": "intimidation",
+       "dc": 15,
+       "success": "scare_ok",
+       "fail": "fight"
+      }
+     },
+     {
+      "text": "거절한다. 무기를 뽑는다!",
+      "next": "fight"
+     },
+     {
+      "text": "…한 명이 단 위로 올라선다.",
+      "next": "sacrifice"
+     }
+    ]
+   },
+   "ring_ok": {
+    "text": "미…라…? 그의 갈고리 같은 손이 떨린다. 뒤의 익사자들이 물속으로 가라앉는다. '나는… 무엇을…' 그 짧은 틈이면 충분하다.",
+    "do": [
+     {
+      "do": "flag",
+      "set": "aldous_moved"
+     },
+     {
+      "do": "flag",
+      "set": "surprise:boss"
+     }
+    ],
+    "choices": [
+     {
+      "text": "지금이다! (적이 기습당한다)",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "ring_fail": {
+    "text": "그는 반지를 노려본다. '그건 이제 아무 의미도 없소. 숨이, 숨이 필요하단 말이오!'",
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "lie_ok": {
+    "text": "그의 눈이 굶주림으로 번들거린다. 경계를 풀고 단에서 한 걸음 내려온다. 빈틈이다!",
+    "do": [
+     {
+      "do": "flag",
+      "set": "surprise:boss"
+     }
+    ],
+    "choices": [
+     {
+      "text": "공격한다! (적이 기습당한다)",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "lie_fail": {
+    "text": "'거짓말! 바다는 거짓을 알아!' 물속에서 익사자들이 일어선다.",
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "scare_ok": {
+    "text": "호통이 동굴을 울리자 익사자들이 움찔하며 물속으로 물러난다. 올더스만이 이를 드러낸다.",
+    "do": [
+     {
+      "do": "flag",
+      "set": "aldous_moved"
+     }
+    ],
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "fight": {
+    "text": "'그렇다면 둘 다 바다에 주겠소!' 올더스가 갈고리 손톱을 펼친다.",
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "battle",
+        "group": "boss"
+       }
+      ]
+     }
+    ]
+   },
+   "sacrifice": {
+    "text": "단 위로 올라서는 순간 차가운 물이 발목을 휘감는다. 노래가 다시 시작된다. 기쁨에 찬, 끔찍한 노래가.\n\n…정말 이렇게 하겠는가?",
+    "choices": [
+     {
+      "text": "그래도 바친다.",
+      "next": "end",
+      "do": [
+       {
+        "do": "end",
+        "result": "win",
+        "title": "바다의 몫",
+        "text": "동료 한 명이 물속으로 사라졌다. 올더스는 유리 통 앞에 무릎을 꿇었지만, 통 속의 미라는 눈을 뜨지 않았다. 합창단은 약속을 지키지 않는다.\n\n현관문은 열려 있었다. 남은 한 명은 새벽빛 속으로 혼자 걸어 나갔다.\n\n(나쁜 결말 — 처음부터 다시 해 보세요)"
+       }
+      ]
+     },
+     {
+      "text": "아니, 내려온다. 싸운다!",
+      "next": "fight"
+     }
+    ]
+   }
+  }
+ }
+}

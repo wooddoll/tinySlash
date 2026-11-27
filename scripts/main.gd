@@ -23,12 +23,14 @@ func _process(_delta: float) -> void:
 		get_tree().change_scene_to_file("res://scenes/battle.tscn")
 	elif Input.is_action_just_pressed("open_dungeon"):
 		get_tree().change_scene_to_file("res://scenes/dungeon.tscn")
+	elif Input.is_action_just_pressed("open_scenario"):
+		get_tree().change_scene_to_file("res://scenes/scenario.tscn")
 
 
 func _add_hint() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
-	label.text = "WASD 이동 · Space 점프 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기"
+	label.text = "WASD 이동 · Space 점프 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
 	label.position = Vector2(16, 12)
 	label.add_theme_constant_override("outline_size", 6)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)

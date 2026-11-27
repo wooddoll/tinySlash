@@ -1,0 +1,235 @@
+{
+ "grak": {
+  "speaker": "그락",
+  "start": "start",
+  "nodes": {
+   "start": {
+    "text": "멈춰라, 키 큰 것들! 그락이 대장이다! 여긴 그락 거다! …너희 뼈다귀 아니지? 살 있지? 좋아. 가까이 오면 쏜다!\n\n(고블린들의 활시위가 떨리고 있다. 다들 잠을 못 잔 얼굴이다.)",
+    "choices": [
+     {
+      "text": "(설득) 아래의 망자들은 우리가 처리하겠다고 제안한다.",
+      "check": {
+       "skill": "persuasion",
+       "dc": 13,
+       "success": "pact",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "(위협) 당장 이 망루에서 꺼지라고 호통친다.",
+      "check": {
+       "skill": "intimidation",
+       "dc": 14,
+       "success": "flee",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "(통찰) 그락을 살핀다.",
+      "check": {
+       "skill": "insight",
+       "dc": 10,
+       "success": "insight",
+       "fail": "start_again"
+      },
+      "if": "!grak_read"
+     },
+     {
+      "text": "무기를 뽑는다!",
+      "next": "fight"
+     }
+    ]
+   },
+   "start_again": {
+    "text": "뭘 그렇게 봐! 그락은 무섭지 않다! 하나도!",
+    "choices": [
+     {
+      "text": "(설득) 아래의 망자들은 우리가 처리하겠다고 제안한다.",
+      "check": {
+       "skill": "persuasion",
+       "dc": 13,
+       "success": "pact",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "(위협) 당장 꺼지라고 호통친다.",
+      "check": {
+       "skill": "intimidation",
+       "dc": 14,
+       "success": "flee",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "무기를 뽑는다!",
+      "next": "fight"
+     }
+    ],
+    "do": [
+     {
+      "do": "flag",
+      "set": "grak_read"
+     }
+    ]
+   },
+   "insight": {
+    "text": "그락의 투구가 덜덜 떨린다. 이 고블린들은 당신들이 아니라 발밑의 무언가를 두려워하고 있다. 사흘 밤을 해골들에게 포위당해 이 꼭대기에 갇혀 있었던 것이다. 그리고 그락의 허리춤에, 봉화 문양이 새겨진 큼직한 쇠열쇠가 매달려 있다.",
+    "choices": [
+     {
+      "text": "(설득, 유리함) 해골들이 무섭지 않냐고, 우리가 없애 주겠다고 한다.",
+      "check": {
+       "skill": "persuasion",
+       "dc": 10,
+       "success": "pact",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "(위협) 당장 꺼지라고 호통친다.",
+      "check": {
+       "skill": "intimidation",
+       "dc": 14,
+       "success": "flee",
+       "fail": "pact_fail"
+      }
+     },
+     {
+      "text": "무기를 뽑는다!",
+      "next": "fight"
+     }
+    ],
+    "do": [
+     {
+      "do": "flag",
+      "set": "grak_read"
+     }
+    ]
+   },
+   "pact": {
+    "text": "…진짜? 뼈다귀들 없앤다고? 그락은 반짝이는 등잔 원했다. 근데 불 꺼지니까 땅에서 뼈다귀 나왔다. 그락 잘못 아니다! …조금 그락 잘못이다.\n\n좋아. 이거 줘. 아래 큰 쇠문 여는 거. 죽은 키 큰 여자한테서 가져왔다. 그락 무리는 밧줄 타고 내려가 산으로 간다. 다시는 안 온다. 그락 약속!",
+    "choices": [
+     {
+      "text": "열쇠를 받는다.",
+      "next": "end",
+      "do": [
+       {
+        "do": "give",
+        "item": "barrow_key",
+        "name": "무덤 문 열쇠"
+       },
+       {
+        "do": "flag",
+        "set": "grak_pact"
+       },
+       {
+        "do": "flag",
+        "set": "grak_done"
+       },
+       {
+        "do": "flag",
+        "set": "grak_gone"
+       },
+       {
+        "do": "xp",
+        "amount": 100,
+        "why": "그락과의 약속"
+       },
+       {
+        "do": "level_to",
+        "level": 2
+       },
+       {
+        "do": "checkpoint"
+       },
+       {
+        "do": "text",
+        "title": "봉화대",
+        "text": "고블린들이 앞다투어 성벽에 밧줄을 내리고 사라진다. 그락은 마지막으로 손을 흔들고 뛰어내린다. 봉화대에는 차가운 화로만 남았다."
+       }
+      ]
+     }
+    ]
+   },
+   "flee": {
+    "text": "끼에엑! 알았다, 알았다! 그락 간다! 이거 가져! 그락 필요 없다!",
+    "choices": [
+     {
+      "text": "열쇠를 줍는다.",
+      "next": "end",
+      "do": [
+       {
+        "do": "give",
+        "item": "barrow_key",
+        "name": "무덤 문 열쇠"
+       },
+       {
+        "do": "flag",
+        "set": "grak_done"
+       },
+       {
+        "do": "flag",
+        "set": "grak_gone"
+       },
+       {
+        "do": "xp",
+        "amount": 75,
+        "why": "그락을 쫓아냄"
+       },
+       {
+        "do": "level_to",
+        "level": 2
+       },
+       {
+        "do": "checkpoint"
+       },
+       {
+        "do": "text",
+        "title": "봉화대",
+        "text": "그락이 열쇠를 내던지고 부하들과 함께 밧줄을 타고 성벽 아래로 사라진다. 산 쪽에서 원망 섞인 고함이 메아리친다."
+       }
+      ]
+     }
+    ]
+   },
+   "pact_fail": {
+    "text": "거짓말! 키 큰 것들은 맨날 거짓말! 쏴라!",
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "flag",
+        "set": "grak_hostile"
+       },
+       {
+        "do": "battle",
+        "group": "roof"
+       }
+      ]
+     }
+    ]
+   },
+   "fight": {
+    "text": "그락은 안 진다! 쏴라, 쏴!",
+    "choices": [
+     {
+      "text": "싸운다!",
+      "next": "end",
+      "do": [
+       {
+        "do": "flag",
+        "set": "grak_hostile"
+       },
+       {
+        "do": "battle",
+        "group": "roof"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

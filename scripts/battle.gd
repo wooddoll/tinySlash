@@ -37,6 +37,7 @@ static var encounter_id := "normal"
 ## 던전 생성기에서 넘겨준 전투 (Dungeon.battle_setup). 비어 있으면 기본 맵과 F1~F5 조우.
 ## 끝나면 custom["result"]에 "win" 또는 "lose"를 남깁니다.
 ## custom["party"]: 던전 탐험의 파티 (HeroState 배열). 없으면 1레벨 파이터 + 클레릭
+## custom["return_scene"]: 끝나고 돌아갈 장면 (없으면 던전), custom["surprised"]: 기습당한 편 (1 = 적)
 static var custom := {}
 
 @onready var focus: Node3D = $Focus
@@ -94,7 +95,7 @@ func _ready() -> void:
 	Sfx.wire_buttons(self)
 	_rebuild_bar()  # 무기·주문 버튼은 직접 효과음을 붙임 (wire_buttons 뒤에)
 	Sfx.play(self, "fight")
-	combat.start()
+	combat.start(int(custom.get("surprised", -1)))
 
 
 # =====================================================================
@@ -188,9 +189,9 @@ func _build_world() -> void:
 				var yaw := ((x * 3 + y) % 4) * PI / 2.0
 				if custom.get("style", "") == "cave":
 					mesh.material_override = mats["cave"]
-					_kenney(terrain, "template-floor", Vector3(x + 0.5, th + 0.002, y + 0.5), yaw, "modular-cave-kit", 0.25)
+					_kenney(terrain, Kenney.pick(Kenney.CAVE_FLOORS, Vector2i(x, y)), Vector3(x + 0.5, th + 0.002, y + 0.5), yaw)
 				else:
-					var tile := "floor-detail" if (x * 7 + y * 13) % 9 == 0 else "floor"
+					var tile := Kenney.pick(Kenney.FLOOR_DETAILS, Vector2i(x, y)) if (x * 7 + y * 13) % 9 == 0 else "floor"
 					_kenney(terrain, tile, Vector3(x + 0.5, th + 0.002, y + 0.5), yaw)
 			body.add_child(mesh)
 			var shape := CollisionShape3D.new()
@@ -254,8 +255,11 @@ func _build_world() -> void:
 		for c in grid.heights:
 			if not _is_wall_char(map, c):
 				floors.append(c)
-		Kenney.build_edge_walls(terrain, floors, func(c: Vector2i) -> bool: return not _is_wall_char(map, c),
-				grid.get_height, custom.get("style", "") == "cave")
+		var open_cell := func(c: Vector2i) -> bool: return not _is_wall_char(map, c)
+		var is_cave: bool = custom.get("style", "") == "cave"
+		Kenney.build_edge_walls(terrain, floors, open_cell, grid.get_height, is_cave)
+		Kenney.decorate(terrain, floors, open_cell, grid.get_height, is_cave,
+				func(c: Vector2i) -> bool: return grid.walls.has(c) or grid.difficult.has(c))
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
 
 
@@ -315,9 +319,9 @@ func _spawn_units() -> void:
 		for h in heroes:
 			party.append((h as HeroState).make_creature())
 	else:
-		var f := Creature.new(Catalog.fighter(1), 0, "파이터")
-		f.resources["potion"] = 1
-		party = [f, Creature.new(Catalog.cleric(1), 0, "클레릭")]
+		# 단독 전투: 고른 파티(던전 생성기·시나리오 창에서 바꿈)를 1레벨로
+		for i in HeroState.party_classes.size():
+			party.append(HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0).make_creature())
 	pc = party[0]
 	var foes: Array = custom.foes if _dungeon() else ENCOUNTERS[encounter_id].foes
 	var foe_cells: Array = foes.map(func(e: Array) -> Vector2i: return e[1])
@@ -328,7 +332,7 @@ func _spawn_units() -> void:
 	var counts := {}
 	for entry in foes:
 		var id: String = entry[0]
-		var st := Catalog.monster(id)
+		var st := Catalog.custom_monster(id, custom.get("monster_defs", {}))
 		counts[id] = counts.get(id, 0) + 1
 		var c := Creature.new(st, 1, "%s %d" % [st.display_name, counts[id]])
 		var to_pc: Vector2i = pc.cell - (entry[1] as Vector2i)
@@ -405,12 +409,34 @@ static func effects_of(c: Creature) -> Array:
 		"sapped": ["Sap", "debuff", "다음 공격에 불리점"],
 		"slowed": ["Slow", "debuff", "속도 −2칸"],
 		"turned": ["Turn Undead", "debuff", "겁에 질려 행동 불능"],
+		"paralyzed": ["마비", "debuff", "행동 불능. 나를 노리는 공격에 이점, 1칸 안에서 맞으면 치명타"],
+		"poisoned": ["중독", "debuff", "가스트의 악취. 내 공격에 불리점 (다음 내 턴 시작까지)"],
+		"raging": ["분노", "buff", "B/P/S 피해 저항, 근력 공격 피해 +2, 근력 내성 이점. 공격하지 않은 턴이 끝나면 풀림"],
+		"reckless": ["무모한 공격", "info", "내 근력 공격에 이점, 나를 노리는 공격에도 이점 (다음 내 턴 시작까지)"],
+		"steady_aim": ["정조준", "buff", "이번 턴 다음 공격에 이점"],
+		"stunned": ["기절", "debuff", "행동 불능, 속도 0. STR·DEX 내성 자동 실패, 나를 노리는 공격에 이점"],
+		"staggered": ["비틀거림", "debuff", "속도 절반"],
+		"exposed": ["빈틈", "debuff", "나를 노리는 다음 공격에 이점"],
+		"heroism": ["Heroism", "buff", "턴을 시작할 때마다 임시 HP"],
+		"protected": ["보호", "buff", "언데드 같은 이계 존재의 공격에 불리점"],
+		"sacred_weapon": ["축복받은 무기", "buff", "근접 공격 굴림 + CHA"],
+		"marked": ["표식", "debuff", "표식을 건 이가 맞힐 때마다 1d6 추가 피해"],
+		"shield_spell": ["Shield", "buff", "AC +5 (다음 내 턴 시작까지)"],
+		"innate_sorcery": ["Innate Sorcery", "buff", "주문 내성 DC +1, 주문 공격에 이점"],
+		"no_heal": ["회복 불가", "debuff", "Chill Touch: HP를 회복하지 못함"],
+		"inspired": ["영감", "buff", "공격이나 내성에 실패하면 영감 주사위를 더함"],
+		"outlined": ["요정불", "debuff", "이 크리처를 노리는 공격에 이점"],
+		"cs_trip": ["교활한 일격", "info", "다음 Sneak Attack에 넘어뜨리기"],
 	}
 	var seen := {}
 	for e in c.effects:
 		if names.has(e.type) and not seen.has(e.type):
 			seen[e.type] = true
 			out.append(names[e.type])
+	if c.str_loss > 0:
+		out.append(["근력 -%d" % c.str_loss, "debuff", "섀도에게 근력을 빼앗김 (전투가 끝나면 돌아옴)"])
+	if c.max_hp_loss > 0:
+		out.append(["최대 HP -%d" % c.max_hp_loss, "debuff", "스펙터에게 생명을 빼앗김 (긴 휴식으로 돌아옴)"])
 	if c.aid_bonus > 0:
 		out.append(["Aid +%d" % c.aid_bonus, "buff", "최대 HP +%d (전투가 끝날 때까지)" % c.aid_bonus])
 	if c.concentration != "":
@@ -447,15 +473,17 @@ func _build_ui() -> void:
 	log_box = RichTextLabel.new()
 	log_box.bbcode_enabled = true
 	log_box.scroll_following = true
-	log_box.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	log_box.offset_left = -470
+	# 오른쪽 위 작은 창 (최근 몇 줄만 보이고 스크롤로 지난 기록)
+	log_box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	log_box.offset_left = -400
 	log_box.offset_top = 8
-	log_box.offset_bottom = -120
+	log_box.offset_bottom = 196
 	log_box.offset_right = -8
 	log_box.add_theme_font_size_override("normal_font_size", 13)
 	log_box.add_theme_font_size_override("bold_font_size", 13)
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.45)
+	bg.bg_color = Color(0, 0, 0, 0.38)
+	bg.set_corner_radius_all(6)
 	bg.set_content_margin_all(8)
 	log_box.add_theme_stylebox_override("normal", bg)
 	layer.add_child(log_box)
@@ -594,20 +622,15 @@ func _radial_items(cat: String) -> Array:
 			out.append(_item("dash", "질주", "행동", "이번 턴 이동력 +%d칸" % pc.speed(), act))
 			out.append(_item("disengage", "이탈", "행동", "이번 턴에는 움직여도 기회 공격을 받지 않음", act))
 			out.append(_item("dodge", "회피", "행동", "다음 내 턴까지 나를 노리는 공격에 불리점", act))
-			if pc.resources.has("second_wind"):
-				var n: int = pc.resources.second_wind
-				out.append(_item("second_wind", "Second Wind", "보너스 · %d회" % n, "1d10 + %d 회복" % pc.stats.level,
-					"남은 횟수 없음" if n <= 0 else bonus))
-			if pc.resources.has("action_surge"):
-				var n: int = pc.resources.action_surge
-				out.append(_item("action_surge", "Action Surge", "%d회" % n, "이번 턴에 행동 1회 추가",
-					"남은 횟수 없음" if n <= 0 else ("이번 턴에 이미 씀" if pc.action_surge_used else "")))
+			out.append_array(ClassFeatures.actions(combat, pc))
 			for id in pc.stats.spells:
-				if Spells.DATA[id].level == -1:
+				if Spells.DATA[id].level == -1 or Spells.DATA[id].level == -3:
 					out.append(_spell_item(id))
 		"spell":
 			if Spells.knows(pc, "spirit_strike"):
 				out.append(_spell_item("spirit_strike"))
+			if Spells.knows(pc, "mark_move"):
+				out.append(_spell_item("mark_move"))
 			for id in pc.stats.spells:
 				if Spells.DATA[id].level >= 0:
 					out.append(_spell_item(id))
@@ -627,6 +650,10 @@ func _spell_item(id: String) -> Dictionary:
 	var cost := "소마법"
 	if d.level == -1:
 		cost = "Channel %d" % pc.resources.get("channel", 0)
+	elif d.level == -3:
+		cost = "남은 %d" % pc.resources.get(Spells.RESOURCE_OF.get(id, id), 0)
+	elif Spells.has_free(pc, id):
+		cost = "무료 %d회" % pc.resources.get(Spells.FREE_CASTS[id], 0)
 	elif d.level == -2:
 		cost = "슬롯 없이"
 	elif d.level >= 1:
@@ -637,16 +664,17 @@ func _spell_item(id: String) -> Dictionary:
 			cost = "%d레벨 슬롯" % levels[0]
 		else:
 			cost = "%d~%d레벨 슬롯" % [levels[0], levels[-1]]
-	var sub := "%s · %s" % ["행동" if d.time == "action" else "보너스", cost]
-	return _item(id, Spells.spell_name(id), sub, "%s\n%s" % [Spells.SUMMARY.get(id, ""), _spell_tooltip(id)],
+	var sub := "%s · %s" % [{"action": "행동", "bonus": "보너스", "free": "무료", "reaction": "반응"}[d.time], cost]
+	var title := Spells.spell_name(id) + (" ✓" if pc.toggles.get(id, false) else "")
+	return _item(id, title, sub, "%s\n%s" % [Spells.SUMMARY.get(id, ""), _spell_tooltip(id)],
 		Spells.why_not(combat, pc, id))
 
 
 func _spell_tooltip(id: String) -> String:
 	var d: Dictionary = Spells.DATA[id]
-	var kind := "소마법" if d.level == 0 else ("Channel Divinity" if d.level == -1 else ("Spiritual Weapon" if d.level == -2 else "%d레벨 주문" % d.level))
-	return "%s · %s · %s · %d칸%s" % [kind, "행동" if d.time == "action" else "보너스 행동",
-		{"enemy": "적 하나", "ally": "아군 하나", "downed": "쓰러진 아군", "any": "누구든 하나", "area": "주변"}[d.target],
+	var kind := "소마법" if d.level == 0 else ("Channel Divinity" if d.level == -1 else ("후속 행동" if d.level == -2 else ("클래스 기능" if d.level == -3 else "%d레벨 주문" % d.level)))
+	return "%s · %s · %s · %d칸%s" % [kind, {"action": "행동", "bonus": "보너스 행동", "free": "행동 안 씀", "reaction": "반응"}[d.time],
+		{"enemy": "적 하나", "ally": "아군 하나", "downed": "쓰러진 아군", "any": "누구든 하나", "area": "주변", "toggle": "켜기/끄기", "auto": "자동"}[d.target],
 		Spells.range_of(pc, id), " · 집중" if d.get("conc", false) else ""]
 
 
@@ -658,7 +686,8 @@ func _pick_spell(id: String, slot := 0) -> void:
 	if why != "":
 		_log("[color=gray]%s: %s[/color]" % [Spells.spell_name(id), why])
 		pending_spell = ""
-	elif slot == 0 and Spells.slot_levels(pc, Spells.DATA[id].level).size() > 1 and Spells.DATA[id].level >= 1:
+	elif slot == 0 and Spells.slot_levels(pc, Spells.DATA[id].level).size() > 1 and Spells.DATA[id].level >= 1 \
+			and not Spells.has_free(pc, id) and Spells.DATA[id].target != "toggle":
 		_open_slot_radial(id)
 		return
 	elif not Spells.needs_target(id):
@@ -689,12 +718,19 @@ func _do_action(id: String) -> void:
 	if not _player_turn():
 		return
 	pending_spell = ""
+	if ClassFeatures.use(combat, pc, id):
+		# 맨손 타격을 얻었으면 무기 버튼을 맨손으로
+		if pc.bonus_attacks > 0:
+			for i in pc.stats.weapons.size():
+				if pc.stats.weapons[i].id == "unarmed":
+					weapon_index = i
+					weapon_buttons[i].button_pressed = true
+		dirty = true
+		return
 	match id:
 		"dash": combat.dash(pc)
 		"disengage": combat.disengage(pc)
 		"dodge": combat.dodge(pc)
-		"second_wind": combat.second_wind(pc)
-		"action_surge": combat.action_surge(pc)
 		"potion": combat.drink_potion(pc)
 		"end": combat.end_turn(pc)
 	dirty = true
@@ -703,10 +739,11 @@ func _do_action(id: String) -> void:
 func _update_status() -> void:
 	var dot := func(b: bool) -> String: return "●" if b else "○"
 	var res: Array[String] = []
-	if pc.resources.has("second_wind"):
-		res.append("Second Wind %d" % pc.resources.second_wind)
-	if pc.resources.has("action_surge"):
-		res.append("Action Surge %d" % pc.resources.action_surge)
+	for t in ClassFeatures.resource_labels(pc):
+		if not t.begins_with("Channel"):
+			res.append(t)
+	if pc.bonus_attacks > 0:
+		res.append("맨손 타격 %d회 남음" % pc.bonus_attacks)
 	if pc.resources.has("potion"):
 		res.append("물약 %d" % pc.resources.potion)
 	var slots: Array[String] = []
@@ -736,7 +773,7 @@ func _update_status() -> void:
 		category_buttons[id].disabled = not mine
 		category_buttons[id].text = "%s ▴" % {"skill": "스킬", "spell": "주문", "item": "아이템"}[id]
 	if pending_spell != "":
-		category_buttons["skill" if Spells.DATA[pending_spell].level == -1 else "spell"].text = "▶ %s%s" % [Spells.spell_name(pending_spell),
+		category_buttons["skill" if Spells.DATA[pending_spell].level in [-1, -3] else "spell"].text = "▶ %s%s" % [Spells.spell_name(pending_spell),
 			(" (%d레벨)" % pending_slot) if pending_slot > 0 else ""]
 	_refresh_party_panel()
 	var cur := combat.current()
@@ -807,6 +844,10 @@ func _play(ev: Dictionary) -> void:
 			_popup(ev.creature, ev.delta, ev.crit)
 		"condition":
 			views[ev.creature].refresh()
+		"reshape":
+			views[ev.creature].reshape()
+			if ev.creature == pc:
+				_rebuild_bar()
 		"death", "fled":
 			if ev.type == "death":
 				Sfx.play(self, "death")
@@ -858,11 +899,10 @@ func _anim_spirit(caster: Creature, cell: Vector2i) -> void:
 	var pos := cell_pos(cell) + Vector3(0, 1.1, 0)
 	if node == null:
 		node = Node3D.new()
-		var parts := caster.stats.weapon_model.split("/")
-		if parts.size() == 2:
-			var m := Kenney.instance(parts[1], parts[0])
-			m.scale = Vector3.ONE * 4.5
-			node.add_child(m)
+		# 영적 무기는 늘 빛나는 망치 (Kenney 공구 모델)
+		var m := Kenney.instance("tool-hammer", "survival-kit")
+		m.scale = Vector3.ONE * 4.5
+		node.add_child(m)
 		var light := OmniLight3D.new()
 		light.light_color = Color(1.0, 0.85, 0.4)
 		light.light_energy = 3.0
@@ -894,8 +934,10 @@ func _anim_attack(ev: Dictionary) -> void:
 		tw.tween_property(a, "position", lunge, 0.1)
 		tw.tween_property(a, "position", start, 0.12)
 	else:
-		tw.tween_interval(0.2)
+		tw.tween_interval(0.15)
 	await tw.finished
+	if ranged:
+		await _fly_arrow(a.position, t.position, ev.hit)
 	if ev.hit:
 		Sfx.play(self, "crit" if ev.crit else "hit")
 		t.hit_flash()
@@ -970,9 +1012,74 @@ func _anim_cast(ev: Dictionary) -> void:
 	Sfx.play(self, "cast")
 	await get_tree().create_timer(0.2).timeout
 	var friendly: bool = t == null or not t.is_hostile_to(ev.caster)
+	if t != null and not friendly and t != ev.caster:
+		await _fly_orb(a.position, views[t].position)
 	if t != null:
 		views[t].body.flash(Color(1.0, 0.85, 0.35) if friendly else Color(1.0, 0.95, 0.7))
 	await get_tree().create_timer(0.15).timeout
+
+
+## 화살이 공격자 가슴께에서 대상까지 낮은 포물선으로 날아감. 빗나가면 대상 옆으로 지나쳐 떨어짐
+func _fly_arrow(from: Vector3, to: Vector3, hit: bool) -> void:
+	var arrow := Node3D.new()
+	var model := (load("res://assets/kaykit/items/arrow.gltf") as PackedScene).instantiate() as Node3D
+	model.scale = Vector3.ONE * 0.45
+	# KayKit 화살은 촉이 -Y 쪽: 눕혀서 촉이 앞(-Z)을 보게
+	model.rotation.x = PI / 2.0
+	arrow.add_child(model)
+	add_child(arrow)
+	var a := from + Vector3(0, 0.75, 0)
+	var b := to + Vector3(0, 0.65, 0)
+	if not hit:
+		var side := (b - a).cross(Vector3.UP).normalized() * 0.45
+		b = b + side + (b - a).normalized() * 0.8 - Vector3(0, 0.6, 0)
+	var dur := clampf(a.distance_to(b) * 0.05, 0.12, 0.4)
+	var t := 0.0
+	while t < dur:
+		var k := t / dur
+		var p := a.lerp(b, k) + Vector3(0, sin(k * PI) * 0.25, 0)
+		var nxt := a.lerp(b, minf(k + 0.05, 1.0)) + Vector3(0, sin(minf(k + 0.05, 1.0) * PI) * 0.25, 0)
+		arrow.position = p
+		if nxt.distance_to(p) > 0.001:
+			arrow.look_at(nxt, Vector3.UP)
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	arrow.queue_free()
+
+
+## 공격 주문의 빛 구슬: 빛을 내며 대상에게 날아가 터짐
+func _fly_orb(from: Vector3, to: Vector3) -> void:
+	var orb := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.12
+	sm.height = 0.24
+	orb.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.9, 0.55)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.8, 0.4)
+	orb.material_override = mat
+	orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.85, 0.5)
+	light.light_energy = 2.0
+	light.omni_range = 2.0
+	orb.add_child(light)
+	add_child(orb)
+	var a := from + Vector3(0, 0.9, 0)
+	var b := to + Vector3(0, 0.7, 0)
+	orb.position = a
+	var tw := create_tween()
+	tw.tween_property(orb, "position", b, clampf(a.distance_to(b) * 0.06, 0.15, 0.45)).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+	var pop := create_tween().set_parallel()
+	pop.tween_property(orb, "scale", Vector3.ONE * 2.2, 0.15)
+	pop.tween_property(light, "light_energy", 0.0, 0.15)
+	pop.tween_property(mat, "albedo_color:a", 0.0, 0.15)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	await pop.finished
+	orb.queue_free()
 
 
 func _anim_vanish(c: Creature) -> void:
@@ -980,9 +1087,9 @@ func _anim_vanish(c: Creature) -> void:
 	v.set_active(false)
 	v.label.visible = false
 	v.body.hold("die")
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.9).timeout
 	var tw := create_tween()
-	tw.tween_property(v, "scale", Vector3(1, 0.01, 1), 0.3)
+	tw.tween_property(v, "position:y", v.position.y - 0.7, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	await tw.finished
 	v.visible = false
 
@@ -1123,7 +1230,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					for i in heroes.size():
 						(heroes[i] as HeroState).absorb(party[i])
 			if _dungeon():
-				get_tree().change_scene_to_file("res://scenes/dungeon.tscn")
+				get_tree().change_scene_to_file(str(custom.get("return_scene", "res://scenes/dungeon.tscn")))
 			else:
 				get_tree().change_scene_to_file("res://scenes/main.tscn")
 

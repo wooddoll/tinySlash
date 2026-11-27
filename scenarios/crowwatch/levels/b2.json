@@ -1,0 +1,244 @@
+{
+ "id": "b2",
+ "name": "하르발의 무덤",
+ "style": "cave",
+ "map": [
+  "#########################",
+  "#.....#...j....#........#",
+  "#.v...#.k....l.#..t..u..#",
+  "#..A..a....B...b...C....#",
+  "#.....#........#........#",
+  "###########d#############",
+  "#.......................#",
+  "#..O.....,,,,,.......O..#",
+  "#.......--^^^--.........#",
+  "#....g..-^^H^^-...m.....#",
+  "#.......--^X^--.........#",
+  "#..O....D.............O.#",
+  "#########################"
+ ],
+ "marks": {
+  "A": {
+   "type": "room",
+   "name": "무덤 입구",
+   "text": "계단 끝은 천연 동굴을 깎아 만든 무덤이다. 벽에 녹슨 창과 투구가 꽂혀 있고, 동쪽에서 쇳소리가 규칙적으로 울린다. 행진하는 발소리처럼.\n\n여기까지 내려오며 당신들은 훨씬 강해졌다.",
+   "on_enter": [
+    {
+     "do": "level_to",
+     "level": 3
+    },
+    {
+     "do": "checkpoint"
+    }
+   ],
+   "hazard": {
+    "if": "escape",
+    "save": "dex",
+    "dc": 12,
+    "damage": "2d4",
+    "type": "bludgeoning",
+    "half": true,
+    "text": "무덤 천장이 무너져 내린다! 돌덩이가 비 오듯 쏟아진다."
+   }
+  },
+  "B": {
+   "type": "room",
+   "name": "의장대 회랑",
+   "text": "양쪽 벽을 따라 갑옷 입은 해골들이 창을 세우고 서 있었다. 이제 그중 셋이 대열에서 걸어 나온다.",
+   "hazard": {
+    "if": "escape",
+    "save": "dex",
+    "dc": 12,
+    "damage": "2d4",
+    "type": "bludgeoning",
+    "half": true,
+    "text": "무덤 천장이 무너져 내린다! 돌덩이가 비 오듯 쏟아진다."
+   }
+  },
+  "C": {
+   "type": "room",
+   "name": "부장품 방",
+   "text": "하르발의 전리품이 쌓인 방. 녹슨 왕관들, 깨진 방패들. 그가 정복했던 고개 마을들의 것이다. 한쪽 벽에 석판이 세워져 있다.",
+   "hazard": {
+    "if": "escape",
+    "save": "dex",
+    "dc": 12,
+    "damage": "2d4",
+    "type": "bludgeoning",
+    "half": true,
+    "text": "무덤 천장이 무너져 내린다! 돌덩이가 비 오듯 쏟아진다."
+   }
+  },
+  "D": {
+   "type": "room",
+   "name": "철투구의 옥좌",
+   "text": "거대한 원형 무덤방. 가운데 높은 단 위 돌 옥좌에 갑옷 입은 형체가 앉아 있다. 쇠 투구의 눈구멍 속에 차가운 빛이 타오른다. 그의 무릎 위에, 청동 등잔이 놓여 있다.",
+   "on_enter": [
+    {
+     "do": "dialogue",
+     "id": "harval"
+    }
+   ],
+   "hazard": {
+    "if": "escape",
+    "save": "dex",
+    "dc": 12,
+    "damage": "2d4",
+    "type": "bludgeoning",
+    "half": true,
+    "text": "무덤 천장이 무너져 내린다! 돌덩이가 비 오듯 쏟아진다."
+   }
+  },
+  "a": {
+   "type": "door",
+   "name": "회랑 입구"
+  },
+  "b": {
+   "type": "door",
+   "name": "부장품 방 문"
+  },
+  "d": {
+   "type": "door",
+   "name": "옥좌의 방 문",
+   "text": "문이 열리자 쇳소리가 뚝 그친다."
+  },
+  "v": {
+   "type": "stairs",
+   "name": "바위 계단",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "b1",
+   "to_mark": "v"
+  },
+  "k": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "guard",
+   "fy": 1
+  },
+  "l": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "guard",
+   "fy": 1
+  },
+  "j": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "guard",
+   "fy": 1
+  },
+  "H": {
+   "type": "foe",
+   "monster": "harval",
+   "group": "boss",
+   "height": 1.0,
+   "fy": 1
+  },
+  "g": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "boss",
+   "if": "!harval_moved"
+  },
+  "t": {
+   "type": "feature",
+   "name": "전리품 궤짝",
+   "text": "금화가 넘칠 듯 담긴 궤짝.",
+   "once": true,
+   "model": "mini-dungeon/chest",
+   "solid": true,
+   "after_text": "빈 궤짝이다.",
+   "do": [
+    {
+     "do": "gold",
+     "amount": 120
+    },
+    {
+     "do": "potion",
+     "count": 1
+    },
+    {
+     "do": "text",
+     "title": "전리품 궤짝",
+     "text": "옛 금화와 물약 한 병. 삼백 년 묵은 약탈품이다."
+    }
+   ]
+  },
+  "u": {
+   "type": "feature",
+   "name": "맹세의 석판",
+   "text": "첫 수비대가 새긴 석판. 하르발을 묶은 맹세가 적혀 있다.",
+   "once": true,
+   "model": "mini-dungeon/shield-rectangle",
+   "after_text": "석판의 글귀는 이미 베껴 두었다.",
+   "do": [
+    {
+     "do": "doc",
+     "title": "맹세의 석판",
+     "text": "우리는 고개를 지키는 불이 되리라.\n우리가 쓰러지면 다음 사람이 불을 들고,\n그가 쓰러지면 또 다음 사람이 들리라.\n불이 타는 한 철투구는 잠들고,\n그가 깨어나면 우리의 맹세가 그를 다시 무릎 꿇리리라.\n\n— 까마귀 망루 첫 수비대, 하르발을 이긴 해에"
+    },
+    {
+     "do": "give",
+     "item": "oath",
+     "name": "맹세의 탁본"
+    },
+    {
+     "do": "xp",
+     "amount": 50,
+     "why": "맹세의 석판"
+    }
+   ]
+  },
+  "m": {
+   "type": "feature",
+   "name": "찢어진 깃발",
+   "text": "바닥에 깔린 검은 깃발. 쇠 투구 문양이 수놓여 있다.",
+   "model": "mini-dungeon/banner",
+   "do": [
+    {
+     "do": "check",
+     "skill": "history",
+     "dc": 13,
+     "success": [
+      {
+       "do": "text",
+       "title": "찢어진 깃발",
+       "text": "하르발은 원래 첫 수비대의 대장이었다. 맹세를 저버리고 고개를 차지했다가, 자기 부하들에게 무릎 꿇었다. 그래서 그 맹세만은 지금도 그를 묶는다."
+      },
+      {
+       "do": "xp",
+       "amount": 25,
+       "why": "하르발의 내력"
+      }
+     ],
+     "fail": []
+    }
+   ]
+  },
+  "X": {
+   "type": "feature",
+   "name": "돌 옥좌",
+   "text": "거칠게 깎은 돌 옥좌.",
+   "solid": true,
+   "height": 1.0,
+   "model": "mini-dungeon/chair",
+   "scale": 1.6,
+   "verb": "살펴보기",
+   "do": [
+    {
+     "do": "text",
+     "title": "돌 옥좌",
+     "text": "하르발이 옥좌를 지키고 있다.",
+     "if": "!cleared:boss"
+    },
+    {
+     "do": "text",
+     "title": "돌 옥좌",
+     "text": "빈 옥좌 위에 녹슨 쇠 투구만 남았다.",
+     "if": "cleared:boss"
+    }
+   ]
+  }
+ }
+}

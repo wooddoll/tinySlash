@@ -7,3 +7,9 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+
+# 에셋 파일은 올리지 않음 (변환 스크립트는 tools/에 있음). 예전에 올린 assets/kenney만 남아 있음
+assets/dark/
+assets/kaykit/
+assets/quaternius/

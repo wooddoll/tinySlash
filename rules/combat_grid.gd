@@ -67,22 +67,32 @@ func distance(a: Vector2i, b: Vector2i) -> int:
 
 ## 이웃 칸으로 한 걸음 옮기는 비용. 갈 수 없으면 INF
 func step_cost(from: Vector2i, to: Vector2i, mover: Creature) -> int:
-	if not in_bounds(to) or is_wall(to):
+	if not in_bounds(to):
 		return INF
+	var fly := mover != null and mover.stats.has_feature("flying")
+	var ghost := mover != null and mover.stats.has_feature("incorporeal")
+	var is_difficult: bool = difficult.has(to) and not fly  # 날면 바닥 험지 무시
+	if is_wall(to):
+		if ghost:
+			is_difficult = true  # Incorporeal Movement [SRD]: 물체를 험지처럼 통과 (멈출 수는 없음)
+		elif not (fly and _low(to)):
+			return INF  # 날면 낮은 장애물(가구) 위를 넘어감
 	var d := to - from
-	# 벽 모서리는 대각선으로 넘을 수 없음
-	if d.x != 0 and d.y != 0:
-		if is_wall(Vector2i(from.x + d.x, from.y)) or is_wall(Vector2i(from.x, from.y + d.y)):
-			return INF
-	var dh := get_height(to) - get_height(from)
-	if dh > 1.001 or dh < -1.001:
-		return INF  # v1: 사다리와 낙하 없음
-	var cost := 2 if dh > 0.501 else 1  # 높이 1.0 오르기 = 2칸
-	var is_difficult: bool = difficult.has(to)
+	# 벽 모서리는 대각선으로 넘을 수 없음 (비실체는 통과, 날면 낮은 장애물 모서리는 넘음)
+	if d.x != 0 and d.y != 0 and not ghost:
+		for side in [Vector2i(from.x + d.x, from.y), Vector2i(from.x, from.y + d.y)]:
+			if is_wall(side) and not (fly and _low(side)):
+				return INF
+	var cost := 1
+	if not fly:
+		var dh := get_height(to) - get_height(from)
+		if dh > 1.001 or dh < -1.001:
+			return INF  # v1: 사다리와 낙하 없음
+		cost = 2 if dh > 0.501 else 1  # 높이 1.0 오르기 = 2칸
 	var occ: Creature = occupants.get(to)
 	if occ != null and occ != mover and mover != null and occ.is_hostile_to(mover):
 		var size_gap := absi(int(occ.stats.size) - int(mover.stats.size))
-		if occ.is_incapacitated() or size_gap >= 2:
+		if occ.is_incapacitated() or size_gap >= 2 or ghost:
 			is_difficult = true
 		else:
 			return INF
@@ -92,6 +102,18 @@ func step_cost(from: Vector2i, to: Vector2i, mover: Creature) -> int:
 	if mover != null and in_hostile_guardians(to, mover):
 		cost *= 2
 	return cost
+
+
+func _low(c: Vector2i) -> bool:
+	return float(walls.get(c, 99.0)) <= 1.001
+
+
+## 이동을 마칠 수 있는 칸인지 (벽 속이나 다른 크리처 칸에서는 멈출 수 없음)
+func can_stop(c: Vector2i, mover: Creature) -> bool:
+	if is_wall(c):
+		return false
+	var occ: Creature = occupants.get(c)
+	return occ == null or occ == mover
 
 
 func in_hostile_guardians(cell: Vector2i, mover: Creature) -> bool:

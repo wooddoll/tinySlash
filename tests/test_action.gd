@@ -1,0 +1,223 @@
+## 실시간 액션 전투 테스트 (docs/rules.md 10장)
+extends RefCounted
+
+var failures: Array[String] = []
+
+
+func check(cond: bool, msg: String) -> void:
+	if not cond:
+		failures.append(msg)
+
+
+func eq(actual, expected, msg: String) -> void:
+	if actual != expected:
+		failures.append("%s: expected %s, got %s" % [msg, str(expected), str(actual)])
+
+
+## 12x8 빈 방 (가장자리는 벽)
+func arena() -> ActionCombat:
+	var d := Dungeon.new(12, 8)
+	for y in range(1, 7):
+		for x in range(1, 11):
+			d.set_tile(Vector2i(x, y), Dungeon.Tile.FLOOR)
+	return ActionCombat.new(d, Dice.new(1))
+
+
+func pc(cls: String, level := 1) -> Creature:
+	return Creature.new(Catalog.pc(cls, level), 0)
+
+
+func foe(id := "goblin_warrior") -> Creature:
+	return Creature.new(Catalog.monster(id), 1)
+
+
+func run(ac: ActionCombat, seconds: float) -> void:
+	var t := 0.0
+	while t < seconds:
+		ac.tick(1.0 / 60.0)
+		t += 1.0 / 60.0
+
+
+func test_move_and_walls() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(2.5, 2.5), "player")
+	p.move = Vector2(1, 0)
+	run(ac, 1.0)
+	check(p.pos.x > 6.0, "moves about 4.5 units per second (got %.2f)" % p.pos.x)
+	p.move = Vector2(1, 0)
+	run(ac, 3.0)
+	check(p.pos.x <= 10.71, "stops at the wall (got %.2f)" % p.pos.x)
+
+
+func test_melee_hit_uses_dnd_roll() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	g.c.stats.max_hp = 99
+	g.c.hp = 99
+	p.facing = Vector2(1, 0)
+	ac.dice.forced = [15, 6]  # d20 15 + 5 = 20 vs AC 15 → 맞음, 1d8? greatsword 2d6 → 6 + ...
+	var hits: Array = []
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "hit":
+			hits.append(ev))
+	p.want_attack = true
+	run(ac, 0.5)
+	eq(hits.size(), 1, "one hit")
+	check(not hits[0].blocked, "beat AC")
+	check(g.c.hp < 99, "took damage")
+	check(g.awake, "wakes when hit")
+
+
+func test_blocked_hit_does_half() -> void:
+	var ac := arena()
+	var p := ac.add(pc("wizard"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	p.weapon = Catalog.weapon("dagger")
+	g.c.stats.max_hp = 99
+	g.c.hp = 99
+	ac.dice.forced = [2, 4]  # 2 + 4 = 6 < AC 15 → 막힘: (4 + 1) / 2 = 2
+	var ev := ac.strike(p, g, p.weapon)
+	check(ev.blocked, "blocked")
+	eq(ev.damage, 2, "half damage")
+
+
+func test_dodge_iframes() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	p.move = Vector2(0, 1)
+	p.want_dodge = true
+	ac.tick(1.0 / 60.0)
+	eq(p.state, "dodge", "rolling")
+	var hp := p.c.hp
+	var ev := ac.strike(g, p, g.weapon)
+	check(ev.has("dodged"), "attack passes through the roll")
+	eq(p.c.hp, hp, "no damage")
+	run(ac, 0.5)
+	check(p.pos.y > 4.5, "rolled away (y %.2f)" % p.pos.y)
+
+
+func test_monster_telegraphs_then_hits() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(6.0, 3.5), "monster")
+	p.c.stats.max_hp = 200
+	p.c.hp = 200
+	var swings: Array = []
+	var hits: Array = []
+	ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "swing" and ev.actor == g:
+			swings.append(ev)
+		elif ev.type == "hit" and ev.actor == g:
+			hits.append(ev))
+	run(ac, 0.2)
+	check(g.awake, "wakes when the party is close")
+	run(ac, 3.0)
+	check(not swings.is_empty(), "monster swings")
+	check(swings[0].windup >= 0.5, "slow, visible windup")
+	check(not hits.is_empty(), "and hits a standing target")
+
+
+func test_ranged_shot_travels() -> void:
+	var ac := arena()
+	var p := ac.add(pc("wizard"), Vector2(2.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(8.0, 3.5), "monster")
+	g.c.stats.max_hp = 99
+	g.c.hp = 99
+	eq(p.weapon.id, "fire_bolt", "wizard's basic attack is Fire Bolt")
+	p.facing = Vector2(1, 0)
+	ac.dice.forced = [18]
+	p.want_attack = true
+	run(ac, 0.25)
+	eq(ac.shots.size(), 1, "bolt in the air")
+	run(ac, 1.0)
+	eq(ac.shots.size(), 0, "bolt landed")
+	check(g.c.hp < 99, "goblin burned")
+
+
+func test_kill_gives_xp_and_clears_room() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster", 2)
+	g.c.hp = 1
+	ac.dice.forced = [15]
+	ac.strike(p, g, p.weapon)
+	eq(g.state, "dead", "dead")
+	eq(ac.xp_pool, g.c.stats.xp, "xp pooled")
+	check(ac.room_clear(2), "room clear")
+	check(not ac.fighting(), "fight over")
+
+
+func test_party_down_and_revive() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	p.c.hp = 1
+	ac.dice.forced = [15, 5]
+	ac.strike(g, p, g.weapon)
+	eq(p.state, "down", "PC goes down, not dead")
+	check(ac.party_down(), "whole party down")
+	g.c.hp = 0
+	ac.revive_party()
+	eq(p.c.hp, 1, "back up at 1 HP")
+	eq(p.state, "idle", "standing")
+
+
+func test_ally_follows_and_fights() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(2.5, 2.5), "player")
+	var a := ac.add(pc("cleric"), Vector2(8.5, 5.5), "ally")
+	run(ac, 2.0)
+	check(a.pos.distance_to(p.pos) < 2.2, "ally walks to the leader (%.2f)" % a.pos.distance_to(p.pos))
+	var g := ac.add(foe(), Vector2(5.0, 2.5), "monster")
+	g.awake = true
+	g.c.stats.max_hp = 999
+	g.c.hp = 999
+	run(ac, 3.0)
+	check(g.c.hp < 999, "ally (and goblin fight) deal damage")
+
+
+func test_skills() -> void:
+	var ac := arena()
+	var f := ac.add(pc("fighter"), Vector2(2.5, 2.5), "player")
+	f.c.hp = 3
+	var sw: int = f.c.resources.second_wind
+	eq(ac.use_skill(f), "", "second wind")
+	check(f.c.hp > 3, "healed")
+	eq(f.c.resources.second_wind, sw - 1, "spent")
+	var b := ac.add(pc("barbarian"), Vector2(4.5, 2.5), "ally")
+	eq(ac.use_skill(b), "", "rage")
+	check(b.c.has_effect("raging"), "raging")
+	run(ac, 31.0)
+	check(not b.c.has_effect("raging"), "rage times out")
+	var w := ac.add(pc("wizard"), Vector2(2.5, 5.5), "ally")
+	var g := ac.add(foe(), Vector2(6.5, 5.5), "monster")
+	g.c.stats.max_hp = 99
+	g.c.hp = 99
+	w.facing = Vector2(1, 0)
+	eq(ac.use_skill(w), "", "magic missile")
+	check(g.c.hp < 99, "darts hit")
+
+
+func test_potion() -> void:
+	var ac := arena()
+	var c := pc("fighter")
+	c.resources["potion"] = 1
+	var p := ac.add(c, Vector2(2.5, 2.5), "player")
+	eq(ac.use_potion(p), "HP가 가득 찼어요", "not when full")
+	p.c.hp = 2
+	eq(ac.use_potion(p), "", "drink")
+	check(p.c.hp > 2, "healed")
+	eq(ac.use_potion(p), "물약이 없어요", "none left")
+
+
+func test_monster_miss_is_blocked() -> void:
+	var ac := arena()
+	var p := ac.add(pc("fighter"), Vector2(3.0, 3.5), "player")
+	var g := ac.add(foe(), Vector2(4.0, 3.5), "monster")
+	var hp := p.c.hp
+	ac.dice.forced = [2, 6]
+	var ev := ac.strike(g, p, g.weapon)
+	check(ev.blocked, "blocked")
+	eq(p.c.hp, hp, "no damage from a monster miss")

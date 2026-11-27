@@ -285,7 +285,7 @@ func test_ranged_with_adjacent_enemy() -> void:
 
 func test_extra_attack() -> void:
 	var cb := setup()
-	var f := spawn(cb, Catalog.fighter(5), 0, Vector2i(1, 1))
+	var f := spawn(cb, Catalog.pc("fighter", 5), 0, Vector2i(1, 1))
 	var s := spawn(cb, Catalog.monster("skeleton"), 1, Vector2i(2, 1))
 	s.stats.max_hp = 999
 	s.hp = 999
@@ -446,7 +446,7 @@ func test_cleric_stats() -> void:
 	eq(c1.spell_attack_bonus(), 5, "spell attack")
 	eq(c1.resources.get("slot1", 0), 2, "lv1 slots")
 	check(not c1.resources.has("channel"), "no channel at 1")
-	var c5 := Creature.new(Catalog.cleric(5), 0)
+	var c5 := Creature.new(Catalog.pc("cleric", 5), 0)
 	eq(c5.stats.max_hp, 33, "lv5 hp")
 	eq(c5.resources.get("slot3", 0), 2, "lv5 3rd slots")
 	eq(c5.resources.get("channel", 0), 2, "channel")

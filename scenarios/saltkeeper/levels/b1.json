@@ -1,0 +1,314 @@
+{
+ "id": "b1",
+ "name": "지하실",
+ "style": "rooms",
+ "map": [
+  "#############################",
+  "#b.......#oo.....oo#......u.#",
+  "#..j.....#o..z.y..o#........#",
+  "#...C.g..#....B....#...A....#",
+  "#....x...#o.......o#........#",
+  "#........#........R#........#",
+  "#........#oo.....oo#........#",
+  "####d#########w########l#####",
+  "#..........T.,..............#",
+  "##f######q########h######G###",
+  "#....#........#.......#.....#",
+  "#.s..#.k....m.#.I.....#...v.#",
+  "#....#...E....#...S...#.H...#",
+  "#.D..#........#...P...#.....#",
+  "#....#..t.....#.F.....#.....#",
+  "#....#.n......#.......#.....#",
+  "#....#........#.......#.....#",
+  "#############################"
+ ],
+ "marks": {
+  "A": {
+   "type": "room",
+   "name": "지하실 계단 아래",
+   "text": "돌벽에서 바닷물이 배어 나온다. 멀리서, 아주 깊은 곳에서 여러 목소리가 한 음을 길게 끄는 소리가 들린다. 노래 같기도, 신음 같기도 하다."
+  },
+  "B": {
+   "type": "room",
+   "name": "포도주 저장고",
+   "text": "통들 사이에 젖은 하인 옷차림의 두 형체가 서 있다. 고개가 이쪽으로 꺾인다. 눈이 하얗게 흐려져 있다."
+  },
+  "C": {
+   "type": "room",
+   "name": "하인 숙소",
+   "text": "침대 몇 개와 낡은 탁자. 구석에서 무언가를 씹던 마른 젊은이가 고개를 든다. 입가가 검게 젖어 있다. '선생님…? 아니구나. 배고파.'"
+  },
+  "D": {
+   "type": "room",
+   "name": "뒷계단 아래",
+   "text": "좁은 뒷계단이 끝나는 작은 방. 문 하나가 복도로 나 있다."
+  },
+  "E": {
+   "type": "room",
+   "name": "가족 납골당",
+   "text": "벽을 따라 석관들이 놓여 있다. 뚜껑마다 브레넌 가 사람들의 이름이 새겨져 있다."
+  },
+  "F": {
+   "type": "room",
+   "name": "물결의 예배실",
+   "text": "조개껍데기와 산호로 뒤덮인 작은 예배실. 제단 위 손바닥만 한 검은 진주가 촛불도 없는데 은은하게 빛난다. 진주 뒤 벽에 길게 드리운 그림자가… 촛대의 모양이 아니다."
+  },
+  "H": {
+   "type": "room",
+   "name": "쇠창살 너머",
+   "text": "거친 바위를 깎아 만든 계단이 아래로 내려간다. 노랫소리가 또렷해진다.",
+   "on_enter": [
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "깊은 곳으로"
+    }
+   ]
+  },
+  "d": {
+   "type": "door",
+   "name": "숙소 문"
+  },
+  "w": {
+   "type": "door",
+   "name": "저장고 문"
+  },
+  "l": {
+   "type": "door",
+   "name": "계단실 문"
+  },
+  "f": {
+   "type": "door",
+   "name": "뒷계단 문"
+  },
+  "q": {
+   "type": "door",
+   "name": "납골당 문"
+  },
+  "h": {
+   "type": "door",
+   "name": "예배실 문"
+  },
+  "G": {
+   "type": "door",
+   "name": "쇠창살 문",
+   "locked": true,
+   "key": "iron_key",
+   "force_dc": 18,
+   "locked_text": "녹슨 쇠창살 문. 굵은 자물쇠가 달려 있다. 창살 너머로 바위 계단이 아래로 이어진다."
+  },
+  "u": {
+   "type": "stairs",
+   "name": "부엌으로",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "f1",
+   "to_mark": "v"
+  },
+  "s": {
+   "type": "stairs",
+   "name": "뒷계단",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "f2",
+   "to_mark": "v"
+  },
+  "v": {
+   "type": "stairs",
+   "name": "노래하는 굴로",
+   "verb": "내려가기",
+   "to_level": "b2",
+   "to_mark": "u"
+  },
+  "T": {
+   "type": "trap",
+   "name": "썩은 바닥 구덩이",
+   "dc_find": 14,
+   "save": "dex",
+   "dc": 13,
+   "damage": "1d6+2d6",
+   "dtype": "piercing",
+   "text": "발밑 널빤지가 우지끈 꺼진다! 밑에는 뾰족한 말뚝이 박힌 구덩이가 있다.",
+   "found_text": "이 부분만 바닥에 발자국이 없다. 널빤지 아래가 비어 있다 — 구덩이 함정이다. 이제 가장자리로 피해 갈 수 있다."
+  },
+  "z": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "wine",
+   "fx": 0,
+   "fy": 1
+  },
+  "y": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "wine",
+   "fx": 0,
+   "fy": 1
+  },
+  "g": {
+   "type": "foe",
+   "monster": "corwin",
+   "group": "servants"
+  },
+  "x": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "servants"
+  },
+  "t": {
+   "type": "foe",
+   "monster": "swarm_insects",
+   "group": "insects",
+   "hidden": true
+  },
+  "S": {
+   "type": "foe",
+   "monster": "shadow",
+   "group": "shadow",
+   "hidden": true
+  },
+  "b": {
+   "type": "feature",
+   "name": "하인용 침대",
+   "once": true,
+   "model": "survival-kit/bedroll",
+   "text": "곰팡내 나지만 문을 닫으면 잠시 숨을 돌릴 수 있겠다. (짧은 휴식: 히트 다이스로 회복)",
+   "after_text": "이미 쉬었다. 여기 오래 있고 싶지 않다.",
+   "if": "cleared:servants",
+   "do": [
+    {
+     "do": "short_rest"
+    }
+   ]
+  },
+  "j": {
+   "type": "feature",
+   "name": "코윈의 탁자",
+   "once": true,
+   "text": "피 묻은 종이 한 장이 못에 꽂혀 있다.",
+   "after_text": "빈 탁자다.",
+   "do": [
+    {
+     "do": "doc",
+     "title": "코윈의 쪽지",
+     "text": "선생님은 합창단이 노래하면 아무도 아프지 않을 거라고 했다.\n\n첫날 밤 노래를 들은 뒤로 배가 고프다. 빵도 고기도 소용없다. 수레에 실린 것들을 볼 때만… 아니야.\n\n쇠창살 열쇠는 내 목에 건다. 선생님 말고는 아무도 아래로 못 가게. 아래에 마님이 계신다. 선생님이 유리 속에 모셔 두었다."
+    }
+   ]
+  },
+  "k": {
+   "type": "feature",
+   "name": "할아버지의 석관",
+   "once": true,
+   "model": "mini-dungeon/wall-half",
+   "text": "'엘리아스 브레넌, 소금곶의 의사.' 뚜껑을 밀자 오래된 유골 옆에 금화 주머니가 있다.",
+   "after_text": "열린 석관이다.",
+   "do": [
+    {
+     "do": "check",
+     "skill": "athletics",
+     "dc": 10,
+     "success": [
+      {
+       "do": "gold",
+       "amount": 40
+      }
+     ],
+     "fail": [
+      {
+       "do": "text",
+       "title": "석관",
+       "text": "뚜껑이 너무 무겁다. 조금 밀리다 만다. (다시 시도할 수 없다)"
+      }
+     ]
+    }
+   ]
+  },
+  "m": {
+   "type": "feature",
+   "name": "미라의 석관",
+   "once": true,
+   "model": "mini-dungeon/wall-half",
+   "text": "'미라 브레넌, 사랑하는 아내.' 뚜껑이 이미 열려 있다. 안은 비어 있고, 바닥에 바닷물이 고여 있다.",
+   "after_text": "비어 있는 석관이다.",
+   "do": [
+    {
+     "do": "flag",
+     "set": "saw_empty_coffin"
+    },
+    {
+     "do": "xp",
+     "amount": 50,
+     "why": "빈 석관"
+    }
+   ]
+  },
+  "n": {
+   "type": "feature",
+   "name": "이름 없는 석관",
+   "once": true,
+   "model": "mini-dungeon/wall-half",
+   "text": "이름이 새겨지지 않은 새 석관. 뚜껑 틈새로 윙윙거리는 소리가 난다. 뚜껑을 밀자 시체를 파먹던 벌레 떼가 구름처럼 솟아오른다!",
+   "after_text": "벌레 껍질과 뼛조각뿐이다.",
+   "do": [
+    {
+     "do": "battle",
+     "group": "insects"
+    }
+   ]
+  },
+  "R": {
+   "type": "feature",
+   "name": "포도주 선반",
+   "once": true,
+   "model": "mini-dungeon/barrel",
+   "text": "대부분 식초가 되어 버린 포도주. 맨 아래 칸 병 하나에 돌돌 만 지폐 대신 금화가 들어 있다.",
+   "after_text": "빈 선반이다.",
+   "do": [
+    {
+     "do": "gold",
+     "amount": 15
+    }
+   ]
+  },
+  "I": {
+   "type": "feature",
+   "name": "벽의 비문",
+   "text": "조개껍데기로 박아 넣은 글자: '바다는 빌려준 것을 돌려받는다. 숨을 바친 자에게 숨을 주리라.'",
+   "do": [
+    {
+     "do": "check",
+     "skill": "religion",
+     "dc": 12,
+     "success": [
+      {
+       "do": "text",
+       "title": "종교",
+       "text": "어떤 신에게도 바치는 기도가 아니다. 바다 밑에서 대가를 요구하는 무언가와 맺는 거래의 문구다. 그런 것들은 약속을 지키지 않는다."
+      }
+     ],
+     "fail": []
+    }
+   ]
+  },
+  "P": {
+   "type": "feature",
+   "name": "검은 진주",
+   "solid": true,
+   "model": "mini-dungeon/pot",
+   "once": true,
+   "text": "진주를 집어 드는 순간, 벽의 그림자가 벽에서 떨어져 나온다!",
+   "after_text": "빈 제단이다.",
+   "do": [
+    {
+     "do": "give",
+     "item": "black_pearl",
+     "name": "검은 진주"
+    },
+    {
+     "do": "battle",
+     "group": "shadow"
+    }
+   ]
+  }
+ }
+}

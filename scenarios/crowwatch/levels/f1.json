@@ -1,0 +1,332 @@
+{
+ "id": "f1",
+ "name": "바깥뜰",
+ "style": "rooms",
+ "map": [
+  "#############################",
+  "#.......#.........#.j.k...l.#",
+  "#.p.q...#.r.....s.#.........#",
+  "#...A...#....B....#....C..U.#",
+  "#.......#.........#.........#",
+  "#..t....#.x.....y.#..z......#",
+  "####a#######b#########c######",
+  "#...........................#",
+  "#..O.......O.....O.......O..#",
+  "#.............D.........w...#",
+  "#..O.......O.....O.......O..#",
+  "#...........................#",
+  "#####d#######e########f######",
+  "#.......#.........#.........#",
+  "#..g....#....E....#....F..T.#",
+  "#.......#..v......#.........#",
+  "#..G.h..#....S....#....i....#",
+  "#.......#....X....#.........#",
+  "#############################"
+ ],
+ "marks": {
+  "S": {
+   "type": "start"
+  },
+  "E": {
+   "type": "room",
+   "name": "성문 통로",
+   "text": "봉화대의 정문은 반쯤 부서져 있다. 내려앉은 쇠창살 사이로 바람이 휘파람 소리를 낸다. 발밑에는 화살대와 고블린의 조잡한 신발 자국이 어지럽다.\n\n고개를 들면 망루 꼭대기가 보인다. 사흘째 불이 꺼진 봉화대다.",
+   "search_text": "성문 쇠사슬이 안에서 잘려 있다. 누군가 문을 열어 준 것이 아니라, 무언가가 안에서 뚫고 나간 자국이다."
+  },
+  "D": {
+   "type": "room",
+   "name": "안뜰",
+   "text": "돌로 포장된 넓은 안뜰. 무너진 기둥 사이로 이끼가 자랐다. 가운데 우물 위에는 도르래가 삐걱거린다. 북쪽으로 마구간과 막사, 망루가 있고, 남쪽으로 식당과 창고가 있다.",
+   "hazard": {
+    "if": "escape",
+    "save": "wis",
+    "dc": 10,
+    "damage": "1d4",
+    "type": "psychic",
+    "half": true,
+    "text": "땅 밑에서 수백 개의 뼈가 덜그럭거리는 소리가 올라온다. 머릿속이 얼어붙는다."
+   }
+  },
+  "A": {
+   "type": "room",
+   "name": "마구간",
+   "text": "말은 한 마리도 없다. 대신 짚더미 위에 커다란 회색 짐승 둘이 무언가를 뜯고 있다가 고개를 든다. 목에 고블린식 가죽 목줄이 걸려 있다."
+  },
+  "B": {
+   "type": "room",
+   "name": "수비대 막사",
+   "text": "이층 침상이 줄지어 선 막사. 침구는 찢겨 있고, 바닥에는 고블린들이 끌어다 놓은 약탈품이 쌓여 있다. 셋이 무기를 쥐고 벌떡 일어선다."
+  },
+  "C": {
+   "type": "room",
+   "name": "망루 1층",
+   "text": "망루 안은 서늘하다. 나선 계단이 위로 감겨 올라가고, 바닥 한쪽에 무거운 들창이 열려 있다. 들창 아래에서 흙냄새와 함께 차가운 바람이 올라온다."
+  },
+  "G": {
+   "type": "room",
+   "name": "수비대 식당",
+   "text": "긴 식탁 위에 사흘 전의 저녁이 그대로 굳어 있다. 수저가 바닥에 흩어져 있다. 다들 급히 일어난 것이다."
+  },
+  "F": {
+   "type": "room",
+   "name": "창고",
+   "text": "자루와 통이 쌓인 창고. 구석에서 누군가 끙끙거리는 소리가 들린다. 밧줄에 묶인 사람이다!"
+  },
+  "a": {
+   "type": "door",
+   "name": "마구간 문"
+  },
+  "b": {
+   "type": "door",
+   "name": "막사 문"
+  },
+  "c": {
+   "type": "door",
+   "name": "망루 문",
+   "locked": true,
+   "key": "tower_key",
+   "force_dc": 15,
+   "locked_text": "쇠테를 두른 망루 문이 안에서 빗장으로 잠긴 데다 바깥에도 새 자물쇠가 걸려 있다. 고블린 솜씨의 조잡한 자물쇠다.",
+   "text": "자물쇠가 풀리고 문이 무겁게 열린다."
+  },
+  "d": {
+   "type": "door",
+   "name": "식당 문"
+  },
+  "e": {
+   "type": "door",
+   "name": "성문 안쪽 문"
+  },
+  "f": {
+   "type": "door",
+   "name": "창고 문",
+   "locked": true,
+   "key": "store_key",
+   "force_dc": 12,
+   "locked_text": "창고 문에 맹꽁이자물쇠가 걸려 있다. 안에서 누군가 웅얼거린다."
+  },
+  "U": {
+   "type": "stairs",
+   "name": "나선 계단",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "f2",
+   "to_mark": "D"
+  },
+  "z": {
+   "type": "stairs",
+   "name": "들창",
+   "verb": "내려가기",
+   "to_level": "b1",
+   "to_mark": "z"
+  },
+  "w": {
+   "type": "stairs",
+   "name": "우물",
+   "verb": "밧줄 타고 내려가기",
+   "to_level": "b1",
+   "to_mark": "w",
+   "use_if": "item:rope",
+   "if_not_text": "깊은 우물이다. 도르래의 두레박 줄은 끊어져 있다. 바닥에 물이 아니라 돌바닥이 희미하게 보인다. 튼튼한 밧줄이 있으면 내려갈 수 있겠다."
+  },
+  "X": {
+   "type": "exit",
+   "name": "정문",
+   "verb": "떠나기",
+   "do": [
+    {
+     "do": "dialogue",
+     "id": "gate"
+    }
+   ]
+  },
+  "p": {
+   "type": "foe",
+   "monster": "wolf",
+   "group": "wolves",
+   "fx": 1,
+   "fy": 0
+  },
+  "q": {
+   "type": "foe",
+   "monster": "wolf",
+   "group": "wolves",
+   "fx": -1,
+   "fy": 0
+  },
+  "r": {
+   "type": "foe",
+   "monster": "goblin_warrior",
+   "group": "barracks"
+  },
+  "s": {
+   "type": "foe",
+   "monster": "goblin_minion",
+   "group": "barracks"
+  },
+  "x": {
+   "type": "foe",
+   "monster": "goblin_minion",
+   "group": "barracks"
+  },
+  "j": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "gate_dead",
+   "hidden": false
+  },
+  "k": {
+   "type": "foe",
+   "monster": "skeleton",
+   "group": "gate_dead"
+  },
+  "l": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "gate_dead",
+   "if": "!grak_pact"
+  },
+  "t": {
+   "type": "feature",
+   "name": "여물통",
+   "text": "말 여물통. 짚 아래에 무언가 반짝인다.",
+   "once": true,
+   "model": "survival-kit/box-large-open",
+   "solid": true,
+   "after_text": "빈 여물통이다.",
+   "do": [
+    {
+     "do": "gold",
+     "amount": 15
+    },
+    {
+     "do": "text",
+     "title": "여물통",
+     "text": "수비병 누군가가 숨겨 둔 비상금 주머니다."
+    }
+   ]
+  },
+  "y": {
+   "type": "feature",
+   "name": "약탈품 더미",
+   "text": "고블린들이 긁어모은 물건들. 깨진 그릇, 상인의 옷감, 그리고 쇠고리에 꿴 열쇠 꾸러미.",
+   "once": true,
+   "model": "survival-kit/box-open",
+   "after_text": "쓸모없는 잡동사니뿐이다.",
+   "if": "cleared:barracks",
+   "do": [
+    {
+     "do": "give",
+     "item": "tower_key",
+     "name": "망루 열쇠"
+    },
+    {
+     "do": "potion",
+     "count": 1
+    },
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "약탈품"
+    }
+   ]
+  },
+  "g": {
+   "type": "feature",
+   "name": "화덕",
+   "text": "식은 화덕. 재 속에 무언가 묻혀 있다.",
+   "once": true,
+   "after_text": "차가운 재뿐이다.",
+   "do": [
+    {
+     "do": "check",
+     "skill": "investigation",
+     "dc": 10,
+     "success": [
+      {
+       "do": "text",
+       "title": "화덕",
+       "text": "재 속에서 기름종이에 싼 회복 물약을 찾았다. 요리사가 몰래 챙겨 둔 것이리라."
+      },
+      {
+       "do": "potion",
+       "count": 1
+      }
+     ],
+     "fail": [
+      {
+       "do": "text",
+       "title": "화덕",
+       "text": "재만 손에 묻는다."
+      }
+     ]
+    }
+   ]
+  },
+  "h": {
+   "type": "feature",
+   "name": "게시판",
+   "text": "식당 벽의 게시판. 근무표와 공지가 붙어 있고, 못에 열쇠 하나가 걸려 있다.",
+   "once": true,
+   "model": "mini-dungeon/banner",
+   "after_text": "근무표와 공지뿐이다.",
+   "do": [
+    {
+     "do": "doc",
+     "title": "까마귀 망루 근무 수칙",
+     "text": "하나. 봉화는 해가 진 뒤부터 동이 틀 때까지 꺼뜨리지 않는다.\n둘. 봉화의 불씨는 청동 등잔에서만 옮긴다. 등잔은 봉화대를 떠나서는 안 된다.\n셋. 지하 저수조 아래 봉인된 문은 수비대장만 연다.\n넷. 밤중에 땅 밑에서 소리가 들리면 기도하라. 그리고 봉화를 지켜라.\n\n— 수비대장 일제 바른\n\n(근무표 맨 아래에 누군가 연필로 써 놓았다: \"넷째 줄은 농담이 아님\")"
+    },
+    {
+     "do": "give",
+     "item": "store_key",
+     "name": "창고 열쇠"
+    },
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "근무 수칙"
+    }
+   ]
+  },
+  "v": {
+   "type": "feature",
+   "name": "부서진 수레",
+   "text": "상인의 짐수레가 옆으로 쓰러져 있다. 짐은 다 털렸고, 마부석 아래 장부만 남았다.",
+   "once": true,
+   "model": "survival-kit/resource-planks",
+   "solid": true,
+   "after_text": "털린 수레다.",
+   "do": [
+    {
+     "do": "doc",
+     "title": "대상 장부",
+     "text": "모래골 상단 — 고개 넘이 셋째 행렬\n\n소금 열두 자루, 쇠못 두 상자, 양털 여섯 묶음.\n마부: 테오 (말 둘)\n호위: 없음. 까마귀 망루에서 하룻밤 묵고 새벽에 고개를 넘을 것.\n\n(맨 끝 줄은 급하게 휘갈겨져 있다) 봉화가 꺼졌다. 초록 놈들이 성벽을 넘어온다."
+    }
+   ]
+  },
+  "T": {
+   "type": "npc",
+   "name": "테오",
+   "dialogue": "teo",
+   "model": "mini-characters/character-male-c",
+   "ghost": false,
+   "fx": -1,
+   "fy": 0
+  },
+  "i": {
+   "type": "feature",
+   "name": "밧줄 더미",
+   "text": "창고 구석에 감아 놓은 굵은 삼밧줄. 우물 바닥까지 닿을 만큼 길다.",
+   "once": true,
+   "model": "survival-kit/bucket",
+   "after_text": "밧줄을 챙겼다.",
+   "do": [
+    {
+     "do": "give",
+     "item": "rope",
+     "name": "삼밧줄"
+    }
+   ]
+  }
+ }
+}

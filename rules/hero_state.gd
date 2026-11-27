@@ -1,9 +1,13 @@
 ## 던전 탐험 동안 전투와 전투 사이에 이어지는 파티원 한 명의 상태 (HP, 사용 횟수, XP).
-## 전투 장면은 이걸로 PC를 만들고, 끝나면 결과를 다시 담습니다. cls: "fighter" 또는 "cleric"
+## 전투 장면은 이걸로 PC를 만들고, 끝나면 결과를 다시 담습니다. cls: Catalog.CLASSES 중 하나
 class_name HeroState
 extends RefCounted
 
-const NAMES := {"fighter": "파이터", "cleric": "클레릭"}
+const NAMES := {"fighter": "파이터", "cleric": "클레릭", "barbarian": "바바리안", "rogue": "로그", "monk": "몽크",
+	"paladin": "팔라딘", "ranger": "레인저", "wizard": "위저드", "sorcerer": "소서러", "warlock": "워락",
+	"bard": "바드", "druid": "드루이드"}
+## 새로 시작할 때의 파티 (주인공, 동료). 던전 생성기와 시나리오 고르기 창에서 바꿈
+static var party_classes: Array = ["fighter", "cleric"]
 ## v1 파이터는 5레벨까지 (rules 1)
 const MAX_LEVEL := 5
 ## 회복 물약 값 [SRD: Potion of Healing 50 GP]과 들고 다닐 수 있는 수 [변경]
@@ -18,13 +22,18 @@ var hp := -1
 var resources := {}
 ## 쓴 히트 다이스 수. 남은 수 = 레벨 - 이것 (rules 5.3)
 var hit_dice_spent := 0
+## 줄어든 최대 HP (스펙터 Life Drain). 긴 휴식으로 돌아옴 [SRD]
+var max_hp_loss := 0
+## 레벨업 때 고른 것 {레벨: {"asi": {능력치: 증가}, "spell": id}} (LevelUp, rules 7.17)
+var choices := {}
 
 
-## 물약은 파이터가 들고 시작 [변경: rules 7.1]
-static func fresh(c := "fighter") -> HeroState:
+## 물약은 주인공(파티 첫 번째)이 들고 시작 [변경: rules 7.1]. lead를 주지 않으면 파이터만
+static func fresh(c := "fighter", lead := -1) -> HeroState:
 	var h := HeroState.new()
 	h.cls = c
-	h.resources = {"potion": 1} if c == "fighter" else {}
+	var holds := (c == "fighter") if lead < 0 else lead > 0
+	h.resources = {"potion": 1} if holds else {}
 	return h
 
 
@@ -33,7 +42,9 @@ func display_name() -> String:
 
 
 func stats() -> CreatureStats:
-	return Catalog.pc(cls, level())
+	var s := Catalog.pc(cls, level(), choices)
+	s.max_hp = maxi(1, s.max_hp - max_hp_loss)
+	return s
 
 
 func level() -> int:
@@ -55,6 +66,8 @@ func duplicate_state() -> HeroState:
 	h.hp = hp
 	h.resources = resources.duplicate()
 	h.hit_dice_spent = hit_dice_spent
+	h.max_hp_loss = max_hp_loss
+	h.choices = choices.duplicate(true)
 	return h
 
 
@@ -70,6 +83,7 @@ func make_creature() -> Creature:
 
 ## 전투가 끝났거나 도망쳤을 때 PC 상태를 담고 XP를 더함. 레벨이 오르면 {"level_up": 새 레벨}
 func absorb(c: Creature, xp_gain := 0) -> Dictionary:
+	max_hp_loss += c.max_hp_loss
 	var before := stats()
 	hp = clampi(c.hp, 1, before.max_hp)  # 이겼는데 쓰러져(또는 죽어) 있었으면 1로 일어남 [변경]. Aid로 늘어난 HP는 사라짐
 	resources = c.resources.duplicate()
@@ -86,6 +100,24 @@ func absorb(c: Creature, xp_gain := 0) -> Dictionary:
 		if gain > 0:
 			resources[k] = resources.get(k, 0) + gain
 	return {"level_up": after.level}
+
+
+# --- 레벨업 고르기 (rules 7.17) ---
+
+## 아직 고르지 않은 레벨들 (LevelUp.pending)
+func pending_choices() -> Array:
+	return LevelUp.pending(cls, level(), choices)
+
+
+## level에 고른 것을 남김 (key: "asi" 또는 "spell"). 최대 HP가 바뀌면 지금 HP도 그만큼
+func choose(level: int, key: String, value: Variant) -> void:
+	var before := max_hp()
+	var c: Dictionary = choices.get(level, {})
+	c[key] = value
+	choices[level] = c
+	var after := max_hp()
+	if hp >= 0:
+		hp = clampi(hp + after - before, 1, after)
 
 
 # --- 상점 ---
@@ -132,19 +164,17 @@ func spend_hit_die(dice: Dice) -> Dictionary:
 	return {"roll": roll, "heal": hp - before}
 
 
-## 짧은 휴식을 마칠 때: Second Wind 1회, Action Surge 전부, Channel Divinity 1회 [SRD]. 주문 슬롯은 안 돌아옴
+## 짧은 휴식을 마칠 때: Second Wind 1회, Action Surge 전부, Channel Divinity 1회, Rage 1회 ... [SRD]
+## (ClassFeatures.SHORT_REST). 주문 슬롯은 안 돌아옴
 func finish_short_rest() -> void:
-	var fresh_c := Creature.new(stats(), 0)
-	if fresh_c.resources.has("second_wind"):
-		resources["second_wind"] = mini(resources.get("second_wind", fresh_c.resources.second_wind) + 1, fresh_c.resources.second_wind)
-	if fresh_c.resources.has("action_surge"):
-		resources["action_surge"] = fresh_c.resources.action_surge
-	if fresh_c.resources.has("channel"):
-		resources["channel"] = mini(resources.get("channel", fresh_c.resources.channel) + 1, fresh_c.resources.channel)
+	var full := Creature.new(stats(), 0).resources
+	resources = ClassFeatures.after_short_rest(resources, full)
+	resources = ClassFeatures.short_rest_extra(level(), stats().features, resources, full)
 
 
 ## 긴 휴식: HP, 히트 다이스, 기능 사용 횟수, 주문 슬롯 전부 (물약은 그대로)
 func long_rest() -> void:
 	hp = -1
 	hit_dice_spent = 0
+	max_hp_loss = 0
 	resources = {"potion": resources.potion} if resources.has("potion") else {}

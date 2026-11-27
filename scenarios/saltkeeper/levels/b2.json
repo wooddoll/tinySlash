@@ -1,0 +1,263 @@
+{
+ "id": "b2",
+ "name": "노래하는 굴",
+ "style": "cave",
+ "map": [
+  "##########################",
+  "#u.....#.oo.R..L##########",
+  "#..A...#....B...##########",
+  "#......q.J....K.##########",
+  "#.,..,.#o..V....##########",
+  "#......#........##########",
+  "###r######################",
+  "#..~~.....~..#...........#",
+  "#.T~~~...~~~.#.~~~~~~~~~.#",
+  "#..~~~d.~~~..#.~~^^^^^~~.#",
+  "#...~~...~~..s.~~^^X^^~~.#",
+  "#..,..~~~~...#.~~^^a^^~~.#",
+  "#.~~...e~~~..#.~~~~~~~~~.#",
+  "#.~~~....~~..#.b.........#",
+  "#..~~~..,....#C..........#",
+  "##########################"
+ ],
+ "marks": {
+  "A": {
+   "type": "room",
+   "name": "동굴 입구",
+   "text": "계단이 끝나는 곳은 젖은 바위 동굴이다. 노래가 사방의 바위에서 울린다. 서쪽 아래로 물에 잠긴 굴이, 동쪽으로 등불 빛이 새는 방이 보인다.\n\n여기까지 오는 동안 겪은 일들이 당신들을 단련시켰다.",
+   "on_enter": [
+    {
+     "do": "level_to",
+     "level": 3
+    },
+    {
+     "do": "checkpoint"
+    }
+   ],
+   "hazard": {
+    "if": "escape",
+    "save": "con",
+    "dc": 10,
+    "damage": "1d6",
+    "type": "cold",
+    "text": "바닷물이 무섭게 차오른다. 얼음장 같은 물살이 다리를 휘감는다!"
+   }
+  },
+  "B": {
+   "type": "room",
+   "name": "올더스의 실험실",
+   "text": "바위를 깎아 만든 실험실. 유리관과 증류기가 얽혀 있고, 가운데 커다란 유리 통 안에 여인이 잠들듯 떠 있다. 미라 브레넌이다.",
+   "hazard": {
+    "if": "escape",
+    "save": "con",
+    "dc": 10,
+    "damage": "1d6",
+    "type": "cold",
+    "text": "바닷물이 무섭게 차오른다. 얼음장 같은 물살이 다리를 휘감는다!"
+   }
+  },
+  "T": {
+   "type": "room",
+   "name": "물에 잠긴 굴",
+   "text": "무릎까지 차는 바닷물. 물속에 무언가 떠 있다가 천천히 일어선다. 익사한 자들이다.",
+   "hazard": {
+    "if": "escape",
+    "save": "con",
+    "dc": 10,
+    "damage": "1d6",
+    "type": "cold",
+    "text": "바닷물이 무섭게 차오른다. 얼음장 같은 물살이 다리를 휘감는다!"
+   }
+  },
+  "C": {
+   "type": "room",
+   "name": "조개 제단",
+   "text": "거대한 둥근 동굴. 물 한가운데 솟은 바위 단 위에 조개껍데기로 쌓은 제단이 있다. 노래가 뚝 그친다. 제단 앞에 검은 외투를 입은 마른 형체가 서 있다. 피부는 잿빛이고 손톱은 갈고리처럼 길다.",
+   "on_enter": [
+    {
+     "do": "dialogue",
+     "id": "aldous"
+    }
+   ],
+   "hazard": {
+    "if": "escape",
+    "save": "con",
+    "dc": 10,
+    "damage": "1d6",
+    "type": "cold",
+    "text": "바닷물이 무섭게 차오른다. 얼음장 같은 물살이 다리를 휘감는다!"
+   }
+  },
+  "q": {
+   "type": "door",
+   "name": "좁은 틈",
+   "open_if": ""
+  },
+  "r": {
+   "type": "door",
+   "name": "비탈길",
+   "open_if": ""
+  },
+  "s": {
+   "type": "door",
+   "name": "바위 틈",
+   "open_if": ""
+  },
+  "u": {
+   "type": "stairs",
+   "name": "지하실로",
+   "verb": "올라가기",
+   "dir": "up",
+   "to_level": "b1",
+   "to_mark": "v"
+  },
+  "L": {
+   "type": "stairs",
+   "name": "밧줄 승강기",
+   "verb": "타고 올라가기",
+   "dir": "up",
+   "to_level": "f1",
+   "to_mark": "l",
+   "use_if": "escape",
+   "if_not_text": "부엌으로 이어지는 음식 승강기의 바닥이다. 위쪽 도르래가 쇠사슬로 묶여 있어 지금은 움직이지 않는다."
+  },
+  "d": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "tunnel"
+  },
+  "e": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "tunnel"
+  },
+  "a": {
+   "type": "foe",
+   "monster": "aldous",
+   "group": "boss",
+   "height": 1.0,
+   "fy": 1
+  },
+  "b": {
+   "type": "foe",
+   "monster": "zombie",
+   "group": "boss",
+   "if": "!aldous_moved"
+  },
+  "X": {
+   "type": "feature",
+   "name": "조개 제단",
+   "solid": true,
+   "height": 1.0,
+   "model": "mini-dungeon/pot",
+   "scale": 1.6,
+   "verb": "살펴보기",
+   "do": [
+    {
+     "do": "text",
+     "title": "조개 제단",
+     "if": "!cleared:boss",
+     "text": "수천 개의 조개껍데기를 쌓아 만든 제단. 올더스가 그 앞을 지키고 있다."
+    },
+    {
+     "do": "text",
+     "title": "조개 제단",
+     "if": [
+      "cleared:boss",
+      "!altar_broken"
+     ],
+     "text": "조개껍데기 제단을 부수자 동굴 전체가 낮게 울린다. 멀리서 파도가 거꾸로 밀려드는 소리가 난다."
+    },
+    {
+     "do": "xp",
+     "amount": 50,
+     "why": "제단을 부숨",
+     "if": [
+      "cleared:boss",
+      "!altar_broken"
+     ]
+    },
+    {
+     "do": "text",
+     "title": "조개 제단",
+     "if": "altar_broken",
+     "text": "부서진 조개 조각들뿐이다."
+    },
+    {
+     "do": "flag",
+     "set": "altar_broken",
+     "if": "cleared:boss"
+    }
+   ]
+  },
+  "R": {
+   "type": "feature",
+   "name": "작은 함",
+   "once": true,
+   "model": "mini-dungeon/chest",
+   "text": "함 안에 진주 반지가 하나 들어 있다. 안쪽에 'A가 M에게, 영원히'라고 새겨져 있다.",
+   "after_text": "빈 함이다.",
+   "do": [
+    {
+     "do": "give",
+     "item": "ring",
+     "name": "미라의 진주 반지"
+    }
+   ]
+  },
+  "J": {
+   "type": "feature",
+   "name": "마지막 일지",
+   "once": true,
+   "model": "survival-kit/box",
+   "text": "실험대 위에 일지가 펼쳐져 있다.",
+   "after_text": "더 읽을 것이 없다.",
+   "do": [
+    {
+     "do": "doc",
+     "title": "올더스 브레넌의 마지막 일지",
+     "text": "미라는 결국 숨을 거두었다. 합창단은 웃었다. 이제야 진짜 값을 치를 때라고.\n\n그들은 그녀를 돌려주겠다고 한다. 숨이 붙은 자 하나를, 스스로 걸어 들어온 자 하나를 바치면.\n\n코윈은 이제 사람이 아니다. 나도 그렇다. 손톱이 자라고, 미라의 유리관 앞에 서면 배가 고프다.\n\n누군가 이걸 읽는다면, 조개 제단을 부수시오. 그리고 내가 무슨 말을 하든 믿지 마시오."
+    },
+    {
+     "do": "xp",
+     "amount": 25,
+     "why": "마지막 일지"
+    }
+   ]
+  },
+  "K": {
+   "type": "feature",
+   "name": "약장",
+   "once": true,
+   "model": "mini-dungeon/barrel",
+   "text": "올더스가 쓰던 약장. 회복 물약 두 병이 남아 있다.",
+   "after_text": "빈 약장이다.",
+   "do": [
+    {
+     "do": "potion",
+     "count": 2
+    }
+   ]
+  },
+  "V": {
+   "type": "feature",
+   "name": "유리 통",
+   "solid": true,
+   "model": "mini-dungeon/column",
+   "text": "탁한 소금물 속에 미라 브레넌이 떠 있다. 썩지 않았지만 살아 있지도 않다. 유리에 손을 대면 아주 희미하게, 위층의 차가운 기운이 느껴진다.",
+   "once": true,
+   "after_text": "미라 브레넌이 유리 속에 잠들어 있다.",
+   "do": [
+    {
+     "do": "flag",
+     "set": "found_mira"
+    },
+    {
+     "do": "xp",
+     "amount": 50,
+     "why": "미라를 찾음"
+    }
+   ]
+  }
+ }
+}

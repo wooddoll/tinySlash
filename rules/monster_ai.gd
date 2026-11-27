@@ -139,8 +139,7 @@ static func _advance(cb: Combat, c: Creature, foes: Array[Creature], w: WeaponDa
 	var best_score := -1e9
 	for k in r.cost:
 		var cell: Vector2i = k
-		var occ := cb.grid.occupant(cell)
-		if occ != null and occ != c:
+		if not cb.grid.can_stop(cell, c):
 			continue
 		var oa := -1
 		for f in foes:
@@ -178,8 +177,7 @@ static func _advance(cb: Combat, c: Creature, foes: Array[Creature], w: WeaponDa
 			var cell: Vector2i = k
 			if cb.grid.distance(cell, f.cell) > reach:
 				continue
-			var occ := cb.grid.occupant(cell)
-			if occ != null and occ != c:
+			if not cb.grid.can_stop(cell, c):
 				continue
 			var s: float = float(far.cost[cell]) - pr * 0.1
 			if s < goal_score:
@@ -244,8 +242,7 @@ static func _ranged_turn(cb: Combat, c: Creature, foes: Array[Creature]) -> bool
 	var best_score := -1e9
 	for k in r.cost:
 		var cell: Vector2i = k
-		var occ := cb.grid.occupant(cell)
-		if occ != null and occ != c:
+		if not cb.grid.can_stop(cell, c):
 			continue
 		var place := -1e9  # 칸 점수는 쏠 대상이 있을 때만 계산
 		for f in foes:
@@ -297,8 +294,7 @@ static func _flee(cb: Combat, c: Creature, foes: Array[Creature]) -> void:
 	var best_score := -1e9
 	for k in r.cost:
 		var cell: Vector2i = k
-		var occ := cb.grid.occupant(cell)
-		if occ != null and occ != c:
+		if not cb.grid.can_stop(cell, c):
 			continue
 		var nearest := 999
 		for f in foes:

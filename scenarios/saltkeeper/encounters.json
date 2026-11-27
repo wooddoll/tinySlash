@@ -1,0 +1,90 @@
+{
+ "rats": {
+  "label": "쥐 떼",
+  "trigger": "manual"
+ },
+ "armor": {
+  "label": "움직이는 갑옷",
+  "trigger": "enter",
+  "after": [
+   {
+    "do": "text",
+    "title": "층계참",
+    "text": "갑옷이 조각조각 무너져 내린다. 투구 속은 비어 있다."
+   }
+  ]
+ },
+ "bats": {
+  "label": "박쥐 떼",
+  "trigger": "enter"
+ },
+ "wine": {
+  "label": "익사한 하인 둘 (좀비)",
+  "trigger": "enter"
+ },
+ "servants": {
+  "label": "코윈 (구울)과 좀비",
+  "trigger": "enter",
+  "after": [
+   {
+    "do": "text",
+    "title": "하인 숙소",
+    "text": "젊은이가 쓰러진다. 목에 걸린 가죽끈에 녹슨 쇠 열쇠가 매달려 있다."
+   },
+   {
+    "do": "give",
+    "item": "iron_key",
+    "name": "쇠창살 열쇠"
+   }
+  ]
+ },
+ "insects": {
+  "label": "벌레 떼",
+  "trigger": "manual"
+ },
+ "shadow": {
+  "label": "그림자 (섀도)",
+  "trigger": "manual",
+  "after": [
+   {
+    "do": "text",
+    "title": "예배실",
+    "text": "그림자가 찢어지며 흩어진다. 손 안의 진주가 차갑게 식는다."
+   }
+  ]
+ },
+ "tunnel": {
+  "label": "물속의 익사자 둘 (좀비)",
+  "trigger": "enter"
+ },
+ "boss": {
+  "label": "올더스 브레넌 (가스트)",
+  "trigger": "manual",
+  "after": [
+   {
+    "do": "text",
+    "title": "조개 제단",
+    "text": "올더스가 무릎을 꿇는다. 잿빛 얼굴에 잠깐 사람의 표정이 돌아온다. '미라…' 그리고 그는 소금 더미처럼 무너져 내린다.\n\n그 순간 동굴 깊은 곳에서 굉음이 울린다. 합창단이 분노한다. 바닷물이 빠르게 차오르기 시작한다!\n\n어서 나가야 한다. 실험실의 밧줄 승강기가 덜컹 소리를 내며 풀렸다."
+   },
+   {
+    "do": "flag",
+    "set": "escape"
+   },
+   {
+    "do": "checkpoint"
+   }
+  ]
+ },
+ "escape_specter": {
+  "label": "익사자들의 원혼 (스펙터)",
+  "trigger": "enter",
+  "if": "escape",
+  "after": [
+   {
+    "do": "text",
+    "title": "현관 홀",
+    "text": "원혼이 비명을 지르며 흩어진다. 현관문 틈의 소금 덩굴이 바스러지기 시작한다."
+   }
+  ]
+ }
+}

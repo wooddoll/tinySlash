@@ -1,0 +1,131 @@
+{
+ "wolves": {
+  "label": "고블린의 늑대 둘",
+  "trigger": "enter",
+  "after": [
+   {
+    "do": "text",
+    "title": "마구간",
+    "text": "늑대들이 쓰러진다. 목줄에 고블린 글자로 이름이 새겨져 있다. \"물어\", 그리고 \"더 물어\"."
+   }
+  ]
+ },
+ "barracks": {
+  "label": "고블린 전사와 졸개 둘",
+  "trigger": "enter",
+  "after": [
+   {
+    "do": "text",
+    "title": "수비대 막사",
+    "text": "마지막 고블린이 쓰러지기 전에 망루 쪽으로 날카로운 휘파람을 불었다. 위에 있는 놈들이 알아챘을지도 모른다."
+   },
+   {
+    "do": "flag",
+    "set": "barracks_alarm"
+   }
+  ]
+ },
+ "dorm": {
+  "label": "되살아난 옛 병사 둘 (스켈레톤)",
+  "trigger": "enter",
+  "after": [
+   {
+    "do": "text",
+    "title": "수비병 숙소",
+    "text": "해골들이 무너진다. 녹슨 갑옷 가슴판에 쇠 투구 문양이 새겨져 있다. 망루의 수비병이 아니라, 망루 아래에서 올라온 것들이다."
+   }
+  ]
+ },
+ "roof": {
+  "label": "그락 (고블린 대장)",
+  "trigger": "enter",
+  "trigger_if": "grak_hostile",
+  "after": [
+   {
+    "do": "text",
+    "title": "봉화대",
+    "text": "그락이 쓰러지며 허리춤의 열쇠 꾸러미를 떨어뜨린다. 봉화 문양이 새겨진 큼직한 쇠열쇠가 있다."
+   },
+   {
+    "do": "give",
+    "item": "barrow_key",
+    "name": "무덤 문 열쇠"
+   },
+   {
+    "do": "flag",
+    "set": "grak_done"
+   },
+   {
+    "do": "level_to",
+    "level": 2
+   },
+   {
+    "do": "checkpoint"
+   }
+  ]
+ },
+ "rats": {
+  "label": "쥐 떼",
+  "trigger": "enter"
+ },
+ "ossuary": {
+  "label": "납골당의 해골 셋",
+  "trigger": "enter"
+ },
+ "tomb": {
+  "label": "굶주린 고블린 (구울)",
+  "trigger": "enter"
+ },
+ "rising": {
+  "label": "다시 일어선 해골들",
+  "trigger": "enter",
+  "if": "escape",
+  "after": [
+   {
+    "do": "text",
+    "title": "봉인의 회랑",
+    "text": "해골들이 흩어진다. 위쪽에서도 덜그럭거리는 소리가 들린다. 서둘러야 한다."
+   }
+  ]
+ },
+ "guard": {
+  "label": "의장대 해골 셋",
+  "trigger": "enter"
+ },
+ "boss": {
+  "label": "철투구 하르발",
+  "trigger": "enter",
+  "trigger_if": "harval_hostile",
+  "after": [
+   {
+    "do": "text",
+    "title": "철투구의 옥좌",
+    "text": "하르발의 갑옷이 무너져 내린다. 쇠 투구가 바닥을 굴러 당신들 발치에서 멈춘다. 눈구멍의 빛이 꺼진다.\n\n청동 등잔을 집어 든다. 손바닥 안에서 등잔이 미지근하다. 불씨가 아직 살아 있다!\n\n그 순간 무덤 전체가 몸서리친다. 주인을 잃은 뼈들이 사방에서 일어서는 소리. 천장에서 돌가루가 쏟아진다. 봉화대까지 등잔을 가져가야 한다. 지금 당장!"
+   },
+   {
+    "do": "give",
+    "item": "lamp",
+    "name": "청동 등잔"
+   },
+   {
+    "do": "flag",
+    "set": "escape"
+   },
+   {
+    "do": "checkpoint"
+   }
+  ]
+ },
+ "gate_dead": {
+  "label": "들창으로 쏟아져 나온 망자들",
+  "trigger": "enter",
+  "if": "escape",
+  "after": [
+   {
+    "do": "text",
+    "title": "망루 1층",
+    "text": "마지막 망자가 무너진다. 들창 아래에서는 아직도 덜그럭거리는 소리가 올라온다. 하늘이 서서히 밝아 온다. 꼭대기로!"
+   }
+  ]
+ }
+}

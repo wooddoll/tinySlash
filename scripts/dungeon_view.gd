@@ -16,6 +16,8 @@ const KIND_NAMES := {"start": "시작 방", "exit": "출구 방", "normal": "방
 const Explorer = preload("res://scripts/dungeon_explorer.gd")
 const Sfx = preload("res://scripts/sfx.gd")
 const PartyPanel = preload("res://scripts/party_panel.gd")
+const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
+const ActionLayer = preload("res://scripts/action_layer.gd")
 
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
@@ -30,7 +32,7 @@ static var retreat_cell := Vector2i(-1, -1)
 static var opened := {}
 static var gold := 0
 static var floor_no := 1
-## 전투 사이에 이어지는 파이터 상태
+## 전투 사이에 이어지는 주인공 상태
 static var hero: HeroState = null
 ## 동료 클레릭
 static var ally: HeroState = null
@@ -83,6 +85,16 @@ var fires := {}  # 칸 -> 불꽃 노드들
 ## 칸 -> 그 칸에 속한 것들 ([MultiMesh, 번호, 원래 변환] 또는 [노드])
 var _fog_index := {}
 var rest_panel: PanelContainer
+## 레벨업 고르기 창과, 고를 것이 남았는지 다시 볼 때까지 남은 시간
+var level_dialog: LevelUpDialog
+## 실시간 액션 전투 (탐험 중에만). members: party()와 같은 순서의 Actor
+var action: ActionLayer
+var members: Array = []
+## 생성기 화면용 몬스터 모델과 자리 [노드, 몬스터 id, 칸, 방]
+var foe_spots: Array = []
+## 이미 "몬스터 발견!"을 알린 방
+var _woke := {}
+var _level_poll := 0.0
 var rest_label: RichTextLabel
 var rest_roll: Button
 var rest_fire := Vector2i(-1, -1)
@@ -128,6 +140,10 @@ func _take_battle_result() -> void:
 # =====================================================================
 
 func _generate() -> void:
+	foe_spots.clear()
+	action = null
+	members.clear()
+	_woke.clear()
 	dungeon = DungeonGenerator.generate(params)
 	if selected >= dungeon.rooms.size():
 		selected = -1
@@ -162,7 +178,6 @@ func _build_world() -> void:
 	var base_xf: Array = []
 	var floors: Array = []
 	var cave := params.algorithm == DungeonParams.Algorithm.CAVE
-	var quarter := Basis.from_scale(Vector3.ONE * 0.25)
 	var model_xf := {}  # 모델 이름 -> [[Transform3D, 칸]]
 	var add := func(model: String, xf: Transform3D, cell: Vector2i) -> void:
 		if not model_xf.has(model):
@@ -186,9 +201,9 @@ func _build_world() -> void:
 				floors.append(c)
 				if cave:
 					# Cave Kit 바닥 (4x4 조각을 1/4로)
-					add.call("modular-cave-kit/template-floor", Transform3D(spin.call() * quarter, pos), c)
+					add.call(Kenney.pick(Kenney.CAVE_FLOORS, c), Transform3D(spin.call(), pos), c)
 				else:
-					add.call("floor-detail" if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos), c)
+					add.call(Kenney.pick(Kenney.FLOOR_DETAILS, c) if rng.randf() < 0.15 else "floor", Transform3D(spin.call(), pos), c)
 				if d.difficult.has(c):
 					if cave:
 						add.call("nature-kit/" + Kenney.pick(Kenney.CAVE_RUBBLE, c), Transform3D(spin.call() * Basis.from_scale(Vector3.ONE * 1.5), pos), c)
@@ -200,6 +215,20 @@ func _build_world() -> void:
 	for part in Kenney.build_edge_walls(world, floors, d.is_floor, d.get_height, cave):
 		for i in (part[1] as Array).size():
 			_fog_add(part[1][i], [part[0], i, part[2][i]])
+	# 꾸미기: 출입구, 장애물, 보물, 모닥불 칸은 비워 둠
+	var busy := {d.start: true, d.exit: true}
+	for r in d.rooms:
+		for t in r.treasure:
+			busy[t.cell] = true
+	for c in d.campfires:
+		busy[c] = true
+	var deco := Kenney.decorate(world, floors, d.is_floor, d.get_height, cave,
+			func(c: Vector2i) -> bool: return busy.has(c) or d.obstacles.has(c) or d.difficult.has(c))
+	for part in deco.parts:
+		for i in (part[1] as Array).size():
+			_fog_add(part[1][i], [part[0], i, part[2][i]])
+	for l in deco.lights:
+		_fog_add(l[1], [l[0]])
 
 	for c in d.obstacles:
 		if cave:
@@ -233,13 +262,18 @@ func _build_world() -> void:
 		var done: bool = cleared.has(r.id)
 		if not r.encounter.is_empty() and not done:
 			for f in r.encounter.foes:
+				if exploring:
+					foe_spots.append([null, f[0], f[1], r.id])  # 탐험 중이면 액션 전투가 모델을 만듦
+					continue
 				var st := Catalog.monster(f[0])
 				var m := CharacterModel.new()
 				world.add_child(m)
 				m.setup(st.model, st.sprite_scale, st.weapon_model)
+				m.tint(st.tint)
 				m.position = _top(f[1])
 				m.face(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)), true)
 				_fog_add(f[1], [m])
+				foe_spots.append([m, f[0], f[1], r.id])
 		for t in r.treasure:
 			var chest := Kenney.instance("chest")
 			chest.position = _top(t.cell)
@@ -259,6 +293,7 @@ func _build_world() -> void:
 		lbl.modulate = Color(0.6, 1.0, 0.6) if done else Color(1, 1, 1, 0.85)
 		var rc: Rect2i = r.rect
 		lbl.position = Vector3(rc.position.x + rc.size.x / 2.0, 2.2, rc.position.y + rc.size.y / 2.0)
+		lbl.add_to_group("room_label")
 		world.add_child(lbl)
 		_fog_add(r.center, [lbl])
 
@@ -365,6 +400,16 @@ func _show_room(inst: MultiMeshInstance3D, room: int) -> void:
 func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	var top := CanvasLayer.new()
+	top.layer = 10
+	add_child(top)
+	level_dialog = LevelUpDialog.new()
+	top.add_child(level_dialog)
+	level_dialog.finished.connect(func() -> void:
+		if explorer and exploring:
+			explorer.active = true
+			_heroes_changed()
+		_update_info())
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
@@ -381,6 +426,7 @@ func _build_ui() -> void:
 	scroll.add_child(box)
 
 	_title(box, "던전 생성기")
+	_party_options(box)
 	var go := Button.new()
 	go.text = "이 던전 탐험하기 (Tab)"
 	go.pressed.connect(func() -> void: _set_exploring(true))
@@ -556,6 +602,21 @@ func _option(parent: Control, prop: String, text: String, names: Array) -> void:
 	row.add_child(o)
 
 
+## 주인공·동료 클래스 고르기. 다음에 탐험을 새로 시작할 때 적용
+func _party_options(parent: Control) -> void:
+	for i in 2:
+		var row := _row(parent, "주인공" if i == 0 else "동료")
+		var o := OptionButton.new()
+		for cls in Catalog.CLASSES:
+			o.add_item(HeroState.NAMES[cls])
+		o.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		o.selected = maxi(Catalog.CLASSES.find(HeroState.party_classes[i]), 0)
+		o.item_selected.connect(func(k: int) -> void:
+			HeroState.party_classes[i] = Catalog.CLASSES[k]
+			_toast("파티: %s + %s (탐험을 새로 시작하면 적용)" % [HeroState.NAMES[HeroState.party_classes[0]], HeroState.NAMES[HeroState.party_classes[1]]]))
+		row.add_child(o)
+
+
 func _theme_option(parent: Control) -> void:
 	var row := _row(parent, "몬스터 종류")
 	var o := OptionButton.new()
@@ -645,6 +706,17 @@ func _process(delta: float) -> void:
 		_regen_in -= delta
 		if _regen_in <= 0.0:
 			_generate()
+	if action:
+		action.paused = explorer == null or not explorer.active or level_dialog.visible
+	if level_dialog.visible:
+		return
+	_level_poll -= delta
+	if _level_poll <= 0.0 and not rest_panel.visible and not shop_panel.visible and not _leaving:
+		_level_poll = 0.5
+		if level_dialog.open(party()):
+			if explorer:
+				explorer.active = false
+			return
 	if exploring:
 		camera.h_offset = 0.0
 		_update_follower(delta)
@@ -653,15 +725,23 @@ func _process(delta: float) -> void:
 		if rest_panel.visible:
 			if Input.is_action_just_pressed("end_turn"):
 				_rest_roll()
-			elif Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+			elif Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back") 					or Input.is_action_just_pressed("skill"):
 				_finish_rest()
 			return
 		if shop_panel.visible:
-			if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+			if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back") \
+					or Input.is_action_just_pressed("skill"):
 				_close_shop()
+			elif Input.is_action_just_pressed("attack"):
+				_buy_potion()
+			elif Input.is_action_just_pressed("end_turn"):
+				_long_rest()
+				_update_shop()
 			return
 		if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
 			_set_exploring(false)
+		elif Input.is_action_just_pressed("end_turn") and explorer and action and action.ac.fighting():
+			_toast("싸우는 중이에요!")
 		elif Input.is_action_just_pressed("end_turn") and explorer:
 			var fire := _fire_near(explorer.cell)
 			if fire != Vector2i(-1, -1):
@@ -697,8 +777,8 @@ func _set_exploring(on: bool) -> void:
 		# 생성기에서 새로 시작하면 금화, 층 수, 파티 상태를 처음부터
 		gold = 0
 		floor_no = params.floor_depth
-		hero = HeroState.fresh()
-		ally = HeroState.fresh("cleric")
+		hero = _fresh_member(0)
+		ally = _fresh_member(1)
 		rested_here = false
 		_write_save()  # 탐험을 시작한 곳이 첫 저장
 	else:
@@ -711,6 +791,49 @@ func _set_exploring(on: bool) -> void:
 
 
 ## 지금 모드에 맞게 플레이어, 카메라, UI를 맞춤
+## 탐험 중에는 어둡게: 달빛 같은 약한 해, 어두운 주변광, 안개. 생성기 화면은 밝게 (전체를 봐야 하므로)
+func _set_mood(dark: bool) -> void:
+	var sun := get_node_or_null("Sun") as DirectionalLight3D
+	var we := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if sun:
+		sun.light_energy = 0.12 if dark else 0.9
+		sun.light_color = Color(0.6, 0.7, 1.0) if dark else Color.WHITE
+		sun.shadow_enabled = not dark  # 어두울 때는 등불 빛이 주인공, 그림자 계산 아낌
+	# 캐릭터 보조광: 카메라 쪽에서 캐릭터(렌더 층 2)만 비춤. 어두운 배경에서 몸이 보이게
+	var fill := rig.get_node_or_null("CharFill") as DirectionalLight3D
+	if fill == null:
+		fill = DirectionalLight3D.new()
+		fill.name = "CharFill"
+		fill.light_cull_mask = CharacterModel.CHAR_LAYER
+		fill.light_color = Color(0.85, 0.85, 1.0)
+		fill.shadow_enabled = false
+		rig.add_child(fill)
+		fill.rotation_degrees = Vector3(-35, 20, 0)
+	fill.light_energy = 1.6
+	fill.visible = dark
+	if we and we.environment:
+		var e := we.environment
+		e.ambient_light_color = Color(0.32, 0.34, 0.45) if dark else Color(0.55, 0.55, 0.65)
+		e.ambient_light_energy = 0.45 if dark else 0.6
+		e.background_color = Color(0.02, 0.02, 0.03) if dark else Color(0.06, 0.06, 0.08)
+		e.fog_enabled = dark
+		e.fog_light_color = Color(0.05, 0.05, 0.08)
+		e.fog_density = 0.02
+
+
+## 주인공이 든 등불: 따뜻한 빛이 주변 몇 칸을 비춤 (그림자 없음, 가벼움)
+func _add_lantern(n: Node3D) -> void:
+	var l := OmniLight3D.new()
+	l.name = "Lantern"
+	l.position = Vector3(0, 2.4, 0)
+	l.light_color = Color(1.0, 0.72, 0.42)
+	l.light_energy = 3.0
+	l.omni_range = 9.0
+	l.omni_attenuation = 1.2
+	l.shadow_enabled = false
+	n.add_child(l)
+
+
 func _apply_mode() -> void:
 	left_panel.visible = not exploring
 	party_panel.visible = exploring
@@ -719,9 +842,9 @@ func _apply_mode() -> void:
 	if exploring:
 		_show_room(select_mesh, -1)
 		if hero == null:
-			hero = HeroState.fresh()
+			hero = _fresh_member(0)
 		if ally == null:
-			ally = HeroState.fresh("cleric")
+			ally = _fresh_member(1)
 		if save.is_empty():
 			_write_save()
 		if _pending_toast != "":
@@ -731,27 +854,34 @@ func _apply_mode() -> void:
 			var at := explore_cell if dungeon.is_walkable(explore_cell) else dungeon.start
 			explorer = Explorer.new()
 			world.add_child(explorer)
-			explorer.setup(dungeon, at)
+			explorer.setup(dungeon, at, hero.stats().model, hero.stats().weapon_model)
 			explorer.camera_rig = rig
 			for c in [shelter, merchant]:
 				if c != Vector2i(-1, -1):
 					explorer.blocked[c] = true
 			explorer.entered_cell.connect(_on_entered_cell)
-			_spawn_follower()
+			_start_action()
+			_add_lantern(explorer)
+		_set_mood(true)
 		_reveal(explorer.cell)
 		_fog_apply_all()
 		rig.target = explorer
-		rig.ortho_size = 13.0
-		help_label.text = "WASD: 이동 · Q/E: 카메라 회전 · 휠: 줌 · Tab/Esc: 생성기로"
+		rig.ortho_size = 10.0
+		get_tree().call_group("room_label", "hide")  # 액션 중에는 방 번호를 숨김
+		help_label.text = "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 물약: 십자↑/1 · 상호작용: Y/Enter · 카메라: LB·RB/Q·E · 생성기로: Back/Tab"
 		_update_explore_info()
 	else:
+		var had_action := action != null
 		if explorer:
 			explorer.queue_free()
 			explorer = null
 		if follower:
 			follower.queue_free()
 			follower = null
+		if had_action:
+			_generate()  # 움직인 몬스터를 제자리로
 		rig.target = focus
+		_set_mood(false)
 		_fog_apply_all()
 		help_label.text = "좌클릭: 방 고르기 · WASD: 카메라 이동 · Q/E: 회전 · 휠: 줌 · B: 전투 · Tab: 탐험 · Esc: 바깥으로"
 		_update_info()
@@ -765,9 +895,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		if not opened.has(c) and maxi(absi(c.x - to.x), absi(c.y - to.y)) <= 1:
 			_open_chest(c)
 	var r := dungeon.room_at(to)
-	if r >= 0 and not cleared.has(r) and not dungeon.rooms[r].encounter.is_empty():
-		_start_battle(r, from, to)
-		return
+	if r >= 0 and not cleared.has(r) and not dungeon.rooms[r].encounter.is_empty() and action:
+		action.ac.wake_room(r)
 	if to == dungeon.exit:
 		_toast("출구 계단 — Enter: 다음 층으로")
 	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
@@ -775,6 +904,98 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 	elif (_near(shelter, to) or _near(merchant, to)) and not (_near(shelter, from) or _near(merchant, from)):
 		_toast("쉼터 — Enter: 휴식과 상점")
 	_update_explore_info()
+
+
+# --- 실시간 액션 전투 (rules 10장) ---
+
+func _start_action() -> void:
+	for spot in foe_spots:
+		if spot[0] != null and is_instance_valid(spot[0]):
+			(spot[0] as Node3D).queue_free()
+	action = ActionLayer.new()
+	world.add_child(action)
+	action.camera_rig = rig
+	action.setup(dungeon, explorer.blocked)
+	members.clear()
+	var heroes := party()
+	for i in heroes.size():
+		var h: HeroState = heroes[i]
+		var cell := explorer.cell
+		if i > 0:
+			cell = _free_near(explorer.cell)
+		var a = action.add_member(h.make_creature(), cell, "player" if i == 0 else "ally", explorer.body if i == 0 else null)
+		members.append(a)
+	explorer.actor = members[0]
+	for spot in foe_spots:
+		if cleared.has(spot[3]):
+			continue
+		var m: Node3D = action.add_foe(spot[1], spot[2], spot[3])
+		_fog_add(spot[2], [m])
+	action.message.connect(_toast)
+	action.party_changed.connect(_party_from_action)
+	action.fight_over.connect(_on_fight_over)
+	action.defeated.connect(_on_defeated)
+	action.ac.event.connect(func(ev: Dictionary) -> void:
+		if ev.type == "wake":
+			var room: int = (ev.actor as ActionCombat.Actor).room
+			if room >= 0 and not _woke.has(room):
+				_woke[room] = true
+				_toast("몬스터 발견! — " + str(dungeon.rooms[room].encounter.label))
+				Sfx.play(self, "alert"))
+
+
+## c 옆의 서 있을 수 있는 빈 칸
+func _free_near(c: Vector2i) -> Vector2i:
+	for d in Dungeon.DIRS8:
+		var n: Vector2i = c + d
+		if dungeon.is_walkable(n) and not explorer.blocked.has(n):
+			return n
+	return c
+
+
+## 전투 중 크리처 상태를 HeroState에 담아 화면 정보를 고침
+func _party_from_action() -> void:
+	var heroes := party()
+	for i in mini(heroes.size(), members.size()):
+		var h: HeroState = heroes[i]
+		var c: Creature = members[i].c
+		h.hp = maxi(c.hp, 0)
+		h.resources = c.resources.duplicate()
+	_update_explore_info()
+
+
+## HeroState가 바뀐 뒤 (휴식, 상점, 레벨업 고르기) 크리처를 다시 만듦
+func _heroes_changed() -> void:
+	if action:
+		var heroes := party()
+		for i in mini(heroes.size(), members.size()):
+			action.refresh_member(members[i], (heroes[i] as HeroState).make_creature())
+	_update_explore_info()
+
+
+func _on_fight_over(xp: int) -> void:
+	var heroes := party()
+	var share := xp / maxi(heroes.size(), 1)
+	var level_up := 0
+	for i in mini(heroes.size(), members.size()):
+		var up: Dictionary = (heroes[i] as HeroState).absorb(members[i].c, share)
+		if up.has("level_up"):
+			level_up = up.level_up
+	for r in dungeon.rooms:
+		if not r.encounter.is_empty() and not cleared.has(r.id) and action.ac.room_clear(r.id):
+			cleared[r.id] = true
+	_heroes_changed()
+	if xp > 0:
+		_toast("전투 끝! XP +%d씩%s" % [share, ("  — 레벨 업! %d레벨" % level_up) if level_up > 0 else ""])
+		Sfx.play(self, "level_up" if level_up > 0 else "win")
+
+
+func _on_defeated() -> void:
+	_toast("파티가 모두 쓰러졌어요…")
+	Sfx.play(self, "lose")
+	await get_tree().create_timer(2.0).timeout
+	Battle.custom = {"room_id": -1, "result": "lose"}
+	get_tree().change_scene_to_file("res://scenes/dungeon.tscn")
 
 
 func _start_battle(room: int, from: Vector2i, to: Vector2i) -> void:
@@ -846,7 +1067,8 @@ func _fog_add(c: Vector2i, entry: Array) -> void:
 
 func _fog_show(entry: Array, on: bool) -> void:
 	if entry.size() == 1:
-		(entry[0] as Node3D).visible = on
+		if is_instance_valid(entry[0]):
+			(entry[0] as Node3D).visible = on and not (exploring and (entry[0] as Node).is_in_group("room_label"))
 		return
 	var xf: Transform3D = entry[2]
 	(entry[0] as MultiMesh).set_instance_transform(entry[1], xf if on else Transform3D(Basis.from_scale(Vector3.ZERO), xf.origin))
@@ -897,6 +1119,11 @@ static func is_save_floor(n: int) -> bool:
 	return (n - 1) % SAVE_EVERY == 0
 
 
+## 고른 파티의 i번째로 새 파티원 (주인공이 물약을 듦)
+static func _fresh_member(i: int) -> HeroState:
+	return HeroState.fresh(str(HeroState.party_classes[i]), 1 if i == 0 else 0)
+
+
 static func party() -> Array:
 	return [hero, ally].filter(func(h: HeroState) -> bool: return h != null)
 
@@ -908,10 +1135,9 @@ func _member_line(h: HeroState) -> String:
 	var hp := h.current_hp()
 	var probe := h.make_creature()
 	var res: Array[String] = ["히트 다이스 %d/%d" % [h.hit_dice_left(), lv]]
-	if probe.resources.has("second_wind"):
-		res.append("Second Wind %d" % probe.resources.second_wind)
-	if probe.resources.has("action_surge"):
-		res.append("Action Surge %d" % probe.resources.action_surge)
+	for t in ClassFeatures.resource_labels(probe):
+		if not t.begins_with("Channel"):
+			res.append(t)
 	var slots: Array[String] = []
 	for l in range(1, probe.stats.spell_slots.size() + 1):
 		slots.append("%d레벨 %d/%d" % [l, probe.resources.get("slot%d" % l, 0), probe.stats.spell_slots[l - 1]])
@@ -1035,7 +1261,7 @@ func _buy_potion() -> void:
 	_write_save()  # 쉼터에서 한 일은 저장
 	Sfx.play(self, "coins")
 	_update_shop()
-	_update_explore_info()
+	_heroes_changed()
 
 
 func _update_shop() -> void:
@@ -1045,7 +1271,7 @@ func _update_shop() -> void:
 	lines.append("[b]쉼터[/b] (%d층 · 여기서 한 일은 저장돼요)" % floor_no)
 	for h in party():
 		lines.append("%s HP %d/%d · 히트 다이스 %d/%d" % [h.display_name(), h.current_hp(), h.max_hp(), h.hit_dice_left(), h.level()])
-	lines.append("물약 %d/%d (파이터가 들고 다님) · 금화 %d" % [hero.potions(), HeroState.MAX_POTIONS, gold])
+	lines.append("물약 %d/%d (%s가 들고 다님) · 금화 %d" % [hero.potions(), HeroState.MAX_POTIONS, hero.display_name(), gold])
 	lines.append("긴 휴식: 파티 모두 HP, 히트 다이스, 기능, 주문 슬롯 회복 (쉼터마다 한 번)%s" % (
 		" [color=gray]— 이미 쉬었어요[/color]" if rested_here else ""))
 	lines.append("상인: 회복 물약 (2d4+2 회복) %d골드%s" % [HeroState.POTION_PRICE,
@@ -1093,7 +1319,7 @@ func _write_save() -> void:
 			"ally": ally.duplicate_state(), "gold": gold, "rested": rested_here}
 
 
-## 마지막 저장으로 돌아감: 그 층을 처음 상태로 다시 만들고 파이터 상태, 금화도 그때로
+## 마지막 저장으로 돌아감: 그 층을 처음 상태로 다시 만들고 파티 상태, 금화도 그때로
 static func _load_save() -> void:
 	if save.is_empty():
 		explore_cell = Vector2i(-1, -1)
@@ -1101,7 +1327,7 @@ static func _load_save() -> void:
 	saved = (save.params as DungeonParams).duplicate_params()
 	floor_no = save.floor
 	hero = (save.hero as HeroState).duplicate_state()
-	ally = (save.ally as HeroState).duplicate_state() if save.has("ally") else HeroState.fresh("cleric")
+	ally = (save.ally as HeroState).duplicate_state() if save.has("ally") else _fresh_member(1)
 	gold = save.gold
 	rested_here = save.rested
 	cleared.clear()
@@ -1122,7 +1348,7 @@ func _long_rest() -> void:
 	_write_save()
 	Sfx.play(self, "confirm")
 	_toast("긴 휴식: HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요")
-	_update_explore_info()
+	_heroes_changed()
 
 
 # --- 모닥불과 짧은 휴식 (rules 5.3) ---
@@ -1210,7 +1436,7 @@ func _rest_roll() -> void:
 	Sfx.play(self, "dice")
 	rest_log.append("%s d%d → %d + CON %d = HP +%d" % [h.display_name(), h.hit_die(), r.roll, h.con_mod(), r.heal])
 	_update_rest()
-	_update_explore_info()
+	_heroes_changed()
 
 
 func _finish_rest() -> void:
@@ -1223,8 +1449,8 @@ func _finish_rest() -> void:
 	rest_panel.visible = false
 	explorer.active = true
 	Sfx.play(self, "confirm")
-	_toast("짧은 휴식을 마쳤어요 — Second Wind 1회%s 회복" % (", Action Surge, Channel Divinity 1회" if hero.level() >= 2 else ""))
-	_update_explore_info()
+	_toast("짧은 휴식을 마쳤어요 — 짧은 휴식으로 돌아오는 기능을 되찾았어요")
+	_heroes_changed()
 
 
 func _update_rest() -> void:

@@ -25,6 +25,14 @@ extends Resource
 @export var bonus_die_on_advantage := 0
 ## 몬스터 전용: 명중하면 중형 이하 대상을 넘어뜨림 (늑대 물기)
 @export var knocks_prone := false
+## 몬스터 전용: 명중하면 대상이 내성을 굴림. ability = Rules.Ability, -1이면 없음
+@export var on_hit_save := -1
+@export var on_hit_dc := 10
+## 내성에 실패하면: "paralyzed" (때린 쪽의 다음 턴 끝까지 마비), "str_drain" (근력 1d4 감소)
+@export var on_hit_effect := ""
+## 몬스터 전용: 내성 없이 명중하면 바로 걸리는 효과 (on_hit_save가 -1일 때)
+@export var on_hit_always := ""
+
 ## 주문 공격용: 공격 능력치 (Rules.Ability, -1이면 무기 기본값)과 피해에 수정치를 더할지
 @export var ability := -1
 @export var add_mod := true

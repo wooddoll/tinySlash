@@ -1,0 +1,54 @@
+{
+ "grak": {
+  "base": "goblin_boss",
+  "name": "그락",
+  "tint": [
+   0.95,
+   0.8,
+   0.3
+  ],
+  "scale": 1.0
+ },
+ "harval": {
+  "base": "skeleton",
+  "name": "철투구 하르발",
+  "hp": 45,
+  "ac": 16,
+  "scores": [
+   16,
+   12,
+   15,
+   10,
+   12,
+   14
+  ],
+  "multiattack": 2,
+  "weapons": [
+   "longsword"
+  ],
+  "xp": 450,
+  "cr": 2,
+  "model": "kaykit/Skeleton_Warrior",
+  "weapon_model": "Skeleton_Blade+Skeleton_Shield_Large_A",
+  "scale": 1.15,
+  "tint": [
+   0.55,
+   0.55,
+   0.68
+  ],
+  "add_features": [
+   "undead_fortitude"
+  ]
+ },
+ "starved": {
+  "base": "ghoul",
+  "name": "굶주린 고블린",
+  "model": "quaternius/orc",
+  "scale": 0.8,
+  "tint": [
+   0.6,
+   0.65,
+   0.55
+  ]
+ }
+}

@@ -45,8 +45,15 @@ static func can_stand(d: Dungeon, p: Vector2, r := RADIUS, blocked := {}) -> boo
 	return true
 
 
+## 액션 전투가 움직이는 플레이어 (있으면 이 노드는 그 위치를 따라가기만 함)
+var actor: ActionCombat.Actor = null
+
+
 func _physics_process(delta: float) -> void:
 	if dungeon == null:
+		return
+	if actor != null:
+		_follow_actor(delta)
 		return
 	var dir := Vector3.ZERO
 	if active:
@@ -73,6 +80,22 @@ func _physics_process(delta: float) -> void:
 		position.z = p.y
 	body.set_base("sprint" if moving else "idle")
 
+	var now := Vector2i(floori(position.x), floori(position.z))
+	position.y = lerpf(position.y, dungeon.get_height(now), 1.0 - exp(-14.0 * delta))
+	if now != cell:
+		var before := cell
+		cell = now
+		entered_cell.emit(before, now)
+
+
+func _follow_actor(delta: float) -> void:
+	var p := Vector2(position.x, position.z)
+	_stride += p.distance_to(actor.pos)
+	if _stride >= STEP and actor.state == "idle":
+		_stride = 0.0
+		Sfx.play(self, "step")
+	position.x = actor.pos.x
+	position.z = actor.pos.y
 	var now := Vector2i(floori(position.x), floori(position.z))
 	position.y = lerpf(position.y, dungeon.get_height(now), 1.0 - exp(-14.0 * delta))
 	if now != cell:

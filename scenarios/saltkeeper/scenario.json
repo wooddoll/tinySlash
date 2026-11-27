@@ -1,0 +1,34 @@
+{
+ "format": 1,
+ "id": "saltkeeper",
+ "title": "소금바람 저택",
+ "description": "폭풍 치는 해안 절벽의 저택. 1레벨로 시작해 3레벨로 끝나는 오리지널 모험.",
+ "author": "game25d",
+ "version": "1.0",
+ "party": [
+  "fighter",
+  "cleric"
+ ],
+ "start_level": 1,
+ "start": {
+  "level": "f1",
+  "mark": "S"
+ },
+ "intro": "intro.json",
+ "levels": [
+  "levels/f1.json",
+  "levels/f2.json",
+  "levels/b1.json",
+  "levels/b2.json"
+ ],
+ "encounters": [
+  "encounters.json"
+ ],
+ "dialogues": [
+  "dialogues/mira.json",
+  "dialogues/aldous.json"
+ ],
+ "monsters": [
+  "monsters.json"
+ ]
+}

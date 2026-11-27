@@ -17,6 +17,17 @@ and Nature Kit by Kenney (www.kenney.nl),
 licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
 Files are in `assets/kenney/<pack>/` with each pack's `License.txt`.
 
+Dark Fantasy Knight, Witch and Goblin by Bento Pack (Pedro Bento), from Fab under the
+Fab Standard License. Made by the author with generative AI tools. Reduced for this game
+(about 22K triangles, 1024 px textures, a few animation clips) by `tools/bake_dark.gd`;
+files are in `assets/dark/<name>/`. The original downloads stay outside the project and
+must not be shared or uploaded publicly.
+
+Stylized Dark Fantasy Zombie by Hotstrike Studio, from Fab (the listing showed a CC-BY
+license; check the listing before any release). The goblin's animations were moved onto its
+skeleton by `tools/retarget.gd` and baked into `assets/dark/zombie/zombie.scn` by
+`tools/bake_zombie.gd`. Used for the zombie, ghoul and ghast.
+
 ## Audio
 
 Interface Sounds, Impact Sounds, RPG Audio, UI Audio, Voiceover Pack,

@@ -11,6 +11,8 @@ extends Resource
 ## STR, DEX, CON, INT, WIS, CHA
 @export var scores := PackedInt32Array([10, 10, 10, 10, 10, 10])
 @export var ac := 10
+## AC에 더하는 능력치 [[능력치, 최대치]] (레벨업 능력치 향상 때 AC를 맞추는 데 씀)
+@export var ac_abilities: Array = []
 @export var max_hp := 1
 ## 속도 (칸)
 @export var speed := 6
@@ -49,6 +51,10 @@ extends Resource
 @export var model := "mini-characters/character-male-a"
 ## 손에 드는 무기 모델 (없으면 빈 문자열)
 @export var weapon_model := ""
+## 숙련된 기술 (Rules.SKILLS의 키): athletics, perception ...
+@export var skills := PackedStringArray()
+## 전문 기술 (숙련 보너스를 두 번 더함): 로그 Expertise
+@export var expertise := PackedStringArray()
 
 
 func ability_mod(a: int) -> int:
