@@ -56,6 +56,10 @@ const CAVE_FLOORS := ["dirt", "dirt-b", "dirt-c", "dirt-d", "dirt", "dirt-weeds"
 const CLUTTER := ["candle", "candles", "bottle", "bottle-b", "plates"]
 const CAVE_CLUTTER := ["nature-kit/mushroom_redGroup", "nature-kit/mushroom_tanGroup", "nature-kit/rock_smallC", "nature-kit/mushroom_tanGroup"]
 const NATURE := "nature-kit"
+## [다크 판타지] 벽에 기대 세우는 무기·방패 걸이 (Fab AZ 3D studio 던전 세트를 tools/bake_props.gd로 구운 것).
+## assets/dark는 저장소에 없으므로 파일이 없으면 놓지 않음
+const DARK_PROPS := "dark-props"
+const RACKS := ["rack-swords", "rack-shields", "rack-spears"]
 ## 동굴 소품 (Nature Kit의 갈색 바위): 기둥(완전 엄폐), 바위(높이 1), 잔해(험지)
 const CAVE_PILLARS := ["rock_tallA", "rock_tallB", "rock_tallC", "rock_tallD", "rock_tallE", "rock_tallF"]
 const CAVE_ROCKS := ["rock_largeA", "rock_largeB", "rock_largeC", "rock_largeD", "rock_largeE", "rock_largeF"]
@@ -93,6 +97,10 @@ static var _meshes := {}
 static func mesh(model: String, pack := DUNGEON) -> Mesh:
 	var key := pack + "/" + model
 	if _meshes.has(key):
+		return _meshes[key]
+	if pack == DARK_PROPS:
+		var path := "res://assets/dark/props/%s.res" % model
+		_meshes[key] = load(path) as Mesh if ResourceLoader.exists(path) else null
 		return _meshes[key]
 	if pack == DUNGEON and SWAP.has(model):
 		var k := _kaykit(model)
@@ -339,6 +347,10 @@ static func decorate(parent: Node3D, floors: Array, is_floor: Callable, height: 
 				put.call("banner-wall" if roll < 12 else "banner-shield", Transform3D(face, center + dv * 0.5), c)
 			elif roll < 16:
 				put.call("shelf-candles", Transform3D(face, center + dv * 0.375 + Vector3(0, 0.5, 0)), c)
+			elif roll < 19:
+				var rack: String = RACKS[roll % RACKS.size()]
+				if mesh(rack, DARK_PROPS) != null:
+					put.call(DARK_PROPS + "/" + rack, Transform3D(face, center + dv * 0.38), c)
 		var r2 := absi(hash(c * 11 + Vector2i(5, 3))) % 100
 		if r2 < (7 if cave else 5):
 			var d: Vector2i = walls[r2 % walls.size()]

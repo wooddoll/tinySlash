@@ -36,6 +36,10 @@ Dark Big Ghost (LITE) by SR Studios Kerala, from Fab under the Fab Standard Lice
 its two clips split into game animations by `tools/bake_undead.gd` (`assets/dark/ghost/`). Used for the
 shadow and specter. The original downloads stay outside the project and must not be shared publicly.
 
+Stylized Modular Medieval Dungeon Kit by AZ 3D studio, from Fab under the Fab Standard License (Personal
+tier; check the license before any commercial release). The sword, shield and spear racks are picked out,
+merged and darkened by `tools/bake_props.gd` into `assets/dark/props/`, and stand against dungeon walls.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.
