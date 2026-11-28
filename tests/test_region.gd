@@ -98,3 +98,23 @@ func test_save_tile_and_migration() -> void:
 	Game.delete_save()
 	Game.save_path = old
 	Game.new_game()
+
+
+func test_biomes_and_seams() -> void:
+	var r = Region.generate(42)
+	for t in r.tiles:
+		var i: Dictionary = r.tiles[t]
+		check(i.has("biome") and float(i.relief) > 0.0, "칸 지형 성격")
+		check(r.terrain_at(Region.offset(t, 256), 256).is_equal_approx(Vector2(i.relief, i.trees)), "칸 가운데는 그 칸 값")
+	check(str(r.tiles[Region.VILLAGE].biome) == "village", "마을 칸")
+	# 경계 양쪽(같은 세계 좌표)은 같은 값 → 칸마다 따로 계산해도 맞물림
+	var p := Vector2(128.0, 37.0)
+	check(r.terrain_at(p, 256).is_equal_approx(r.terrain_at(p + Vector2(0.0001, 0), 256)), "경계에서 이어짐")
+	check(r.terrain_at(Vector2(-900, -900), 256).is_equal_approx(Vector2(r.tiles[Vector2i(0, 0)].relief, r.tiles[Vector2i(0, 0)].trees)), "지방 밖은 끝 칸 값")
+
+
+func test_dungeon_floor_seeds() -> void:
+	var DV = load("res://scripts/dungeon_view.gd")
+	check(DV.floor_seed(1309, 1) == 1309, "첫 층은 입구 시드")
+	check(DV.floor_seed(1309, 2) == DV.floor_seed(1309, 2) and DV.floor_seed(1309, 2) != DV.floor_seed(1309, 3), "층마다 정해진 시드")
+	check(DV.floor_seed(1309, 2) != DV.floor_seed(2318, 2), "던전마다 다름")

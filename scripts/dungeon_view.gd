@@ -35,6 +35,8 @@ static var enter_seed := 0
 static var enter_theme := "mixed"
 static var enter_algorithm := 0
 static var enter_name := ""
+## 바깥 입구로 들어온 던전의 바탕 시드 (층마다 시드가 여기서 나옴, 0이면 생성기에서 시작)
+static var dungeon_seed := 0
 ## 바깥에서 들어온 탐험인가, 그리고 들어온 층 (그 층 시작 칸이 바깥으로 나가는 출구)
 static var from_outside := false
 static var entry_floor := 1
@@ -150,6 +152,7 @@ func _ready() -> void:
 		saved.rng_seed = enter_seed
 		saved.theme = enter_theme
 		saved.algorithm = enter_algorithm as DungeonParams.Algorithm
+		dungeon_seed = enter_seed
 		enter_seed = 0
 		exploring = false
 		cleared.clear()
@@ -162,6 +165,7 @@ func _ready() -> void:
 		retreat_cell = Vector2i(-1, -1)
 		floor_no = saved.floor_depth
 		entry_floor = floor_no
+		_recall_dungeon()
 		_pending_toast = "%s — 들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로" % enter_name if enter_name != "" else "들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로"
 	if saved == null:
 		saved = DungeonParams.new()
@@ -173,6 +177,8 @@ func _ready() -> void:
 	_generate()
 	if came_in:
 		_set_exploring(true)
+		floor_memory.merge(_recalled)
+		_recalled = {}
 		_autosave()
 
 
@@ -1217,7 +1223,7 @@ func _change_floor(to: int) -> void:
 		params.party_level = hero.level()
 		params.party_size = party().size()
 		params.floor_depth = floor_no
-		params.rng_seed = randi_range(1, 999999)
+		params.rng_seed = floor_seed(dungeon_seed, floor_no) if from_outside and dungeon_seed != 0 else randi_range(1, 999999)
 	else:
 		var p: DungeonParams = mem.params
 		for prop in ["rng_seed", "floor_depth", "party_level", "party_size"]:
@@ -1811,6 +1817,7 @@ static func reset_run() -> void:
 	cleared = {}
 	exploring = false
 	enter_seed = 0
+	dungeon_seed = 0
 	from_outside = false
 	entry_floor = 1
 	floor_memory = {}
@@ -1844,7 +1851,54 @@ static func run_state() -> Dictionary:
 	return {"params": saved.to_dict() if saved else {}, "cleared": cleared.duplicate(), "exploring": exploring,
 			"from_outside": from_outside, "entry_floor": entry_floor, "floor_memory": mem, "explore_cell": explore_cell,
 			"opened": opened.duplicate(), "floor_no": floor_no, "save": sv, "rested_here": rested_here,
+			"used_fires": used_fires.duplicate(), "seen": seen.duplicate(), "dungeon_seed": dungeon_seed}
+
+
+## 층 시드: 첫 층은 입구 시드 그대로, 아래층은 입구 시드와 층 번호로 (같은 던전 같은 층 = 같은 구조)
+static func floor_seed(base: int, floor_index: int) -> int:
+	return base if floor_index <= 1 else (base * 13 + floor_index * 7919) % 999983 + 1
+
+
+## 바깥으로 나갈 때 이 던전의 층들을 게임 상태에 남김 (Game.dungeon_memory)
+static func remember_dungeon() -> void:
+	if not from_outside or dungeon_seed == 0:
+		return
+	var v = _view.get_ref() if _view else null
+	var cur: DungeonParams = v.params if v and is_instance_valid(v) else saved
+	var floors := {}
+	for f in floor_memory:
+		var m: Dictionary = floor_memory[f]
+		floors[int(f)] = {"params": (m.params as DungeonParams).to_dict(), "cleared": (m.cleared as Dictionary).duplicate(),
+			"opened": (m.opened as Dictionary).duplicate(), "used_fires": (m.used_fires as Dictionary).duplicate(), "seen": (m.seen as Dictionary).duplicate()}
+	if cur:
+		floors[floor_no] = {"params": cur.to_dict(), "cleared": cleared.duplicate(), "opened": opened.duplicate(),
 			"used_fires": used_fires.duplicate(), "seen": seen.duplicate()}
+	Game.dungeon_memory[Game.dungeon_id] = {"day": Game.day, "seed": dungeon_seed, "floors": floors}
+
+
+## 들어온 던전을 전에 와 봤으면 층 기억을 되살림: 들어선 층은 비운 방·연 상자·본 칸, 다른 층은 _recalled에
+## (탐험을 시작하면 층 기억이 비워지므로 그 뒤에 floor_memory로 옮김)
+static var _recalled := {}
+
+
+static func _recall_dungeon() -> void:
+	_recalled = {}
+	var mem: Dictionary = Game.dungeon_memory.get(Game.dungeon_id, {})
+	if mem.is_empty() or int(mem.get("seed", 0)) != dungeon_seed:
+		return
+	var stale: bool = Game.day - int(mem.get("day", Game.day)) >= Game.RESPAWN_DAYS
+	for f in mem.floors:
+		var m: Dictionary = mem.floors[f]
+		var entry := {"params": DungeonParams.from_dict(m.params), "cleared": {} if stale else (m.cleared as Dictionary).duplicate(),
+			"opened": (m.opened as Dictionary).duplicate(), "used_fires": {} if stale else (m.used_fires as Dictionary).duplicate(),
+			"seen": (m.seen as Dictionary).duplicate()}
+		if int(f) == floor_no:
+			cleared = entry.cleared
+			opened = entry.opened
+			used_fires = entry.used_fires
+			seen = entry.seen
+		else:
+			_recalled[int(f)] = entry
 
 
 static func restore_run(d: Dictionary) -> void:
@@ -1869,6 +1923,7 @@ static func restore_run(d: Dictionary) -> void:
 	rested_here = bool(d.get("rested_here", false))
 	used_fires = (d.get("used_fires", {}) as Dictionary).duplicate()
 	seen = (d.get("seen", {}) as Dictionary).duplicate()
+	dungeon_seed = int(d.get("dungeon_seed", 0))
 	_pending_toast = "이어서 합니다 — %d층" % floor_no
 
 
@@ -1884,6 +1939,7 @@ func _up_stairs_here() -> bool:
 
 ## 들어온 바깥 지형의 입구 앞으로 (main.gd가 같은 시드로 지형을 다시 만듦)
 func _go_outside() -> void:
+	remember_dungeon()
 	Sfx.play(self, "stairs")
 	from_outside = false
 	exploring = false

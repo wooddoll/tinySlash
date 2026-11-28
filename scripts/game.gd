@@ -13,6 +13,7 @@ const START_GOLD := 30
 const DUNGEON_VIEW := "res://scripts/dungeon_view.gd"
 const Quests = preload("res://rules/quests.gd")
 const Region = preload("res://rules/region.gd")
+const Reputation = preload("res://rules/reputation.gd")
 
 ## 바깥 세상 시드 (0이면 다음에 바깥으로 나갈 때 새로 정함)
 static var world_seed := 0
@@ -43,6 +44,14 @@ static var quests: Array = []
 static var board: Array = []
 static var board_day := 0
 static var next_uid := 1
+## 던전마다 기억 (던전 번호 → {day: 마지막으로 나온 날, floors: {층: {params(사전), cleared, opened, used_fires, seen}}})
+## 같은 던전은 언제 가도 같은 구조. 비운 방은 RESPAWN_DAYS 지나면 다시 몬스터가 참 (상자는 그대로 열림)
+static var dungeon_memory := {}
+## 평판 {guild, village} (rules/reputation.gd), 조합 등급 0~3, 마지막 의뢰를 끝냈나 (엔딩을 봄)
+static var rep := {"guild": 0, "village": 0}
+static var rank := 0
+static var ended := false
+const RESPAWN_DAYS := 3
 ## 마지막으로 저장한 시각 (Time.get_unix_time_from_system)
 static var saved_at := 0
 
@@ -71,6 +80,10 @@ static func new_game() -> void:
 	board = []
 	board_day = 0
 	next_uid = 1
+	dungeon_memory = {}
+	rep = Reputation.fresh()
+	rank = 0
+	ended = false
 	load(DUNGEON_VIEW).reset_run()
 
 
@@ -108,6 +121,10 @@ static func snapshot() -> Dictionary:
 		"board": board.duplicate(true),
 		"board_day": board_day,
 		"next_uid": next_uid,
+		"dungeon_memory": dungeon_memory.duplicate(true),
+		"rep": rep.duplicate(),
+		"rank": rank,
+		"ended": ended,
 		"dungeon": dv.run_state() if place == "dungeon" else {},
 	}
 
@@ -132,6 +149,11 @@ static func restore(d: Dictionary) -> String:
 	board = (d.get("board", []) as Array).duplicate(true)
 	board_day = int(d.get("board_day", 0))
 	next_uid = int(d.get("next_uid", 1))
+	dungeon_memory = (d.get("dungeon_memory", {}) as Dictionary).duplicate(true)
+	rep = Reputation.fresh()
+	rep.merge(d.get("rep", {}), true)
+	rank = int(d.get("rank", 0))
+	ended = bool(d.get("ended", false))
 	if tl.size() == 2:
 		tile = Vector2i(int(tl[0]), int(tl[1]))
 	else:
@@ -201,7 +223,12 @@ static func advance_minutes(m: int) -> Array:
 	while minute >= 1440:
 		minute -= 1440
 		day += 1
-		failed.append_array(Quests.tick(quests, day))
+		var f := Quests.tick(quests, day)
+		for q in f:
+			Reputation.on_quest(rep, q, false)
+		failed.append_array(f)
+	if not failed.is_empty():
+		rank = Reputation.rank_for(rank, int(rep.guild), hero.level() if hero else 1)
 	return failed
 
 
@@ -255,10 +282,42 @@ static func reward(q: Dictionary) -> int:
 		return 0
 	q.state = "rewarded"
 	gold += int(q.gold)
+	Reputation.on_quest(rep, q, true)
+	if q.get("final", false):
+		ended = true
 	var heroes := party()
 	var share := int(q.xp) / maxi(heroes.size(), 1)
 	var up := 0
 	for h in heroes:
 		var r: Dictionary = (h as HeroState).absorb((h as HeroState).make_creature(), share)
 		up = maxi(up, int(r.get("level_up", 0)))
+	rank = Reputation.rank_for(rank, int(rep.guild), hero.level() if hero else 1)
 	return up
+
+
+## 조합 가입 (회관)
+static func join_guild() -> bool:
+	if not Reputation.can_join(rank, int(rep.guild)):
+		return false
+	rank = 1
+	rank = Reputation.rank_for(rank, int(rep.guild), hero.level() if hero else 1)
+	return true
+
+
+## 마지막 의뢰: 베테랑이 되면 회관에서 받을 수 있음 (받은 적 없을 때만, 실패했으면 다시 줌). world는 의뢰판과 같은 꼴
+static func final_offer(world: Dictionary) -> Dictionary:
+	if rank < Reputation.TOP_RANK or ended:
+		return {}
+	for q in quests:
+		if q.get("final", false) and q.state != "failed":
+			return {}
+	return Quests.final_quest(world.get("dungeons", []), Reputation.FINAL_FLOOR, next_uid)
+
+
+static func take_final(q: Dictionary) -> bool:
+	if q.is_empty() or not q.get("final", false) or Quests.busy(quests) >= Quests.MAX_ACTIVE:
+		return false
+	next_uid += 1
+	Quests.accept(q, day)
+	quests.append(q)
+	return true

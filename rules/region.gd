@@ -11,11 +11,22 @@ const VILLAGE := Vector2i(1, 1)
 const TILE_HOURS := 6.0
 const PLACE_A := ["까마귀", "서리", "붉은", "늑대", "안개", "고목", "바람", "잿빛", "가시", "달빛"]
 const PLACE_B := ["숲", "언덕", "벌판", "고개", "골짜기", "등성이"]
+## 칸 이름 끝 → 지형 성격. relief: 언덕 높이 배수, trees: 숲 노이즈 문턱에 더함(음수면 나무가 빽빽)
+const BIOMES := {
+	"숲": {"biome": "forest", "relief": 0.9, "trees": -0.3},
+	"언덕": {"biome": "hills", "relief": 1.7, "trees": 0.1},
+	"벌판": {"biome": "meadow", "relief": 0.45, "trees": 0.45},
+	"고개": {"biome": "pass", "relief": 2.1, "trees": 0.2},
+	"골짜기": {"biome": "valley", "relief": 1.3, "trees": -0.1},
+	"등성이": {"biome": "ridge", "relief": 1.5, "trees": 0.05},
+}
+## 마을 칸은 보통 (가운데는 M5 전과 같은 높이)
+const VILLAGE_BIOME := {"biome": "village", "relief": 1.0, "trees": 0.0}
 ## 던전 종류: [이름 끝, 몬스터 주제, 생성 방식(0 BSP, 1 흩뿌림, 2 동굴)]
 const DUNGEON_KINDS := [["굴", "beast", 2], ["광산", "goblin", 0], ["무덤", "undead", 0], ["요새", "goblin", 1], ["동굴", "beast", 2], ["지하 사원", "undead", 1]]
 const DUNGEON_A := ["버려진", "잊힌", "검은", "무너진", "젖은", "속삭이는", "깊은"]
 
-## 칸 → {name, kind ("village" / "wild"), dungeon (던전 번호, 없으면 -1)}
+## 칸 → {name, kind ("village" / "wild"), dungeon (던전 번호, 없으면 -1), biome, relief, trees}
 var tiles := {}
 ## 던전: {id, tile, name, theme, algorithm, seed}
 var dungeons: Array = []
@@ -30,12 +41,17 @@ static func generate(world_seed: int):
 		for x in W:
 			var t := Vector2i(x, y)
 			var name := ""
+			var end := ""
 			for k in 20:
-				name = "%s %s" % [PLACE_A[rng.randi() % PLACE_A.size()], PLACE_B[rng.randi() % PLACE_B.size()]]
+				var start: String = PLACE_A[rng.randi() % PLACE_A.size()]
+				end = PLACE_B[rng.randi() % PLACE_B.size()]
+				name = "%s %s" % [start, end]
 				if not used.has(name):
 					break
 			used[name] = true
-			r.tiles[t] = {"name": name, "kind": "village" if t == VILLAGE else "wild", "dungeon": -1}
+			var info := {"name": name, "kind": "village" if t == VILLAGE else "wild", "dungeon": -1}
+			info.merge(VILLAGE_BIOME if t == VILLAGE else BIOMES[end])
+			r.tiles[t] = info
 	# 던전: 가운데 칸 + 나머지 여덟 칸 중 셋
 	var others: Array[Vector2i] = []
 	for t in r.tiles:
@@ -84,6 +100,22 @@ static func offset(t: Vector2i, size: int) -> Vector2:
 ## 빠른 이동 시간 (시간)
 static func travel_hours(a: Vector2i, b: Vector2i) -> float:
 	return snappedf(Vector2(b - a).length() * TILE_HOURS, 0.5)
+
+
+## 세계 좌표(칸, 마을 칸 가운데 = 0,0) p에서의 지형 성격 Vector2(relief, trees).
+## 칸 가운데 값들을 이어서(쌍선형) 섞으므로 칸 경계 양쪽에서 같은 값 → 땅이 맞물림
+func terrain_at(p: Vector2, size: int) -> Vector2:
+	var g := p / float(size) + Vector2(VILLAGE)
+	var x0 := clampi(floori(g.x), 0, W - 1)
+	var y0 := clampi(floori(g.y), 0, H - 1)
+	var x1 := mini(x0 + 1, W - 1)
+	var y1 := mini(y0 + 1, H - 1)
+	var fx := clampf(g.x - x0, 0.0, 1.0)
+	var fy := clampf(g.y - y0, 0.0, 1.0)
+	var v := func(x: int, y: int) -> Vector2:
+		var i: Dictionary = tiles[Vector2i(x, y)]
+		return Vector2(float(i.relief), float(i.trees))
+	return (v.call(x0, y0) as Vector2).lerp(v.call(x1, y0), fx).lerp((v.call(x0, y1) as Vector2).lerp(v.call(x1, y1), fx), fy)
 
 
 ## 이 칸의 던전 (없으면 빈 사전)

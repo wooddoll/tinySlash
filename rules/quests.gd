@@ -21,7 +21,7 @@ const TEMPLATES := [
 	{"id": "escort_road", "kind": "group", "title": "길목의 {foe}",
 		"text": "장사꾼 수레가 {dir}쪽 길목에서 {foe} 무리에게 쫓겨 돌아왔습니다. 길을 다시 열어 주세요.",
 		"giver": "잡화점 주인", "gold": [35, 55], "xp": [40, 70], "days": [2, 4]},
-	{"id": "boss", "kind": "boss", "title": "{dungeon} {floor}층의 우두머리",
+	{"id": "boss", "kind": "boss", "rank": 1, "title": "{dungeon} {floor}층의 우두머리",
 		"text": "{where} {dungeon} {floor}층 출구를 무언가 강한 것이 지키고 있다는 소문입니다. 그것을 쓰러뜨리면 조합이 사례합니다.",
 		"giver": "모험가 조합", "gold": [70, 110], "xp": [90, 150], "days": [3, 5]},
 	{"id": "fetch", "kind": "fetch", "title": "잃어버린 {item}",
@@ -31,7 +31,7 @@ const TEMPLATES := [
 ]
 
 
-## 의뢰판에 붙일 의뢰들. world: {groups: [{id, label, home: Vector2}], max_floor, day,
+## 의뢰판에 붙일 의뢰들. world: {groups: [{id, label, home: Vector2}], max_floor, day, rank (조합 등급, rules/reputation.gd),
 ##   dungeons: [{id, name, tile (칸 이름), dir (마을에서 본 방향, 마을 칸이면 "이곳"), hours (마을에서 빠른 이동 시간)}]}
 ## 던전 의뢰의 기한 = 1일(던전 안) + 왕복 여행 시간 × 2.5 (기획 12.2), 적어도 템플릿의 최소 일수
 ## taken: 이미 받은(진행 중) 의뢰들 — 같은 무리를 두 번 겨냥하지 않음
@@ -52,6 +52,8 @@ static func offers(seed_value: int, world: Dictionary, taken: Array, next_uid: i
 	while out.size() < BOARD_SIZE and tries < 30:
 		tries += 1
 		var t: Dictionary = TEMPLATES[rng.randi() % TEMPLATES.size()]
+		if int(t.get("rank", 0)) > int(world.get("rank", 0)):
+			continue  # 조합 등급이 모자라면 붙지 않음
 		var q := {"uid": next_uid + out.size(), "tid": t.id, "kind": t.kind, "giver": t.giver,
 			"target": -1, "item": "", "floor": 0, "state": "offered", "taken": 0, "deadline": 0}
 		var fill := {}
@@ -91,6 +93,21 @@ static func offers(seed_value: int, world: Dictionary, taken: Array, next_uid: i
 		q.xp = rng.randi_range(int(t.xp[0]), int(t.xp[1]))
 		out.append(q)
 	return out
+
+
+## 마지막 의뢰 (M6): 마을에서 가장 먼 던전의 floor_no층 우두머리. dungeons는 offers의 world.dungeons와 같은 꼴
+static func final_quest(dungeons: Array, floor_no: int, uid: int) -> Dictionary:
+	var far: Dictionary = {}
+	for dg in dungeons:
+		if far.is_empty() or float(dg.hours) > float(far.hours):
+			far = dg
+	var days := maxi(5, 1 + ceili(float(far.get("hours", 0.0)) * 2.0 * 2.5 / 24.0) + 2)
+	var where := "마을 근처" if str(far.get("dir", "이곳")) == "이곳" else "%s쪽 %s의" % [far.dir, far.tile]
+	return {"uid": uid, "tid": "final", "kind": "boss", "final": true, "giver": "모험가 조합",
+		"target": -1, "item": "", "floor": floor_no, "dungeon": int(far.get("id", 0)), "state": "offered", "taken": 0, "deadline": 0,
+		"days": days, "gold": 300, "xp": 600,
+		"title": "%s 깊은 곳의 주인" % far.get("name", "던전"),
+		"text": "%s %s %d층에 이 골짜기를 괴롭혀 온 것의 우두머리가 있다. 조합의 이름으로 그것을 쓰러뜨려 주게. 끝내면 자네 이름이 골짜기에 남을 걸세." % [where, far.get("name", "던전"), floor_no]}
 
 
 ## 의뢰 받기: 기한은 받은 날 + 일수

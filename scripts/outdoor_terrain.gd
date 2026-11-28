@@ -53,6 +53,8 @@ var solids: Array[Vector3] = []
 var keep_out: Callable
 ## 이 칸 가운데의 세계 좌표 (숲 노이즈를 칸 너머로 잇는 데 씀)
 var _noise_off := Vector2.ZERO
+## 세계 좌표 → Vector2(언덕 높이 배수, 숲 문턱 더하기). 없으면 (1, 0). rules/region.gd terrain_at
+var _terrain_at: Callable
 ## 이 모델들(이름 앞부분)에는 충돌체를 붙임: [앞부분, 반지름(크기 1일 때)]
 const SOLID := [["CommonTree_", 0.22], ["Pine_", 0.25], ["TwistedTree_", 0.22], ["DeadTree_", 0.2], ["Rock_Medium_", 0.5]]
 
@@ -104,6 +106,7 @@ func generate(seed_value: int, opts: Dictionary = {}) -> bool:
 	var off: Vector2 = opts.get("offset", Vector2.ZERO)
 	var closed: Dictionary = opts.get("closed", {"w": true, "e": true, "n": true, "s": true})
 	_noise_off = off
+	_terrain_at = opts.get("terrain_at", Callable())
 	var hills := FastNoiseLite.new()
 	hills.seed = int(opts.get("noise_seed", seed_value))
 	hills.frequency = 0.012
@@ -126,15 +129,17 @@ func generate(seed_value: int, opts: Dictionary = {}) -> bool:
 		e2 = Vector2(cos(a2), sin(a2)) * rng.randf_range(25.0, 55.0)
 		var fa := deg_to_rad(45.0 + rng.randf_range(-35.0, 35.0))
 		face = Vector3(cos(fa), 0, sin(fa))
-	var e_h := (hills.get_noise_2d(e2.x + off.x, e2.y + off.y) * 0.5 + 0.5) * HILL
-	var c_h := (hills.get_noise_2d(off.x, off.y) * 0.5 + 0.5) * HILL
+	var hgt := func(x: float, z: float) -> float:
+		return (hills.get_noise_2d(x + off.x, z + off.y) * 0.5 + 0.5) * HILL * _look(Vector2(x, z)).x
+	var e_h: float = hgt.call(e2.x, e2.y)
+	var c_h: float = hgt.call(0.0, 0.0)
 	var f2 := Vector2(face.x, face.z)
 	entrance = Transform3D(Basis.looking_at(-face, Vector3.UP), Vector3(e2.x, e_h, e2.y))
 	for y in SIZE:
 		for x in SIZE:
 			var wx := x - half
 			var wz := y - half
-			var h := (hills.get_noise_2d(wx + off.x, wz + off.y) * 0.5 + 0.5) * HILL
+			var h: float = hgt.call(wx, wz)
 			if village:
 				# 가운데 빈터는 평평하게 (가장자리로 갈수록 원래 높이)
 				var d := Vector2(wx, wz).length()
@@ -178,6 +183,11 @@ func generate(seed_value: int, opts: Dictionary = {}) -> bool:
 	if has_entrance:
 		_build_entrance()
 	return true
+
+
+## 이 칸 지형 좌표 p의 지형 성격 Vector2(relief, trees)
+func _look(p: Vector2) -> Vector2:
+	return _terrain_at.call(p + _noise_off) if _terrain_at.is_valid() else Vector2(1.0, 0.0)
 
 
 func _clearing_height(hills: FastNoiseLite) -> float:
@@ -268,7 +278,7 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 				continue
 			if keep_out.is_valid() and keep_out.call(Vector2(p.x, p.z), 0.4 if is_grass else 1.5):
 				continue
-			if forest.get_noise_2d(p.x + _noise_off.x, p.z + _noise_off.y) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
+			if forest.get_noise_2d(p.x + _noise_off.x, p.z + _noise_off.y) < float(layer[2]) + _look(Vector2(p.x, p.z)).y * (1.0 if not is_grass else 0.3) + rng.randf_range(-0.1, 0.1):
 				continue
 			var n: Vector3 = terrain.data.get_normal(p)
 			if not n.is_finite() or n.y < float(layer[4]):

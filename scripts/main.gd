@@ -14,6 +14,7 @@ const TownDialog = preload("res://scripts/town_dialog.gd")
 const Quests = preload("res://rules/quests.gd")
 const Region = preload("res://rules/region.gd")
 const RegionMap = preload("res://scripts/region_map.gd")
+const Reputation = preload("res://rules/reputation.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -104,7 +105,7 @@ func _build_terrain() -> bool:
 		village = Village.generate(world_seed, Outdoor.entrance_dir(world_seed))
 		outdoor.keep_out = village.blocked
 	var opts := {"noise_seed": world_seed, "offset": Region.offset(t, Outdoor.SIZE), "village": is_village,
-		"entrance": not here_dungeon.is_empty(),
+		"entrance": not here_dungeon.is_empty(), "terrain_at": region.terrain_at.bind(Outdoor.SIZE),
 		"closed": {"w": not Region.inside(t + Vector2i.LEFT), "e": not Region.inside(t + Vector2i.RIGHT),
 			"n": not Region.inside(t + Vector2i.UP), "s": not Region.inside(t + Vector2i.DOWN)}}
 	if not outdoor.generate(_seed, opts):
@@ -142,6 +143,7 @@ func _build_terrain() -> bool:
 		player.global_position = Vector3(arrive.x, outdoor.height_at(Vector3(arrive.x, 0, arrive.y)) + 0.5, arrive.y)
 		calm = 3.0
 	if arrive != null:
+		_fade_from_black()
 		_pending_toast = region.tiles[t].name + ("" if here_dungeon.is_empty() else " — %s 입구가 있는 곳" % here_dungeon.name)
 	var loaded := Game.take_load_pos()
 	if loaded != Vector3.INF:
@@ -450,11 +452,11 @@ func _open_place(kind: String) -> void:
 	Sfx.play(self, "open")
 	match kind:
 		"inn":
-			dialog.open(_inn_text(), [["하룻밤 묵기 (%d골드)" % INN_PRICE, _inn_rest, Game.gold >= INN_PRICE]])
+			dialog.open(_inn_text(), [["하룻밤 묵기 (%d골드)" % _inn_price(), _inn_rest, Game.gold >= _inn_price()]])
 		"shop":
 			dialog.open(_shop_text(), [["회복 물약 사기 (%d골드)" % HeroState.POTION_PRICE, _buy_potion, Game.hero.can_buy_potion(Game.gold)]])
 		"guild":
-			dialog.open(_guild_text())
+			_open_guild()
 		"board":
 			_open_board()
 
@@ -478,22 +480,29 @@ func _inn_text() -> String:
 	var lines := PackedStringArray(["[font_size=22]%s[/font_size]" % b.get("name", "여관"),
 		"따뜻한 방과 저녁 한 끼. 하룻밤 묵으면 파티 모두 HP·히트 다이스·기능·주문 슬롯을 회복하고 저장해요.", ""])
 	lines.append_array(_party_lines())
-	if Game.gold < INN_PRICE:
+	if _inn_price() < INN_PRICE:
+		lines.append("[color=#9f9]마을 사람들이 반겨 줘서 %d골드에 묵어요 (마을 평판 %d)[/color]" % [_inn_price(), int(Game.rep.village)])
+	if Game.gold < _inn_price():
 		lines.append("[color=gray]금화가 모자라요 (던전 상자에서 모을 수 있어요)[/color]")
 	return "\n".join(lines)
 
 
 func _inn_rest() -> void:
-	if Game.gold < INN_PRICE:
+	if Game.gold < _inn_price():
 		return
-	Game.gold -= INN_PRICE
+	Game.gold -= _inn_price()
 	for h in Game.party():
 		h.long_rest()
 	var failed := Game.sleep_until(7)
 	_autosave()
 	_quest_news([], failed)
 	Sfx.play(self, "coins")
-	dialog.refresh(_inn_text() + "\n[color=#9f9]푹 쉬었어요 (%d일째). 저장했어요." % Game.day + "[/color]", [Game.gold >= INN_PRICE])
+	dialog.refresh(_inn_text() + "\n[color=#9f9]푹 쉬었어요 (%d일째). 저장했어요." % Game.day + "[/color]", [Game.gold >= _inn_price()])
+
+
+## 여관 값 (마을 평판으로 깎임, rules/reputation.gd)
+func _inn_price() -> int:
+	return Reputation.inn_price(INN_PRICE, int(Game.rep.village))
 
 
 func _shop_text() -> String:
@@ -515,12 +524,59 @@ func _buy_potion() -> void:
 	dialog.refresh(_shop_text(), [Game.hero.can_buy_potion(Game.gold)])
 
 
-func _guild_text() -> String:
-	var lines := PackedStringArray(["[font_size=22]모험가 조합 회관[/font_size]",
-		"\"%s에 온 걸 환영하네. 일거리는 광장 의뢰판에 붙여 두지.\"" % village.name, "",
-		"[color=gray]조합 가입과 등급은 아직 준비 중이에요 (평판, M6).[/color]", ""])
+## 조합 회관 (M6): 가입, 등급과 평판, 정회원부터 공짜 하룻밤, 베테랑에게 마지막 의뢰
+func _open_guild(note := "") -> void:
+	var lines := PackedStringArray(["[font_size=22]모험가 조합 회관[/font_size]  [color=gray]%s[/color]" % Reputation.rank_name(Game.rank)])
+	var buttons := []
+	if Game.rank <= 0:
+		if Reputation.can_join(Game.rank, int(Game.rep.guild)):
+			lines.append("\"%s에 온 걸 환영하네. 조합에 들면 던전 우두머리 일도 맡길 수 있지. 가입비는 없네.\"" % village.name)
+			buttons.append(["조합 가입", _join_guild, true])
+		else:
+			lines.append("\"자네 이름이 좋지 않게 돌고 있어. 마을 일부터 해서 평판을 되찾고 오게.\" (조합 평판 %d)" % int(Game.rep.guild))
+	else:
+		lines.append("\"어서 오게, %s. 일거리는 광장 의뢰판에 붙여 두었네.\"" % Reputation.rank_name(Game.rank))
+		var need := Reputation.next_need(Game.rank)
+		lines.append("[color=gray]다음 등급 — %s[/color]" % need if need != "" else "[color=#fd8]조합 최고 등급이에요[/color]")
+		if Reputation.free_rest(Game.rank):
+			buttons.append(["회관에서 하룻밤 (무료)", _guild_rest, true])
+	var fin := Game.final_offer(_quest_world())
+	if not fin.is_empty():
+		lines.append("")
+		lines.append("[color=#fd8]마지막 의뢰: %s[/color]  [color=gray](%d일 · 금화 %d · 경험치 %d)[/color]" % [fin.title, fin.days, fin.gold, fin.xp])
+		lines.append("    " + str(fin.text))
+		buttons.append(["마지막 의뢰 받기", _take_final.bind(fin), Quests.busy(Game.quests) < Quests.MAX_ACTIVE])
+	lines.append("")
+	lines.append("평판: " + Reputation.line(Game.rep))
+	if note != "":
+		lines.append(note)
+	lines.append("")
 	lines.append_array(_party_lines())
-	return "\n".join(lines)
+	dialog.open("\n".join(lines), buttons)
+
+
+func _join_guild() -> void:
+	if Game.join_guild():
+		Sfx.play(self, "confirm")
+		_autosave()
+		_open_guild("[color=#9f9]조합에 들었어요: %s[/color]" % Reputation.rank_name(Game.rank))
+
+
+func _guild_rest() -> void:
+	for h in Game.party():
+		h.long_rest()
+	var failed := Game.sleep_until(7)
+	_autosave()
+	_quest_news([], failed)
+	Sfx.play(self, "confirm")
+	_open_guild("[color=#9f9]회관 숙소에서 푹 쉬었어요 (%d일째). 저장했어요.[/color]" % Game.day)
+
+
+func _take_final(q: Dictionary) -> void:
+	if Game.take_final(q):
+		Sfx.play(self, "confirm")
+		_autosave()
+		_open_guild("[color=#9f9]받았어요: %s (%d일째까지)[/color]" % [q.title, q.deadline])
 
 
 ## 의뢰판 (M4): 끝낸 의뢰 보상, 오늘 붙은 의뢰 받기, 아래에 소문 두 줄
@@ -566,7 +622,7 @@ func _quest_world() -> Dictionary:
 	for dg in region.dungeons:
 		dgs.append({"id": dg.id, "name": dg.name, "tile": region.tiles[dg.tile].name,
 			"dir": Region.direction(Region.VILLAGE, dg.tile), "hours": Region.travel_hours(Region.VILLAGE, dg.tile)})
-	return {"groups": groups, "dungeons": dgs, "max_floor": clampi(1 + Game.hero.level() / 2, 2, 3)}
+	return {"groups": groups, "dungeons": dgs, "rank": Game.rank, "max_floor": Reputation.max_floor(Game.rank)}
 
 
 func _take_offer(q: Dictionary) -> void:
@@ -579,12 +635,92 @@ func _take_offer(q: Dictionary) -> void:
 func _take_rewards() -> void:
 	var total_gold := 0
 	var up := 0
+	var rank_before := Game.rank
+	var rep_before: Dictionary = Game.rep.duplicate()
+	var was_ended := Game.ended
 	for q in Quests.ready_to_reward(Game.quests):
 		total_gold += int(q.gold)
 		up = maxi(up, Game.reward(q))
-	Sfx.play(self, "level_up" if up > 0 else "coins")
+	Sfx.play(self, "level_up" if up > 0 or Game.rank > rank_before else "coins")
 	_autosave()
-	_open_board("[color=#9f9]보상: 금화 %d%s[/color]" % [total_gold, ("  — 레벨 업! %d레벨 (레벨업 고르기는 던전 쉼터에서)" % up) if up > 0 else ""])
+	var note := "[color=#9f9]보상: 금화 %d · 평판 %s%s[/color]" % [total_gold, _rep_delta(rep_before),
+		("  — 레벨 업! %d레벨 (레벨업 고르기는 던전 쉼터에서)" % up) if up > 0 else ""]
+	if Game.rank > rank_before:
+		note += "\n[color=#fd8]조합 등급이 올랐어요: %s[/color]" % Reputation.rank_name(Game.rank)
+		if Game.rank >= Reputation.TOP_RANK:
+			note += "\n[color=#fd8]조합 회관에 가 보세요 — 마지막 의뢰가 기다려요[/color]"
+	_open_board(note)
+	if Game.ended and not was_ended:
+		dialog.close()
+		_show_ending()
+
+
+## 평판이 얼마나 바뀌었나 ("모험가 조합 +6, 마을 사람들 +3")
+func _rep_delta(before: Dictionary) -> String:
+	var parts := PackedStringArray()
+	for f in Reputation.FACTIONS:
+		var d := int(Game.rep[f]) - int(before.get(f, 0))
+		if d != 0:
+			parts.append("%s %+d" % [Reputation.FACTIONS[f], d])
+	return ", ".join(parts) if not parts.is_empty() else "그대로"
+
+
+## 엔딩 (M6): 마지막 의뢰 보상을 받으면. 계속 돌아다니거나 시작 화면으로
+func _show_ending() -> void:
+	($Player as Node3D).set_physics_process(false)
+	monsters.set_process(false)
+	var layer := CanvasLayer.new()
+	layer.layer = 25
+	add_child(layer)
+	var bg := ColorRect.new()
+	bg.color = Color(0.03, 0.025, 0.02, 0.0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(bg)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	box.add_theme_constant_override("separation", 18)
+	box.modulate.a = 0.0
+	layer.add_child(box)
+	var title := Label.new()
+	title.text = "재너머 골짜기에 이름을 남기다"
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var done := Game.quests.filter(func(q) -> bool: return q.state == "rewarded").size()
+	var body := Label.new()
+	body.text = "\n".join(PackedStringArray([
+		"%s 사람들을 괴롭히던 우두머리가 쓰러지고, 골짜기에 다시 나무꾼의 도끼 소리가 울립니다." % village.name,
+		"조합은 당신의 이름을 회관 벽에 새겼습니다.",
+		"",
+		"%d일 동안 · 의뢰 %d개 · %s %d레벨 · 금화 %d" % [Game.day, done, Game.hero.display_name(), Game.hero.level(), Game.gold],
+		"평판 — " + Reputation.line(Game.rep),
+		"",
+		"끝까지 해 주셔서 고맙습니다."]))
+	body.add_theme_font_size_override("font_size", 20)
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	box.add_child(row)
+	var keep := Button.new()
+	keep.text = "계속 돌아다니기"
+	keep.pressed.connect(func() -> void:
+		layer.queue_free()
+		($Player as Node3D).set_physics_process(true)
+		monsters.set_process(true))
+	row.add_child(keep)
+	var quit_btn := Button.new()
+	quit_btn.text = "시작 화면으로"
+	quit_btn.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn"))
+	row.add_child(quit_btn)
+	var tw := create_tween()
+	tw.tween_property(bg, "color:a", 0.88, 1.2)
+	tw.tween_property(box, "modulate:a", 1.0, 0.8)
+	keep.grab_focus.call_deferred()
 
 
 ## 소문: 가까운 몬스터 무리, 던전 입구
@@ -608,7 +744,8 @@ func _open_journal() -> void:
 	($Player as Node3D).set_physics_process(false)
 	monsters.set_process(false)
 	_show_use_hint("")
-	var lines := PackedStringArray(["[font_size=22]일지[/font_size]  [color=gray]%d일째 · 금화 %d[/color]" % [Game.day, Game.gold], ""])
+	var lines := PackedStringArray(["[font_size=22]일지[/font_size]  [color=gray]%d일째 · 금화 %d[/color]" % [Game.day, Game.gold],
+		"[color=gray]조합 %s · 평판 %s[/color]" % [Reputation.rank_name(Game.rank), Reputation.line(Game.rep)], ""])
 	var now := Game.quests.filter(func(q) -> bool: return q.state == "active" or q.state == "done")
 	if now.is_empty():
 		lines.append("[color=gray]받은 의뢰가 없어요. 광장 의뢰판을 보세요.[/color]")
@@ -729,8 +866,53 @@ func _go_to_tile(t: Vector2i, arrive, minutes: int) -> void:
 	var names := PackedStringArray()
 	for q in failed:
 		names.append(q.title)
-	_toast("%s(으)로…%s" % [region.tiles[t].name, ("\n의뢰 실패: " + ", ".join(names)) if not names.is_empty() else ""])
-	get_tree().change_scene_to_file.call_deferred("res://scenes/main.tscn")
+	_cover_black("%s(으)로…%s" % [region.tiles[t].name, ("\n의뢰 실패: " + ", ".join(names)) if not names.is_empty() else ""])
+	# 검은 화면이 한 번 그려진 뒤 장면을 새로 읽음 (지형을 만드는 동안 멈춘 화면 대신)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+
+## 칸을 옮길 때 가리는 검은 화면
+var _fade: ColorRect = null
+
+
+func _fade_rect() -> ColorRect:
+	if _fade == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 30
+		_fade = ColorRect.new()
+		_fade.color = Color.BLACK
+		_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var l := Label.new()
+		l.name = "Text"
+		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 28)
+		_fade.add_child(l)
+		layer.add_child(_fade)
+		add_child(layer)
+	return _fade
+
+
+func _cover_black(text: String) -> void:
+	var f := _fade_rect()
+	(f.get_node("Text") as Label).text = text
+	f.modulate.a = 1.0
+	f.visible = true
+
+
+func _fade_from_black() -> void:
+	var f := _fade_rect()
+	(f.get_node("Text") as Label).text = ""
+	f.modulate.a = 1.0
+	f.visible = true
+	var tw := create_tween()
+	tw.tween_interval(0.15)
+	tw.tween_property(f, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(func() -> void: f.visible = false)
 
 
 ## 지도 (M): 3x3 칸, 빠른 이동
