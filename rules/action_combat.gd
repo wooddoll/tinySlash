@@ -144,7 +144,8 @@ var spirits: Array[Dictionary] = []
 var _spirit_id := 0
 const FLOW_LIMIT := 40
 ## [변경] 실시간 전투의 몬스터 HP 배율 (D&D 그대로면 싸움이 3~4초로 너무 짧음). XP는 그대로
-const MONSTER_HP_K := 1.5
+## 1.5 → 2.0 (2026-11-28 M7: 1.5에서도 2~3초)
+const MONSTER_HP_K := 2.0
 
 
 func _init(d: Dungeon, dc: Dice = null) -> void:

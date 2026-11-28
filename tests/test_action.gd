@@ -446,7 +446,7 @@ func test_ghost_walks_through_wall() -> void:
 
 
 func test_monster_hp_scaled_in_action() -> void:
-	# 실시간 전투의 몬스터 HP는 1.5배, 파티와 원래 능력치는 그대로
+	# 실시간 전투의 몬스터 HP는 MONSTER_HP_K배, 파티와 원래 능력치는 그대로
 	var ac := arena()
 	var st := Catalog.monster("goblin_warrior")
 	var base := st.max_hp

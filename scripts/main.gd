@@ -17,6 +17,8 @@ const RegionMap = preload("res://scripts/region_map.gd")
 const Reputation = preload("res://rules/reputation.gd")
 const Ambience = preload("res://scripts/ambience.gd")
 const Music = preload("res://scripts/music.gd")
+const PauseMenu = preload("res://scripts/pause_menu.gd")
+const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -82,10 +84,27 @@ var _autosave_in := AUTOSAVE_EVERY
 
 
 var ambience: AudioStreamPlayer = null
+var pause_menu: CanvasLayer
+var level_dialog: LevelUpDialog
+var _level_poll := 0.0
 
 
 func _ready() -> void:
 	InputSetup.register()
+	get_tree().paused = false
+	pause_menu = PauseMenu.new()
+	pause_menu.save_fn = _autosave
+	add_child(pause_menu)
+	var top := CanvasLayer.new()
+	top.layer = 10
+	add_child(top)
+	level_dialog = LevelUpDialog.new()
+	level_dialog.visible = false
+	top.add_child(level_dialog)
+	level_dialog.finished.connect(func() -> void:
+		($Player as Node3D).set_physics_process(true)
+		monsters.set_process(true)
+		_autosave())
 	ambience = Ambience.new()
 	ambience.name = "Ambience"
 	add_child(ambience)
@@ -192,7 +211,18 @@ func _process(delta: float) -> void:
 		_update_music()
 	if fight != null:
 		_fight_process(delta)
+	elif level_dialog.visible:
+		pass
 	elif dialog != null and not dialog.is_open() and not region_map.is_open():
+		# 레벨업 고르기 (보상·바깥 싸움으로 레벨이 오르면 바로)
+		_level_poll -= delta
+		if _level_poll <= 0.0:
+			_level_poll = 0.5
+			if level_dialog.open(Game.party()):
+				($Player as Node3D).set_physics_process(false)
+				monsters.set_process(false)
+				_show_use_hint("")
+				return
 		if village != null:
 			_town_process()
 		elif Input.is_action_just_pressed("journal"):
@@ -210,7 +240,7 @@ func _process(delta: float) -> void:
 	if _toast_left > 0.0:
 		_toast_left -= delta
 		_toast_label.modulate.a = clampf(_toast_left, 0.0, 1.0)
-	if dialog != null and (dialog.is_open() or region_map.is_open()):
+	if dialog != null and (dialog.is_open() or region_map.is_open()) or level_dialog.visible:
 		return
 	# 시험용: B 단독 전투, G 던전 생성기, H 시나리오
 	if Input.is_action_just_pressed("start_battle"):
@@ -221,8 +251,8 @@ func _process(delta: float) -> void:
 		get_tree().change_scene_to_file("res://scenes/scenario.tscn")
 
 
-const HINT_SHORT := "WASD 이동 · F 문·의뢰판 · J 일지 · M 지도 · F1 도움말"
-const HINT_FULL := "[조작]\nWASD / 왼쪽 스틱  이동\nSpace  점프 (싸울 땐 구르기)\nEnter / F  문·의뢰판·던전 입구\nJ  일지 (받은 의뢰, 등급·평판)\nM  지방 지도 · 빠른 이동\nQ / E  카메라 90° 회전 · 휠  줌\n\n[싸움]\nJ / X  공격 · Space  구르기 · K / L  기술 · 1  물약\n\n[시험용]\nB  단독 전투 · G  던전 생성기 · H  모험(시나리오)\n\nF1  도움말 닫기"
+const HINT_SHORT := "WASD 이동 · F 문·의뢰판 · J 일지 · M 지도 · Esc 메뉴 · F1 도움말"
+const HINT_FULL := "[조작]\nWASD / 왼쪽 스틱  이동\nSpace  점프 (싸울 땐 구르기)\nEnter / F  문·의뢰판·던전 입구\nJ  일지 (받은 의뢰, 등급·평판)\nM  지방 지도 · 빠른 이동\nQ / E  카메라 90° 회전 · 휠  줌\n\n[싸움]\nJ / X  공격 · Space  구르기 · K / L  기술 · 1  물약\n\n[시험용]\nB  단독 전투 · G  던전 생성기 · H  모험(시나리오)\n\nEsc  메뉴 (음량·저장)\nF1  도움말 닫기"
 var _hint: Label
 
 
@@ -690,7 +720,7 @@ func _take_rewards() -> void:
 	Sfx.play(self, "level_up" if up > 0 or Game.rank > rank_before else "coins")
 	_autosave()
 	var note := "[color=#9f9]보상: 금화 %d · 평판 %s%s[/color]" % [total_gold, _rep_delta(rep_before),
-		("  — 레벨 업! %d레벨 (레벨업 고르기는 던전 쉼터에서)" % up) if up > 0 else ""]
+		("  — 레벨 업! %d레벨 " % up) if up > 0 else ""]
 	if Game.rank > rank_before:
 		note += "\n[color=#fd8]조합 등급이 올랐어요: %s[/color]" % Reputation.rank_name(Game.rank)
 		if Game.rank >= Reputation.TOP_RANK:
@@ -1008,6 +1038,16 @@ func _autosave() -> void:
 	Game.place = "outside"
 	Game.outside_pos = ($Player as Node3D).global_position
 	Game.save_game()
+
+
+## Esc / Start: 게임 안 메뉴 (창이 열려 있으면 그 창이 먼저 닫힘)
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("back") or pause_menu.is_open() or pause_menu.just_closed():
+		return
+	if (dialog and dialog.is_open()) or (region_map and region_map.is_open()) or level_dialog.visible:
+		return
+	get_viewport().set_input_as_handled()
+	pause_menu.open()
 
 
 func _notification(what: int) -> void:
