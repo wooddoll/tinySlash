@@ -37,7 +37,8 @@
 ### 1.2 화면 (`scenes/`, `scripts/`)
 | 장면 | 스크립트 | 조작 |
 |---|---|---|
-| `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, B 전투, G 던전 생성기 |
+| `title.tscn` 시작 화면 | `title.gd` | 이어하기 / 새로 시작(두 번 눌러 확인) / 끝내기. 상태와 저장은 `game.gd` |
+| `main.tscn` 탐험 | `main.gd`, `player.gd` | WASD 이동, Space 점프, Q/E 카메라 90° 회전, 휠 줌, 몬스터 무리와 그 자리 액션 전투, B 단독 전투, G 던전 생성기, H 시나리오 |
 | `battle.tscn` 전투 | `battle.gd`, `unit_view.gd` | 파티원 차례마다 그 캐릭터를 조종. 왼쪽 파티 창. 좌클릭 이동·공격, 1~3 무기, 스킬·주문·아이템 버튼 → 원형 메뉴(숫자 키로도 고름) → 대상 클릭(우클릭·Esc 취소), Enter 턴 종료, F1~F5 조우 바꾸기, R 다시, Esc 돌아가기 |
 | `dungeon.tscn` 던전 생성기 | `dungeon_view.gd` | 왼쪽 패널 파라미터, 좌클릭 방 고르기, B 그 방에서 전투, Tab 탐험 모드, Esc 바깥으로 |
 | `scenario.tscn` 시나리오 | `scenario_view.gd` | 메인에서 H (팩이 여럿이면 고르기 창). WASD 이동, F 상호작용, R 수색, J 일지, Esc 메인으로. 전투는 그 자리에서 액션 전투(ActionLayer) ([scenario.md](scenario.md)) |
