@@ -596,9 +596,8 @@ static func monster(id: String) -> CreatureStats:
 			s.weapons = [weapon("dagger")]
 			s.features = PackedStringArray(["nimble_escape", "cowardly"])
 			s.ai_style = "skirmisher"
-			s.tint = Color(0.8, 0.9, 0.75)
 			s.sprite_scale = 0.75
-			s.model = "dark/goblin"
+			s.model = "qhero/puglin"
 		"goblin_warrior":
 			_m(s, "고블린 전사", 0.25, 50, [8, 15, 10, 10, 8, 8], 15, 10, 6, Rules.Size.SMALL, 2)
 			s.weapons = [_goblin(weapon("scimitar")), _goblin(weapon("shortbow"))]
@@ -606,16 +605,15 @@ static func monster(id: String) -> CreatureStats:
 			s.ai_style = "ranged"
 			s.tint = Color.WHITE
 			s.sprite_scale = 0.8
-			s.model = "dark/goblin"
+			s.model = "qhero/puglin_warrior"
 		"goblin_boss":
 			_m(s, "고블린 대장", 1.0, 200, [10, 15, 10, 10, 8, 10], 17, 21, 6, Rules.Size.SMALL, 2)
 			s.weapons = [_goblin(weapon("scimitar")), _goblin(weapon("shortbow"))]
 			s.multiattack = 2
 			s.features = PackedStringArray(["nimble_escape", "redirect_attack"])
 			s.ai_style = "melee"
-			s.tint = Color(1.0, 0.85, 0.7)
 			s.sprite_scale = 0.95
-			s.model = "dark/goblin"
+			s.model = "qhero/imp"
 		"skeleton":
 			_m(s, "스켈레톤", 0.25, 50, [10, 16, 15, 6, 8, 5], 14, 13, 6, Rules.Size.MEDIUM, 3)
 			s.weapons = [weapon("shortsword"), weapon("shortbow")]
@@ -641,15 +639,14 @@ static func monster(id: String) -> CreatureStats:
 			s.features = PackedStringArray(["undead_fortitude"])
 			_undead(s)
 			s.save_proficiencies = [Rules.Ability.WIS]
-			s.model = "dark/zombie"
+			s.model = "qhero/zombie"
 		"ghoul":
 			_m(s, "구울", 1.0, 200, [13, 15, 10, 7, 10, 6], 12, 22, 6, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("ghoul_claw")]
 			s.multiattack = 2
 			_undead(s)
 			s.condition_immunities.append("charmed")
-			s.tint = Color(0.75, 0.7, 0.6)
-			s.model = "dark/zombie"
+			s.model = "qhero/ghoul"
 		"ghast":
 			_m(s, "가스트", 2.0, 450, [16, 17, 10, 11, 10, 8], 13, 36, 6, Rules.Size.MEDIUM, 3)
 			s.weapons = [weapon("ghast_claw")]
@@ -657,9 +654,8 @@ static func monster(id: String) -> CreatureStats:
 			_undead(s)
 			s.resistances = PackedStringArray(["necrotic"])
 			s.features = PackedStringArray(["stench"])
-			s.tint = Color(0.65, 0.55, 0.75)
 			s.sprite_scale = 1.1
-			s.model = "dark/zombie"
+			s.model = "qhero/ghast"
 		"shadow":
 			_m(s, "섀도", 0.5, 100, [6, 14, 13, 6, 10, 8], 12, 16, 8, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("shadow_swipe")]
@@ -667,8 +663,7 @@ static func monster(id: String) -> CreatureStats:
 			s.resistances = PackedStringArray(["acid", "cold", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing"])
 			s.immunities = PackedStringArray(["necrotic", "poison"])
 			s.vulnerabilities = PackedStringArray(["radiant"])
-			s.tint = Color(0.15, 0.15, 0.2)
-			s.model = "dark/ghost"
+			s.model = "qhero/shadow"
 		"specter":
 			_m(s, "스펙터", 1.0, 200, [1, 14, 11, 10, 10, 11], 12, 22, 10, Rules.Size.MEDIUM, 2)
 			s.weapons = [weapon("life_drain")]
@@ -676,8 +671,7 @@ static func monster(id: String) -> CreatureStats:
 			s.features = PackedStringArray(["flying", "incorporeal"])
 			s.resistances = PackedStringArray(["acid", "cold", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing"])
 			s.immunities = PackedStringArray(["necrotic", "poison"])
-			s.tint = Color(0.55, 0.8, 1.0, 0.55)
-			s.model = "dark/ghost"
+			s.model = "qhero/specter"
 		"animated_armor":
 			_m(s, "움직이는 갑옷", 1.0, 200, [14, 11, 13, 1, 3, 1], 18, 33, 5, Rules.Size.MEDIUM, 0)
 			s.weapons = [weapon("slam")]
@@ -685,8 +679,7 @@ static func monster(id: String) -> CreatureStats:
 			s.creature_type = "construct"
 			s.immunities = PackedStringArray(["poison", "psychic"])
 			s.condition_immunities = PackedStringArray(["charmed", "deafened", "exhaustion", "frightened", "paralyzed", "petrified", "poisoned"])
-			s.tint = Color(0.35, 0.35, 0.4)
-			s.model = "dark/knight"
+			s.model = "qhero/animated_armor"
 			s.weapon_model = ""
 		# 던전 보스 [변경: 자작]. 출구(보스) 방에만 나옴. 모델은 Bento "The Eightfold Archive" (tools/bake_boss.gd)
 		"bellwarden":

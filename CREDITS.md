@@ -67,7 +67,7 @@ rogue, monk, ranger, bard, druid, fighter, paladin, wizard, sorcerer, warlock an
 the Universal Animation Library and Explosive RPG clips.
 
 Bestiary - Dungeon Monsters Kit (Standard) by Quaternius, Quaternius Asset License (QAL) v1.0, from
-itch.io. Downloaded for later monster work; not used yet.
+itch.io. Puglin and Imp models (goblin minion/warrior/boss), baked by tools/bake_heroes.gd.
 
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and

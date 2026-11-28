@@ -11,6 +11,16 @@ const Retarget = preload("res://tools/retarget.gd")
 const OUTFITS := "F:/workspace/fab_downloads/godot/quaternius_outfits/x/Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/"
 const BASE := "F:/workspace/fab_downloads/godot/quaternius_base/x/Universal Base Characters[Standard]/"
 const HAIR := BASE + "Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)/"
+## Bestiary - Dungeon Monsters Kit (Standard, QAL): 무기 든 몬스터 (같은 사람 뼈대)
+const BESTIARY := "F:/workspace/fab_downloads/godot/quaternius_bestiary/x/Bestiary - Dungeon Monsters Kit[Standard]/Exports/GLB (Godot-Unreal)/"
+const BESTIARY_TEX := "F:/workspace/fab_downloads/godot/quaternius_bestiary/x/Bestiary - Dungeon Monsters Kit[Standard]/Textures/"
+## 좀비 몸짓 (비틀거리기·맨손 휘두르기)
+const ZOMBIE_ANIMS := {
+	"idle": ["rpg", "UnarmedIdleInjured", 0.0], "walk": ["rpg", "UnarmedWalkInjured", 0.0],
+	"sprint": ["rpg", "UnarmedWalkInjured", 0.62], "hit": ["rpg", "UnarmedGetHitF1", 0.0],
+	"attack-melee-right": ["rpg", "UnarmedAttackR2", 0.0], "holding-right-shoot": ["rpg", "UnarmedAttackL1", 0.0],
+	"cast": ["rpg", "UnarmedAttackR3", 0.0], "die": ["rpg", "UnarmedDeath1", 0.0],
+}
 const OUT := "res://assets/quaternius/heroes/"
 const TEX := 1024
 ## 이름 → 옷, 몸(m/f), 머리카락들, 옷 색, 무기 [MegaKit 소품, 크기]
@@ -28,6 +38,17 @@ const HEROES := {
 	"wizard": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_Long", "Hair_Beard"], "hair_color": Color(0.8, 0.8, 0.8), "tint": Color(0.45, 0.55, 1.0), "weapon": []},
 	"sorcerer": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Long"], "hair_color": Color(0.6, 0.12, 0.08), "tint": Color(0.75, 0.5, 0.95), "weapon": []},
 	"warlock": {"outfit": "Female_Ranger", "body": "f", "hair": [], "hair_color": Color(0.1, 0.08, 0.1), "tint": Color(1, 1, 1), "recolor": Color(0.35, 0.12, 0.4), "weapon": []},
+	# 몬스터
+	"puglin": {"glb": "Puglin", "variant": 1},
+	"puglin_warrior": {"glb": "Puglin", "variant": 2},
+	"imp": {"glb": "Imp", "variant": 1},
+	"imp_dark": {"glb": "Imp", "variant": 3},
+	"zombie": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_Buzzed"], "hair_color": Color(0.3, 0.3, 0.28), "tint": Color(0.55, 0.55, 0.5), "skin": Color(0.55, 0.72, 0.5), "anims": ZOMBIE_ANIMS},
+	"ghoul": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Long"], "hair_color": Color(0.2, 0.2, 0.2), "tint": Color(0.4, 0.38, 0.36), "skin": Color(0.5, 0.55, 0.62), "anims": ZOMBIE_ANIMS},
+	"ghast": {"outfit": "Male_Ranger", "body": "m", "hair": [], "hair_color": Color(0.2, 0.2, 0.2), "no_hood": true, "tint": Color(1, 1, 1), "recolor": Color(0.25, 0.22, 0.2), "skin": Color(0.6, 0.5, 0.65), "anims": ZOMBIE_ANIMS},
+	"shadow": {"outfit": "Female_Ranger", "body": "f", "hair": [], "hair_color": Color(0, 0, 0), "tint": Color(0.15, 0.15, 0.18), "recolor": Color(0.05, 0.05, 0.08), "skin": Color(0.1, 0.1, 0.12), "alpha": 0.6},
+	"specter": {"outfit": "Male_Ranger", "body": "m", "hair": [], "hair_color": Color(0.7, 0.8, 0.9), "tint": Color(0.6, 0.75, 0.95), "recolor": Color(0.6, 0.75, 0.95), "skin": Color(0.7, 0.85, 1.0), "alpha": 0.5},
+	"animated_armor": {"outfit": "Male_Ranger", "no_head": true, "no_hood": true, "tint": Color(0.75, 0.75, 0.8), "recolor": Color(0.4, 0.42, 0.48), "skin": Color(0.25, 0.25, 0.28), "weapon": ["Sword_Bronze", 1.0]},
 	# 마을 사람(상인 등 NPC)
 	"villager_m": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_SimpleParted"], "hair_color": Color(0.3, 0.2, 0.12), "tint": Color(1, 1, 1), "weapon": []},
 	"villager_f": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Buns"], "hair_color": Color(0.4, 0.26, 0.14), "tint": Color(1, 1, 1), "weapon": []},
@@ -81,6 +102,9 @@ const CHAIN := [
 
 var _src := {}
 var _tex := {}
+var _skin := Color.WHITE
+var _alpha := 1.0
+var _variant: Image = null
 ## 옷 텍스처의 초록(레인저 옷감)을 바꿀 색 (알파 0이면 그대로)
 var _recolor := Color(0, 0, 0, 0)
 
@@ -107,13 +131,22 @@ func _gltf(path: String) -> Node3D:
 func _bake(name: String, spec: Dictionary) -> void:
 	var root := Node3D.new()
 	root.name = name
-	var outfit := _gltf(OUTFITS + spec.outfit + ".gltf")
-	var arm := outfit.get_node("Armature") as Node3D
-	outfit.remove_child(arm)
+	var src_path: String = (BESTIARY + spec.glb + ".glb") if spec.has("glb") else (OUTFITS + spec.outfit + ".gltf")
+	var outfit := _gltf(src_path)
+	var sk := outfit.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var arm := sk.get_parent() as Node3D
+	arm.get_parent().remove_child(arm)
+	arm.owner = null
+	arm.name = "Armature"
 	root.add_child(arm)
 	outfit.free()
-	var sk := arm.get_node("Skeleton3D") as Skeleton3D
-	var tint: Color = spec.tint
+	sk.name = "Skeleton3D"
+	var tint: Color = spec.get("tint", Color.WHITE)
+	_skin = spec.get("skin", Color.WHITE)
+	_alpha = spec.get("alpha", 1.0)
+	# 몬스터 팩: 색 변형 텍스처로 바꿈 (T_<이름>_BaseColor_<번호>.png)
+	if spec.has("variant"):
+		_variant = Image.load_from_file(BESTIARY_TEX + "T_%s_BaseColor_%d.png" % [spec.glb, spec.variant])
 	if spec.get("no_hood", false):
 		for mi in sk.get_children():
 			if String(mi.name).contains("Hood"):
@@ -123,23 +156,25 @@ func _bake(name: String, spec: Dictionary) -> void:
 		if mi is MeshInstance3D:
 			_fix_materials(mi, tint)
 	_recolor = Color(0, 0, 0, 0)
-	# 머리: 기본 몸에서 머리·목 면만, 눈·눈썹은 그대로
-	var body := _gltf(BASE + "Base Characters/Godot - UE/" + BODIES[spec.body] + ".gltf")
-	for mi in body.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		if String(m.name).to_lower().begins_with("superhero"):
-			m.mesh = _head_only(m)
-		_move_to(m, sk)
-		_fix_materials(m, Color(1, 1, 1), spec.hair_color)
-	body.free()
-	for h in spec.hair:
+	_variant = null
+	# 머리: 기본 몸에서 머리·목 면만, 눈·눈썹은 그대로 (몬스터 팩·빈 갑옷은 없음)
+	if spec.has("body") and not spec.get("no_head", false):
+		var body := _gltf(BASE + "Base Characters/Godot - UE/" + BODIES[spec.body] + ".gltf")
+		for mi in body.find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if String(m.name).to_lower().begins_with("superhero"):
+				m.mesh = _head_only(m)
+			_move_to(m, sk)
+			_fix_materials(m, Color(1, 1, 1), spec.hair_color)
+		body.free()
+	for h in spec.get("hair", []):
 		var hs := _gltf(HAIR + h + ".gltf")
 		for mi in hs.find_children("*", "MeshInstance3D", true, false):
 			_move_to(mi, sk)
 			_fix_materials(mi, Color(1, 1, 1), spec.hair_color)
 		hs.free()
 	# 무기 (오른손)
-	if not spec.weapon.is_empty():
+	if not spec.get("weapon", []).is_empty():
 		var wm := load("res://assets/quaternius/props/%s.res" % spec.weapon[0]) as Mesh
 		if wm:
 			var ba := BoneAttachment3D.new()
@@ -176,8 +211,10 @@ func _bake(name: String, spec: Dictionary) -> void:
 	root.add_child(ap)
 	var lib := AnimationLibrary.new()
 	var prefix := "Armature/Skeleton3D"
-	for key in ANIMS:
-		var a := _anim(sk, prefix, ANIMS[key])
+	var anims: Dictionary = ANIMS.duplicate()
+	anims.merge(spec.get("anims", {}), true)
+	for key in anims:
+		var a := _anim(sk, prefix, anims[key])
 		if a:
 			a.loop_mode = Animation.LOOP_LINEAR if key in LOOPING else Animation.LOOP_NONE
 			lib.add_animation(key, a)
@@ -263,8 +300,18 @@ func _fix_materials(mi: MeshInstance3D, tint: Color, hair := Color.WHITE) -> voi
 		var mn := String(mat.resource_name)
 		if mn.contains("Hair"):
 			c.albedo_color *= hair
-		elif not (mn.contains("Regular") or mn.contains("Superhero") or mn.contains("Eyes")):
+		elif mn.contains("Regular") or mn.contains("Superhero"):
+			c.albedo_color *= _skin
+		elif not mn.contains("Eyes"):
 			c.albedo_color *= tint
+		if _variant and c.albedo_texture:
+			c.albedo_texture = ImageTexture.create_from_image(_variant)
+		if _alpha < 1.0:
+			# 유령: 반투명, 그림자 없음
+			c.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+			c.albedo_color.a = _alpha
+			c.emission_enabled = true
+			c.emission = c.albedo_color * 0.4
 		for prop in ["albedo_texture", "normal_texture", "orm_texture", "roughness_texture", "metallic_texture", "ao_texture"]:
 			var t = c.get(prop)
 			if t is Texture2D:
