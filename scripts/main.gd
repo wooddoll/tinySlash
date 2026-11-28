@@ -6,6 +6,9 @@ const Outdoor = preload("res://scripts/outdoor_terrain.gd")
 const DungeonView = preload("res://scripts/dungeon_view.gd")
 const Battle = preload("res://scripts/battle.gd")
 const Monsters = preload("res://scripts/outdoor_monsters.gd")
+const Game = preload("res://scripts/game.gd")
+## 바깥에 있는 동안 이만큼(초)마다 저장
+const AUTOSAVE_EVERY := 60.0
 
 @export var tree_count := 40
 @export var grass_count := 150
@@ -17,10 +20,14 @@ const Monsters = preload("res://scripts/outdoor_monsters.gd")
 @export var terrain_seed := 0
 
 ## 이번 판의 바깥 세상 시드 (던전에 다녀와도 같은 지형), 던전에서 돌아왔으면 입구 앞에서 시작
-static var world_seed := 0
+static var world_seed: int:
+	get: return Game.world_seed
+	set(v): Game.world_seed = v
 static var back_from_dungeon := false
 ## 이 세상에서 물리친 바깥 몬스터 무리 번호
-static var defeated := {}
+static var defeated: Dictionary:
+	get: return Game.defeated
+	set(v): Game.defeated = v
 ## 바깥 몬스터와 싸우러 가기 직전 자리 (도망쳐 오면 여기로)
 static var _fight_pos := Vector3.INF
 ## 바깥 전투 지도의 풀밭 크기와 시작 자리
@@ -36,6 +43,7 @@ var _seed := 0
 var _toast_label: Label
 var _toast_left := 0.0
 var _pending_toast := ""
+var _autosave_in := AUTOSAVE_EVERY
 
 
 func _ready() -> void:
@@ -69,19 +77,30 @@ func _build_terrain() -> bool:
 	if back_from_dungeon:
 		back_from_dungeon = false
 		player.global_position = outdoor.before_entrance()
+	var loaded := Game.take_load_pos()
+	if loaded != Vector3.INF:
+		player.global_position = loaded + Vector3(0, 0.3, 0)
+		_pending_toast = "이어서 합니다"
 	outdoor.entrance_entered.connect(_enter_dungeon)
 	var calm := _take_battle_result(player)
+	if loaded != Vector3.INF:
+		calm = maxf(calm, 4.0)  # 불러온 자리 바로 옆에 몬스터가 있어도 잠깐은 덤비지 않음
 	monsters = Monsters.new()
 	monsters.name = "Monsters"
 	add_child(monsters)
 	monsters.spawn(outdoor, world_seed, defeated, player)
 	monsters.calm = calm
 	monsters.engaged.connect(_fight_outdoor)
+	_autosave.call_deferred()
 	($CameraRig as Node3D).global_position = player.global_position
 	return true
 
 
 func _process(delta: float) -> void:
+	if outdoor:
+		_autosave_in -= delta
+		if _autosave_in <= 0.0:
+			_autosave()
 	if _toast_left > 0.0:
 		_toast_left -= delta
 		_toast_label.modulate.a = clampf(_toast_left, 0.0, 1.0)
@@ -156,6 +175,7 @@ func _random_pos(rng: RandomNumberGenerator, keep_clear: float) -> Vector3:
 func _enter_dungeon(_body: Node3D) -> void:
 	if get_tree().paused:
 		return
+	_autosave()  # 입구 앞 (던전은 들어가서 다시 저장)
 	DungeonView.enter_seed = world_seed * 31 + 7
 	back_from_dungeon = true
 	get_tree().change_scene_to_file.call_deferred("res://scenes/dungeon.tscn")
@@ -193,6 +213,7 @@ func _fight_outdoor(group: int) -> void:
 		DungeonView.ally = DungeonView._fresh_member(1)
 	var player := $Player as Node3D
 	_fight_pos = player.global_position
+	_autosave()
 	player.set_physics_process(false)
 	var foes: Array = []
 	var ids: Array = monsters.foes_of(group)
@@ -246,3 +267,19 @@ func _toast(text: String) -> void:
 	_toast_label.text = text
 	_toast_left = 3.0
 	_toast_label.modulate.a = 1.0
+
+
+## 바깥 자리와 한 판 상태를 파일에 저장
+func _autosave() -> void:
+	_autosave_in = AUTOSAVE_EVERY
+	if outdoor == null:
+		return
+	Game.ensure_party()
+	Game.place = "outside"
+	Game.outside_pos = ($Player as Node3D).global_position
+	Game.save_game()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_autosave()

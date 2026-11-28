@@ -57,3 +57,20 @@ enum Difficulty { LOW, MODERATE, HIGH }
 
 func duplicate_params() -> DungeonParams:
 	return duplicate() as DungeonParams
+
+
+## 저장 파일용: 스크립트에 적힌 값만 사전으로
+func to_dict() -> Dictionary:
+	var d := {}
+	for p in get_property_list():
+		if p.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and p.usage & PROPERTY_USAGE_STORAGE:
+			d[p.name] = get(p.name)
+	return d
+
+
+static func from_dict(d: Dictionary) -> DungeonParams:
+	var p := DungeonParams.new()
+	for k in d:
+		if k in p:
+			p.set(k, d[k])
+	return p

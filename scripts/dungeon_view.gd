@@ -20,6 +20,7 @@ const Sfx = preload("res://scripts/sfx.gd")
 const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
+const Game = preload("res://scripts/game.gd")
 
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
@@ -41,12 +42,21 @@ static var explore_cell := Vector2i(-1, -1)
 ## 방에 들어서기 직전 칸. 전투에서 도망치면(Esc) 여기로 돌아옴
 static var retreat_cell := Vector2i(-1, -1)
 static var opened := {}
-static var gold := 0
+## 금화와 파티는 한 판 전체 상태(Game)에 있음. 여기 이름으로도 그대로 씀
+static var gold: int:
+	get: return Game.gold
+	set(v): Game.gold = v
 static var floor_no := 1
 ## 전투 사이에 이어지는 주인공 상태
-static var hero: HeroState = null
+static var hero: HeroState:
+	get: return Game.hero
+	set(v): Game.hero = v
 ## 동료 클레릭
-static var ally: HeroState = null
+static var ally: HeroState:
+	get: return Game.ally
+	set(v): Game.ally = v
+## 지금 떠 있는 던전 화면 (저장할 때 탐험 중인 칸을 읽음)
+static var _view: WeakRef = null
 ## 쉼터(세이브 지점)는 1, 4, 7...층 시작 방에 있음. 지면 마지막 저장으로 돌아감 (rules 3.6)
 const SAVE_EVERY := 3
 ## 마지막 저장: {params, floor, hero, gold, rested}
@@ -123,6 +133,7 @@ var shop_buy: Button
 
 func _ready() -> void:
 	InputSetup.register()
+	_view = weakref(self)
 	var came_in := enter_seed != 0
 	if came_in:
 		# 같은 입구는 늘 같은 던전. 이전 탐험 기록은 비움
@@ -152,6 +163,7 @@ func _ready() -> void:
 	_generate()
 	if came_in:
 		_set_exploring(true)
+		_autosave()
 
 
 func _take_battle_result() -> void:
@@ -829,8 +841,9 @@ func _set_exploring(on: bool) -> void:
 	exploring = on
 	Sfx.play(self, "switch")
 	if on:
-		# 생성기에서 새로 시작하면 금화, 층 수, 파티 상태를 처음부터
-		gold = 0
+		# 생성기에서 새로 시작하면 금화, 층 수, 파티 상태를 처음부터 (바깥에서 들어왔으면 금화·파티는 그대로)
+		if not from_outside:
+			gold = 0
 		floor_no = params.floor_depth
 		entry_floor = floor_no
 		floor_memory.clear()
@@ -1148,6 +1161,7 @@ func _change_floor(to: int) -> void:
 		_toast("%d층 — 쉼터가 있어요 (저장했어요)" % floor_no)
 	else:
 		_toast("%d층" % floor_no)
+	_autosave.call_deferred()  # 새 층이 만들어진 뒤 (탐험 칸은 새 층 기준)
 
 
 # --- 전장의 안개: 탐험 중에는 본 칸만 그림 ---
@@ -1424,6 +1438,18 @@ func _build_shop_panel(layer: CanvasLayer) -> void:
 func _write_save() -> void:
 	save = {"params": params.duplicate_params(), "floor": floor_no, "hero": hero.duplicate_state(),
 			"ally": ally.duplicate_state(), "gold": gold, "rested": rested_here}
+	_autosave()
+
+
+## 파일에도 저장 (탐험 중이면 던전 안, 생성기 화면이면 바깥으로)
+func _autosave() -> void:
+	Game.place = "dungeon" if exploring else "outside"
+	Game.save_game()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_autosave()
 
 
 ## 마지막 저장으로 돌아감: 그 층을 처음 상태로 다시 만들고 파티 상태, 금화도 그때로
@@ -1687,6 +1713,76 @@ func _fight() -> void:
 
 
 
+# --- 저장 파일 (Game.snapshot / restore) ---
+
+## 탐험 상태를 처음으로 (새 게임)
+static func reset_run() -> void:
+	saved = null
+	selected = -1
+	cleared = {}
+	exploring = false
+	enter_seed = 0
+	from_outside = false
+	entry_floor = 1
+	floor_memory = {}
+	_arrive_down = false
+	explore_cell = Vector2i(-1, -1)
+	retreat_cell = Vector2i(-1, -1)
+	opened = {}
+	floor_no = 1
+	save = {}
+	rested_here = false
+	used_fires = {}
+	seen = {}
+	_pending_toast = ""
+
+
+## 던전 탐험 상태를 값만 담은 사전으로
+static func run_state() -> Dictionary:
+	var v = _view.get_ref() if _view else null
+	if v and is_instance_valid(v) and v.explorer and v.exploring:
+		explore_cell = v.explorer.cell
+		saved = v.params
+	var mem := {}
+	for f in floor_memory:
+		var m: Dictionary = floor_memory[f].duplicate()
+		m.params = (m.params as DungeonParams).to_dict()
+		mem[f] = m
+	var sv := {}
+	if not save.is_empty():
+		sv = {"params": (save.params as DungeonParams).to_dict(), "floor": save.floor, "hero": (save.hero as HeroState).to_dict(),
+				"ally": (save.ally as HeroState).to_dict() if save.get("ally") else {}, "gold": save.gold, "rested": save.rested}
+	return {"params": saved.to_dict() if saved else {}, "cleared": cleared.duplicate(), "exploring": exploring,
+			"from_outside": from_outside, "entry_floor": entry_floor, "floor_memory": mem, "explore_cell": explore_cell,
+			"opened": opened.duplicate(), "floor_no": floor_no, "save": sv, "rested_here": rested_here,
+			"used_fires": used_fires.duplicate(), "seen": seen.duplicate()}
+
+
+static func restore_run(d: Dictionary) -> void:
+	reset_run()
+	if not (d.get("params", {}) as Dictionary).is_empty():
+		saved = DungeonParams.from_dict(d.params)
+	cleared = (d.get("cleared", {}) as Dictionary).duplicate()
+	exploring = bool(d.get("exploring", false))
+	from_outside = bool(d.get("from_outside", false))
+	entry_floor = int(d.get("entry_floor", 1))
+	for f in d.get("floor_memory", {}):
+		var m: Dictionary = (d.floor_memory[f] as Dictionary).duplicate()
+		m.params = DungeonParams.from_dict(m.params)
+		floor_memory[f] = m
+	explore_cell = d.get("explore_cell", Vector2i(-1, -1))
+	opened = (d.get("opened", {}) as Dictionary).duplicate()
+	floor_no = int(d.get("floor_no", 1))
+	var sv: Dictionary = d.get("save", {})
+	if not sv.is_empty():
+		save = {"params": DungeonParams.from_dict(sv.params), "floor": sv.floor, "hero": HeroState.from_dict(sv.hero),
+				"ally": HeroState.from_dict(sv.ally) if not (sv.ally as Dictionary).is_empty() else null, "gold": sv.gold, "rested": sv.rested}
+	rested_here = bool(d.get("rested_here", false))
+	used_fires = (d.get("used_fires", {}) as Dictionary).duplicate()
+	seen = (d.get("seen", {}) as Dictionary).duplicate()
+	_pending_toast = "이어서 합니다 — %d층" % floor_no
+
+
 ## 이 층 시작 칸이 바깥으로 나가는 출구인가 (바깥 입구로 들어와 아직 그 층)
 func _outside_exit_here() -> bool:
 	return from_outside and floor_no == entry_floor
@@ -1702,4 +1798,5 @@ func _go_outside() -> void:
 	Sfx.play(self, "stairs")
 	from_outside = false
 	exploring = false
+	Game.place = "outside"
 	get_tree().change_scene_to_file("res://scenes/main.tscn")

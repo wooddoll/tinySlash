@@ -10,6 +10,7 @@ const PartyPanel = preload("res://scripts/party_panel.gd")
 const RadialMenu = preload("res://scripts/radial_menu.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
 const WindFoliage = preload("res://scripts/wind_foliage.gd")
+const Game = preload("res://scripts/game.gd")
 
 ## . 평지  1/2/3 높이 0.5/1.0/1.5  , 험지(덤불)  T 나무(완전 엄폐)  # 바위(낮은 벽)
 ## 던전용: X 던전 벽(통과 불가, 완전 엄폐)  P 돌기둥(완전 엄폐)
@@ -128,6 +129,12 @@ func _encounter_label() -> String:
 
 func _dungeon() -> bool:
 	return custom.has("map")
+
+
+## 전투 중에 창을 닫으면 전투 전 상태로 저장 (파티는 끝날 때만 바뀌므로 그대로)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and _dungeon():
+		Game.save_game()
 
 
 ## 던전 방 전투 (어두운 바닥·벽). 바깥 지형에서 만난 몬스터(style "outdoor")는 풀밭 그대로

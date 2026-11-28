@@ -37,6 +37,24 @@ static func fresh(c := "fighter", lead := -1) -> HeroState:
 	return h
 
 
+## 저장 파일용 (객체 없이 값만)
+func to_dict() -> Dictionary:
+	return {"cls": cls, "xp": xp, "hp": hp, "resources": resources.duplicate(true), "hit_dice_spent": hit_dice_spent,
+			"max_hp_loss": max_hp_loss, "choices": choices.duplicate(true)}
+
+
+static func from_dict(d: Dictionary) -> HeroState:
+	var h := HeroState.new()
+	h.cls = str(d.get("cls", "fighter"))
+	h.xp = int(d.get("xp", 0))
+	h.hp = int(d.get("hp", -1))
+	h.resources = (d.get("resources", {}) as Dictionary).duplicate(true)
+	h.hit_dice_spent = int(d.get("hit_dice_spent", 0))
+	h.max_hp_loss = int(d.get("max_hp_loss", 0))
+	h.choices = (d.get("choices", {}) as Dictionary).duplicate(true)
+	return h
+
+
 func display_name() -> String:
 	return NAMES.get(cls, cls)
 
