@@ -27,6 +27,11 @@ static var gold := 0
 static var place := "outside"
 ## 바깥에서 서 있던 자리 (불러오면 여기서 시작, INF면 빈터)
 static var outside_pos := Vector3.INF
+## 가 본 곳 (지방을 EXPLORE_CELL칸 격자로, 1 = 가 봄). 지도 창이 안 가 본 곳을 어둡게 그림
+const EXPLORE_CELL := 16.0
+const EXPLORE_N := 48
+const EXPLORE_R := 48.0
+static var explored := PackedByteArray()
 ## 이번에 불러온 바깥 자리를 main.gd가 한 번 쓰고 비움
 static var _load_pos := Vector3.INF
 ## 날짜와 시각 (M5): day일째 minute분 (0~1439). 바깥에서는 실제 1초에 1분씩 흐르고, 자거나 빠른 이동하면 훌쩍 지남
@@ -82,6 +87,7 @@ static func new_game() -> void:
 	place = "outside"
 	outside_pos = Vector3.INF
 	_load_pos = Vector3.INF
+	explored = PackedByteArray()
 	day = 1
 	minute = 8 * 60
 	tile = Region.VILLAGE
@@ -125,6 +131,7 @@ static func snapshot() -> Dictionary:
 		"place": place,
 		"outside_pos": outside_pos,
 		"world_pos": true,
+		"explored": explored,
 		"party_classes": HeroState.party_classes.duplicate(),
 		"day": day,
 		"minute": minute,
@@ -151,6 +158,7 @@ static func restore(d: Dictionary) -> String:
 	gold = int(d.get("gold", 0))
 	place = str(d.get("place", "outside"))
 	outside_pos = d.get("outside_pos", Vector3.INF)
+	explored = d.get("explored", PackedByteArray())
 	saved_at = int(d.get("saved_at", 0))
 	day = int(d.get("day", 1))
 	minute = int(d.get("minute", 8 * 60))
@@ -227,6 +235,35 @@ static func delete_save() -> void:
 
 
 ## 불러온 바깥 자리를 한 번만 꺼냄 (main.gd)
+## 세계 자리 w 둘레 EXPLORE_R칸을 가 본 곳으로. 새로 밝혀진 게 있으면 true
+static func explore(w: Vector2) -> bool:
+	if explored.size() != EXPLORE_N * EXPLORE_N:
+		explored.resize(EXPLORE_N * EXPLORE_N)
+		explored.fill(0)
+	var half := EXPLORE_N * EXPLORE_CELL / 2.0
+	var c := (w + Vector2(half, half)) / EXPLORE_CELL
+	var r := EXPLORE_R / EXPLORE_CELL
+	var changed := false
+	for y in range(maxi(0, floori(c.y - r)), mini(EXPLORE_N, ceili(c.y + r) + 1)):
+		for x in range(maxi(0, floori(c.x - r)), mini(EXPLORE_N, ceili(c.x + r) + 1)):
+			if explored[y * EXPLORE_N + x] == 0 and Vector2(x + 0.5, y + 0.5).distance_to(c) <= r:
+				explored[y * EXPLORE_N + x] = 1
+				changed = true
+	return changed
+
+
+## 세계 자리 w를 가 봤나
+static func was_explored(w: Vector2) -> bool:
+	if explored.size() != EXPLORE_N * EXPLORE_N:
+		return false
+	var half := EXPLORE_N * EXPLORE_CELL / 2.0
+	var x := floori((w.x + half) / EXPLORE_CELL)
+	var y := floori((w.y + half) / EXPLORE_CELL)
+	if x < 0 or y < 0 or x >= EXPLORE_N or y >= EXPLORE_N:
+		return false
+	return explored[y * EXPLORE_N + x] == 1
+
+
 static func take_load_pos() -> Vector3:
 	var p := _load_pos
 	_load_pos = Vector3.INF

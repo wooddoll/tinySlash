@@ -823,6 +823,33 @@ func before_entrance(t: Vector2i, dist := 2.5) -> Vector3:
 	return p
 
 
+## p(세계 x·z) 가까이에서 나무·바위·건물이 없고 너무 가파르지 않은 땅 위 자리 (빙글빙글 넓혀 가며 찾음)
+func free_spot(p: Vector3, room := 1.5) -> Vector3:
+	for ring in 40:
+		var r := ring * 1.5
+		var steps := maxi(1, ring * 6)
+		for k in steps:
+			var a := TAU * k / steps
+			var q := Vector3(p.x + cos(a) * r, 0, p.z + sin(a) * r)
+			if _clear_at(q, room):
+				q.y = height_at(q) + 0.5
+				return q
+	p.y = height_at(p) + 0.5
+	return p
+
+
+func _clear_at(q: Vector3, room: float) -> bool:
+	var n: Vector3 = terrain.data.get_normal(q)
+	if not n.is_finite() or n.y < 0.85:
+		return false
+	if keep_out.is_valid() and keep_out.call(Vector2(q.x, q.z), room):
+		return false
+	for sd in solids:
+		if Vector2(sd.x - q.x, sd.y - q.z).length() < sd.z + room:
+			return false
+	return true
+
+
 ## 칸의 던전 입구 자리 (없으면 null)
 func entrance_of(t: Vector2i):
 	return tiles.get(t, {}).get("entrance", null)

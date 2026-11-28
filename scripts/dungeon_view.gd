@@ -2,6 +2,7 @@
 ## 방을 클릭해서 고른 뒤 B(또는 버튼)로 그 방에서 전투를 시작합니다.
 extends Node3D
 
+const Loading = preload("res://scripts/loading.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Battle = preload("res://scripts/battle.gd")
 const Kenney = preload("res://scripts/kenney.gd")
@@ -1949,4 +1950,4 @@ func _go_outside() -> void:
 	from_outside = false
 	exploring = false
 	Game.place = "outside"
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	Loading.go(self, "res://scenes/main.tscn", "바깥으로 나가는 중…")

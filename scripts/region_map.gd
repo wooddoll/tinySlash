@@ -26,6 +26,7 @@ var _region
 var _here := Vector2i.ZERO
 var _sel := Vector2i(-1, -1)
 var _tex: ImageTexture = null
+var _fog: ImageTexture = null
 var _closed_at := -1
 
 
@@ -91,9 +92,23 @@ func open(region, here: Vector2i, time_text: String) -> void:
 		var img: Image = outdoor.map_image(buildings)
 		if img:
 			_tex = ImageTexture.create_from_image(img)
+	_fog = _fog_texture()
 	_update_info()
 	visible = true
 	view.queue_redraw()
+
+
+## 가 본 곳 기록(Game.explored)으로 안개 그림 (가 본 곳 투명, 안 가 본 곳 반쯤 검게)
+static func _fog_texture() -> ImageTexture:
+	var n := Game.EXPLORE_N
+	var img := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.05, 0.04, 0.03, 0.62))
+	if Game.explored.size() == n * n:
+		for y in n:
+			for x in n:
+				if Game.explored[y * n + x] == 1:
+					img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 ## 세계 좌표 → 지도 창 픽셀
@@ -113,6 +128,9 @@ func _draw_view() -> void:
 		view.draw_texture_rect(_tex, Rect2(Vector2.ZERO, Vector2(SIDE, SIDE)), false)
 	else:
 		view.draw_rect(Rect2(Vector2.ZERO, Vector2(SIDE, SIDE)), Color(0.25, 0.32, 0.2))
+	# 안 가 본 곳은 어둡게 (가장자리는 부드럽게 번짐)
+	if _fog:
+		view.draw_texture_rect(_fog, Rect2(Vector2.ZERO, Vector2(SIDE, SIDE)), false)
 	var font := view.get_theme_default_font()
 	# 칸 경계와 이름
 	for k in range(1, Region.W):

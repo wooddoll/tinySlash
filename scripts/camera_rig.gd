@@ -18,6 +18,8 @@ extends Node3D
 @export var max_ortho_size := 22.0
 ## 직교 카메라가 지형 뒤로 물러나 있는 거리 (화면 크기와는 무관)
 @export var iso_distance := 30.0
+## (가장 가까이 당겼을 때 기울기, 가장 멀리 뺐을 때 기울기). 0이면 pitch_deg 고정 (바깥 지형만 씀)
+@export var zoom_pitch := Vector2.ZERO
 
 @export_group("Perspective")
 @export var height := 6.0
@@ -82,6 +84,12 @@ func _process(delta: float) -> void:
 
 	if isometric:
 		camera.size = lerpf(camera.size, ortho_size + _bonus, 1.0 - exp(-10.0 * delta))
+		if zoom_pitch != Vector2.ZERO:
+			var k := inverse_lerp(min_ortho_size, max_ortho_size, camera.size - _bonus)
+			var want := deg_to_rad(lerpf(zoom_pitch.x, zoom_pitch.y, clampf(k, 0.0, 1.0)))
+			var p := lerpf(-camera.rotation.x, want, 1.0 - exp(-10.0 * delta))
+			camera.rotation.x = -p
+			_cam_base = Vector3(0.0, sin(p) * iso_distance, cos(p) * iso_distance)
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -122,3 +122,17 @@ func test_old_outside_pos_becomes_world() -> void:
 	Game.restore(d)
 	eq(Game.take_load_pos(), Vector3(266, 4, -261), "old save + tile (2,0) offset (256,-256)")
 	Game.new_game()
+
+## 가 본 곳 기록: 둘레만 밝혀지고 저장·불러오기로 이어짐
+func test_explored_map() -> void:
+	Game.new_game()
+	check(not Game.was_explored(Vector2.ZERO), "nothing explored at start")
+	check(Game.explore(Vector2.ZERO), "first visit reveals")
+	check(not Game.explore(Vector2.ZERO), "same place again reveals nothing new")
+	check(Game.was_explored(Vector2(30, -20)), "near is explored")
+	check(not Game.was_explored(Vector2(200, 0)), "far is not")
+	var d := Game.snapshot()
+	Game.new_game()
+	Game.restore(d)
+	check(Game.was_explored(Vector2(30, -20)), "explored survives save")
+	Game.new_game()

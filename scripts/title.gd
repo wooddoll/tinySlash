@@ -1,6 +1,7 @@
 ## 시작 화면: 저장이 있으면 이어하기 / 새로 시작, 없으면 바로 새 게임.
 extends Control
 
+const Loading = preload("res://scripts/loading.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Game = preload("res://scripts/game.gd")
 const Sfx = preload("res://scripts/sfx.gd")
@@ -88,7 +89,7 @@ func _continue() -> void:
 	if scene == "":
 		_start_new()
 		return
-	get_tree().change_scene_to_file(scene)
+	Loading.go(self, scene)
 
 
 func _on_new() -> void:
@@ -101,4 +102,4 @@ func _on_new() -> void:
 
 func _start_new() -> void:
 	Game.new_game()
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	Loading.go(self, "res://scenes/main.tscn")

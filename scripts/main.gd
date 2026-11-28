@@ -15,6 +15,7 @@ const Quests = preload("res://rules/quests.gd")
 const Region = preload("res://rules/region.gd")
 const RegionMap = preload("res://scripts/region_map.gd")
 const Minimap = preload("res://scripts/minimap.gd")
+const Loading = preload("res://scripts/loading.gd")
 const Reputation = preload("res://rules/reputation.gd")
 const Ambience = preload("res://scripts/ambience.gd")
 const Music = preload("res://scripts/music.gd")
@@ -200,6 +201,7 @@ func _build_terrain() -> bool:
 	_stream_near()
 	_autosave.call_deferred()
 	($CameraRig as Node3D).global_position = player.global_position
+	$CameraRig.zoom_pitch = Vector2(22.0, 36.0)  # 가까이 당기면 낮게 봐서 언덕이 보이게
 	_apply_daylight()
 	return true
 
@@ -224,6 +226,7 @@ func _stream_near() -> void:
 	var p := ($Player as Node3D).global_position
 	outdoor.ensure_near(p)
 	monsters.wake_near(p, 150.0, 1)
+	Game.explore(Vector2(p.x, p.z))
 	var t := Outdoor.tile_of(p)
 	if t != Game.tile and _beyond_tile(p, Game.tile, 4.0):
 		Game.tile = t
@@ -375,7 +378,7 @@ func _enter_dungeon(_body: Node3D, t: Vector2i) -> void:
 	DungeonView.enter_algorithm = int(dg.algorithm)
 	DungeonView.enter_name = str(dg.name)
 	back_from_dungeon = true
-	get_tree().change_scene_to_file.call_deferred("res://scenes/dungeon.tscn")
+	Loading.go.call_deferred(self, "res://scenes/dungeon.tscn", "%s(으)로 들어가는 중…" % dg.name)
 
 
 ## 바깥 몬스터 무리와 마주침: 그 자리 지형 위에서 실시간 액션 전투 (장면을 넘기지 않음, 기획 M2).
@@ -953,7 +956,8 @@ func _go_to_tile(t: Vector2i, arrive, minutes: int) -> void:
 		p = outdoor.before_entrance(t)
 	else:
 		var a: Vector2 = arrive
-		p = Vector3(a.x, outdoor.height_at(Vector3(a.x, 0, a.y)) + 0.5, a.y)
+		outdoor.fill_now(t)
+		p = outdoor.free_spot(Vector3(a.x, 0, a.y))
 	player.global_position = p
 	($CameraRig as Node3D).global_position = p
 	Game.tile = t
