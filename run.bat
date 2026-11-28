@@ -21,6 +21,7 @@ if not exist "%GODOT%" (
 rem 저장소에 없는 에셋 (설치 스크립트로 받음). 없어도 실행은 되지만 모습이 달라짐
 if not exist "addons\terrain_3d" echo [알림] Terrain3D 없음: 야외 지형 대신 평평한 풀밭. sh tools/install_terrain3d.sh
 if not exist "assets\emace_grass" echo [알림] 바람 풀 없음. sh tools/install_emace_grass.sh
+if not exist "assets\quaternius\town" echo [알림] 마을 집 조각 없음: 상자 집으로 보임. Godot -s tools/bake_town.gd (docs/assets.md)
 if not exist "assets\quaternius" echo [알림] Quaternius 모델 없음: docs/assets.md 참고
 
 if /i "%1"=="edit" (

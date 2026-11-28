@@ -14,7 +14,7 @@
 |---|---|---|---|---|---|---|---|
 | SRD 5.2.1 (규칙 글) | Wizards of the Coast | [dndbeyond.com/srd](https://www.dndbeyond.com/srd) | CC-BY 4.0 | 아니요 | `rules/`, `docs/rules.md` | 전투 규칙 | 씀 |
 | Fantasy Props MegaKit (Standard) | Quaternius | [Godot 에셋 스토어](https://store.godotengine.org/asset/quaternius/fantasy-props-megakit/) | CC0 | 아니요 | `assets/quaternius/props/` · `tools/bake_megakit.gd` | 방 가구·소품, 보물상자, 손에 든 무기 | 씀 |
-| Medieval Village MegaKit (Standard) | Quaternius | [Godot 에셋 스토어](https://store.godotengine.org/asset/quaternius/medieval-village-megakit/) | CC0 | 아니요 | `assets/quaternius/village/` · `tools/bake_village.gd` | 던전 벽·바닥·기둥·계단·울타리·잔해 | 씀 |
+| Medieval Village MegaKit (Standard) | Quaternius | [Godot 에셋 스토어](https://store.godotengine.org/asset/quaternius/medieval-village-megakit/) | CC0 | 아니요 | `assets/quaternius/village/` · `tools/bake_village.gd`, `assets/quaternius/town/` · `tools/bake_town.gd` | 던전 벽·바닥·기둥·계단·울타리·잔해, 마을 집(벽·창·문·지붕·굴뚝·수레·상자) | 씀 |
 | Universal Animation Library (Standard) | Quaternius | [Godot 에셋 스토어](https://store.godotengine.org/asset/quaternius/universal-animation-library/) | CC0 | 아니요 | `tools/retarget.gd`로 각 캐릭터에 옮김 | 캐릭터 동작 대부분 | 씀 |
 | Universal Base Characters (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/universal-base-characters) | CC0 | 아니요 | `assets/quaternius/heroes/` · `tools/bake_heroes.gd` | 직업·마을 사람·언데드의 머리·머리카락 | 씀 |
 | Modular Character Outfits - Fantasy (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/modular-character-outfits-fantasy) | CC0 | 아니요 | 위와 같음 | 직업 12종, 마을 사람, 좀비·구울·가스트·섀도·스펙터·움직이는 갑옷 | 씀 |

@@ -10,8 +10,8 @@ extends Node3D
 const SIZE := 256
 ## 언덕 높이 (칸)
 const HILL := 14.0
-## 가운데 빈터 반지름 (칸): 여기는 평평하고 나무가 없음
-const CLEARING := 14.0
+## 가운데 빈터 반지름 (칸): 여기는 평평하고 나무가 없음 (마을이 들어섬, rules/village.gd)
+const CLEARING := 20.0
 const TEX := "res://assets/terrain/"
 const NATURE := "res://assets/quaternius/nature/%s.scn"
 const WindFoliage = preload("res://scripts/wind_foliage.gd")
@@ -49,6 +49,8 @@ var _mesh_ids := {}
 var _obstacles: StaticBody3D = null
 ## 같은 것을 값으로: Vector3(x, z, 반지름). 바깥 전투 격자(battle_grid)가 막힌 칸을 정할 때 씀
 var solids: Array[Vector3] = []
+## 마을 건물 자리 (Callable(p: Vector2, pad: float) -> bool). generate 전에 넣으면 그 자리엔 풀·나무를 두지 않고, 전투 격자에서 막힘
+var keep_out: Callable
 ## 이 모델들(이름 앞부분)에는 충돌체를 붙임: [앞부분, 반지름(크기 1일 때)]
 const SOLID := [["CommonTree_", 0.22], ["Pine_", 0.25], ["TwistedTree_", 0.22], ["DeadTree_", 0.2], ["Rock_Medium_", 0.5]]
 
@@ -63,6 +65,14 @@ func height_at(p: Vector3) -> float:
 		return 0.0
 	var h: float = terrain.data.get_height(p)
 	return 0.0 if is_nan(h) else h
+
+
+## 시드로 정해지는 던전 입구 방향 (빈터에서 본 단위 벡터). generate와 같은 난수 순서
+static func entrance_dir(seed_value: int) -> Vector2:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var ang := deg_to_rad(225.0 + rng.randf_range(-35.0, 35.0))
+	return Vector2(cos(ang), sin(ang))
 
 
 func generate(seed_value: int) -> bool:
@@ -220,6 +230,8 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 				continue
 			if (not is_grass or models[0] == "Grass_Wind") and _near_path(Vector2(p.x, p.z)):
 				continue
+			if keep_out.is_valid() and keep_out.call(Vector2(p.x, p.z), 0.4 if is_grass else 1.5):
+				continue
 			if forest.get_noise_2d(p.x, p.z) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
 				continue
 			var n: Vector3 = terrain.data.get_normal(p)
@@ -270,7 +282,7 @@ func _near_path(p: Vector2) -> bool:
 func _path_stones(rng: RandomNumberGenerator, e2: Vector2) -> void:
 	var stones := ["RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3", "RockPath_Round_Wide", "RockPath_Round_Thin"]
 	var by_model := {}
-	var start := CLEARING * 0.6
+	var start := 5.0  # 마을 광장 끝부터 (길 쪽 블록은 비어 있음)
 	var dist := start
 	var dir := e2.normalized()
 	var side := Vector2(-dir.y, dir.x)
@@ -393,6 +405,12 @@ func battle_grid(origin: Vector2i, size: Vector2i) -> Dungeon:
 			for cx in range(floori(at.x - r), floori(at.x + r) + 1):
 				var c := Vector2i(cx - origin.x, cy - origin.y)
 				if d.is_floor(c) and Vector2(cx + 0.5, cy + 0.5).distance_to(at) < r + 0.35:
+					d.obstacles[c] = 3.0
+	if keep_out.is_valid():
+		for y in size.y:
+			for x in size.x:
+				var c := Vector2i(x, y)
+				if d.is_floor(c) and keep_out.call(Vector2(origin.x + x + 0.5, origin.y + y + 0.5), 0.3):
 					d.obstacles[c] = 3.0
 	return d
 

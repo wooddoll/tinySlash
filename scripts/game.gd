@@ -8,6 +8,8 @@ extends RefCounted
 ## 저장 파일 (테스트는 다른 파일로 바꿔 씀)
 static var save_path := "user://save1.dat"
 const VERSION := 1
+## 새 게임 금화 (여관 하룻밤 몇 번)
+const START_GOLD := 30
 const DUNGEON_VIEW := "res://scripts/dungeon_view.gd"
 
 ## 바깥 세상 시드 (0이면 다음에 바깥으로 나갈 때 새로 정함)
@@ -38,7 +40,7 @@ static func new_game() -> void:
 	defeated.clear()
 	hero = null
 	ally = null
-	gold = 0
+	gold = START_GOLD
 	place = "outside"
 	outside_pos = Vector3.INF
 	_load_pos = Vector3.INF

@@ -12,7 +12,7 @@ const Sfx = preload("res://scripts/sfx.gd")
 ## 무리 수
 const COUNT := 8
 ## 빈터·입구에서 이만큼은 떨어짐 (칸)
-const KEEP_CLEAR := 22.0
+const KEEP_CLEAR := 32.0
 ## 이 거리보다 멀면 센 무리
 const FAR := 60.0
 const NEAR_GROUPS := [["goblin_minion", "goblin_minion"], ["wolf"], ["goblin_warrior", "goblin_minion"]]

@@ -8,6 +8,9 @@ const ActionLayer = preload("res://scripts/action_layer.gd")
 const Sfx = preload("res://scripts/sfx.gd")
 const Monsters = preload("res://scripts/outdoor_monsters.gd")
 const Game = preload("res://scripts/game.gd")
+const Village = preload("res://rules/village.gd")
+const TownBuilder = preload("res://scripts/town_builder.gd")
+const TownDialog = preload("res://scripts/town_dialog.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -32,6 +35,10 @@ static var defeated: Dictionary:
 ## 바깥 전투 격자 크기 (칸), 이만큼 멀어지면 도망친 것으로 봄
 const FIGHT_SIZE := 40
 const FLEE_DIST := 14.0
+## 여관 하룻밤 값 (긴 휴식)
+const INN_PRICE := 10
+## 문·의뢰판 앞에서 이만큼 가까우면 Enter/F/Y로 들어감
+const USE_DIST := 1.6
 
 ## 만든 지형 (Terrain3D가 없으면 null: 예전 평평한 풀밭 + Kenney 나무)
 var outdoor: Node3D = null
@@ -41,6 +48,13 @@ var fight: Node3D = null
 var fight_group := -1
 var fight_members: Array = []
 var _flee_time := 0.0
+## 빈터의 마을 (rules/village.gd 배치, scripts/town_builder.gd가 세움)
+var village = null
+var town: Node3D = null
+var dialog: CanvasLayer = null
+var _use_hint: Label = null
+## 지금 가까이 있는 마을 자리: {kind, name} 또는 빈 사전
+var _near := {}
 var _seed := 0
 var _toast_label: Label
 var _toast_left := 0.0
@@ -67,12 +81,22 @@ func _build_terrain() -> bool:
 	outdoor = Outdoor.new()
 	outdoor.name = "Outdoor"
 	add_child(outdoor)
+	village = Village.generate(_seed, Outdoor.entrance_dir(_seed))
+	outdoor.keep_out = village.blocked
 	if not outdoor.generate(_seed):
 		outdoor.queue_free()
 		outdoor = null
 		return false
 	$Ground.queue_free()
 	$Props.queue_free()
+	town = TownBuilder.new()
+	town.name = "Town"
+	add_child(town)
+	town.build(village, outdoor.height_at, _seed)
+	town.focus = $Player
+	dialog = TownDialog.new()
+	add_child(dialog)
+	dialog.closed.connect(_dialog_closed)
 	# 빈터 가운데에 세움 (조금 위에서 떨어져 땅에 닿음). 던전에서 나왔으면 입구 앞
 	var player := $Player as Node3D
 	player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.3, 0)
@@ -101,6 +125,8 @@ func _build_terrain() -> bool:
 func _process(delta: float) -> void:
 	if fight != null:
 		_fight_process(delta)
+	elif village != null and not dialog.is_open():
+		_town_process()
 	if outdoor:
 		_autosave_in -= delta
 		if _autosave_in <= 0.0:
@@ -108,7 +134,9 @@ func _process(delta: float) -> void:
 	if _toast_left > 0.0:
 		_toast_left -= delta
 		_toast_label.modulate.a = clampf(_toast_left, 0.0, 1.0)
-	# v1: 탐험 중 조우 대신 B 키로 전투 장면을 엽니다
+	if dialog != null and dialog.is_open():
+		return
+	# 시험용: B 단독 전투, G 던전 생성기, H 시나리오
 	if Input.is_action_just_pressed("start_battle"):
 		get_tree().change_scene_to_file("res://scenes/battle.tscn")
 	elif Input.is_action_just_pressed("open_dungeon"):
@@ -120,7 +148,7 @@ func _process(delta: float) -> void:
 func _add_hint() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
-	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
+	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Enter/F 문·의뢰판 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
 	label.position = Vector2(16, 12)
 	label.add_theme_constant_override("outline_size", 6)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -223,6 +251,8 @@ func _fight_outdoor(group: int) -> void:
 	player.visible = false
 	player.set_physics_process(false)
 	($CameraRig as Node3D).set("target", fight.views[fight.player].model)
+	if town:
+		town.focus = fight.views[fight.player].model
 	monsters.set_process(false)
 	_flee_time = 0.0
 	_toast("몬스터 발견! — " + monsters.label(group))
@@ -308,6 +338,8 @@ func _end_fight(result: String) -> void:
 	player.set_physics_process(true)
 	var rig := $CameraRig as Node3D
 	rig.set("target", player)
+	if town:
+		town.focus = player
 	rig.set("look_offset", Vector3.ZERO)
 	rig.set("zoom_bonus", 0.0)
 	fight.queue_free()
@@ -317,6 +349,149 @@ func _end_fight(result: String) -> void:
 	monsters.calm = 1.0 if result == "win" else 4.0
 	monsters.set_process(true)
 	_autosave()
+
+
+## 마을: 문·의뢰판 가까이 가면 안내, Enter/F/Y로 창
+func _town_process() -> void:
+	var p := ($Player as Node3D).global_position
+	var at := Vector2(p.x, p.z)
+	var near := {}
+	for b in village.buildings:
+		if b.kind != "house" and at.distance_to(b.door) < USE_DIST:
+			near = {"kind": b.kind, "name": b.name}
+	if at.distance_to(village.board + village.board_front * 0.8) < USE_DIST:
+		near = {"kind": "board", "name": "의뢰판"}
+	_near = near
+	_show_use_hint("Enter / F / Y: %s" % near.name if not near.is_empty() else "")
+	if not near.is_empty() and Input.is_action_just_pressed("interact"):
+		_open_place(str(near.kind))
+
+
+func _show_use_hint(text: String) -> void:
+	if _use_hint == null:
+		var layer := CanvasLayer.new()
+		_use_hint = Label.new()
+		_use_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+		_use_hint.position.y -= 90
+		_use_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_use_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_use_hint.add_theme_font_size_override("font_size", 22)
+		_use_hint.add_theme_constant_override("outline_size", 8)
+		_use_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+		layer.add_child(_use_hint)
+		add_child(layer)
+	_use_hint.text = text
+
+
+func _open_place(kind: String) -> void:
+	Game.ensure_party()
+	($Player as Node3D).set_physics_process(false)
+	monsters.set_process(false)
+	_show_use_hint("")
+	Sfx.play(self, "open")
+	match kind:
+		"inn":
+			dialog.open(_inn_text(), [["하룻밤 묵기 (%d골드)" % INN_PRICE, _inn_rest, Game.gold >= INN_PRICE]])
+		"shop":
+			dialog.open(_shop_text(), [["회복 물약 사기 (%d골드)" % HeroState.POTION_PRICE, _buy_potion, Game.hero.can_buy_potion(Game.gold)]])
+		"guild":
+			dialog.open(_guild_text())
+		"board":
+			dialog.open(_board_text())
+
+
+func _dialog_closed() -> void:
+	($Player as Node3D).set_physics_process(true)
+	monsters.set_process(true)
+	Sfx.play(self, "close")
+
+
+func _party_lines() -> PackedStringArray:
+	var lines := PackedStringArray()
+	for h in Game.party():
+		lines.append("%s %d레벨 · HP %d/%d · 히트 다이스 %d/%d" % [h.display_name(), h.level(), h.current_hp(), h.max_hp(), h.hit_dice_left(), h.level()])
+	lines.append("물약 %d/%d · 금화 %d" % [Game.hero.potions(), HeroState.MAX_POTIONS, Game.gold])
+	return lines
+
+
+func _inn_text() -> String:
+	var b: Dictionary = village.find("inn")
+	var lines := PackedStringArray(["[font_size=22]%s[/font_size]" % b.get("name", "여관"),
+		"따뜻한 방과 저녁 한 끼. 하룻밤 묵으면 파티 모두 HP·히트 다이스·기능·주문 슬롯을 회복하고 저장해요.", ""])
+	lines.append_array(_party_lines())
+	if Game.gold < INN_PRICE:
+		lines.append("[color=gray]금화가 모자라요 (던전 상자에서 모을 수 있어요)[/color]")
+	return "
+".join(lines)
+
+
+func _inn_rest() -> void:
+	if Game.gold < INN_PRICE:
+		return
+	Game.gold -= INN_PRICE
+	for h in Game.party():
+		h.long_rest()
+	_autosave()
+	Sfx.play(self, "coins")
+	dialog.refresh(_inn_text() + "
+[color=#9f9]푹 쉬었어요. 저장했어요.[/color]", [Game.gold >= INN_PRICE])
+
+
+func _shop_text() -> String:
+	var lines := PackedStringArray(["[font_size=22]잡화점[/font_size]", "회복 물약 (2d4+2 회복) %d골드. 무기·방어구는 아직 들어오지 않았어요." % HeroState.POTION_PRICE, ""])
+	lines.append_array(_party_lines())
+	if Game.hero.potions() >= HeroState.MAX_POTIONS:
+		lines.append("[color=gray]물약이 가득 찼어요[/color]")
+	elif Game.gold < HeroState.POTION_PRICE:
+		lines.append("[color=gray]금화가 모자라요[/color]")
+	return "
+".join(lines)
+
+
+func _buy_potion() -> void:
+	if not Game.hero.can_buy_potion(Game.gold):
+		return
+	Game.gold = Game.hero.buy_potion(Game.gold)
+	_autosave()
+	Sfx.play(self, "coins")
+	dialog.refresh(_shop_text(), [Game.hero.can_buy_potion(Game.gold)])
+
+
+func _guild_text() -> String:
+	var lines := PackedStringArray(["[font_size=22]모험가 조합 회관[/font_size]",
+		"\"%s에 온 걸 환영하네. 일거리는 광장 의뢰판에 붙여 두지.\"" % village.name, "",
+		"[color=gray]조합 가입과 등급은 아직 준비 중이에요 (평판, M6).[/color]", ""])
+	lines.append_array(_party_lines())
+	return "
+".join(lines)
+
+
+## 의뢰판: 아직 의뢰(M4)는 없고, 근처 몬스터 무리와 던전 입구 소식을 붙여 둠
+func _board_text() -> String:
+	var lines := PackedStringArray(["[font_size=22]%s 의뢰판[/font_size]" % village.name, ""])
+	var news := []
+	for g in monsters.groups:
+		var home: Vector3 = g.home
+		news.append([Vector2(home.x, home.z).length(), "• %s 무리가 %s쪽 %d걸음쯤에서 어슬렁거린다." % [
+			monsters.label(g.id), _compass(Vector2(home.x, home.z)), roundi(Vector2(home.x, home.z).length() / 5.0) * 5]])
+	news.sort_custom(func(a, b) -> bool: return a[0] < b[0])
+	for n in news.slice(0, 4):
+		lines.append(n[1])
+	if news.is_empty():
+		lines.append("• 근처 몬스터 무리는 모두 물리쳤다. 조용한 날들이다.")
+	var e: Vector3 = (outdoor.entrance as Transform3D).origin
+	lines.append("• %s쪽 언덕에 오래된 던전 입구가 있다. 들어간 사람들이 잘 안 돌아온다." % _compass(Vector2(e.x, e.z)))
+	lines.append("")
+	lines.append("[color=gray]정식 의뢰는 곧 붙어요 (M4).[/color]")
+	return "
+".join(lines)
+
+
+## 방향 이름 (-Z가 북쪽)
+static func _compass(v: Vector2) -> String:
+	var names := ["동", "남동", "남", "남서", "서", "북서", "북", "북동"]
+	var i := posmod(roundi(atan2(v.y, v.x) / (PI / 4.0)), 8)
+	return names[i]
 
 
 func _toast(text: String) -> void:
