@@ -106,3 +106,19 @@ func test_save_outside_and_dungeon_to_file() -> void:
 	check(not Game.has_save(), "deleted")
 	Game.new_game()
 	Game.save_path = real
+
+## 심리스 전 저장은 바깥 자리가 칸 안 좌표 → 불러오면 칸 가운데를 더해 세계 좌표로. 새 저장은 그대로
+func test_old_outside_pos_becomes_world() -> void:
+	Game.new_game()
+	Game.world_seed = 5
+	Game.tile = Vector2i(2, 0)
+	Game.outside_pos = Vector3(300, 4, -250)
+	var d := Game.snapshot()
+	check(d.get("world_pos", false), "new saves are marked world_pos")
+	Game.restore(d)
+	eq(Game.take_load_pos(), Vector3(300, 4, -250), "world save kept")
+	d.erase("world_pos")
+	d.outside_pos = Vector3(10, 4, -5)
+	Game.restore(d)
+	eq(Game.take_load_pos(), Vector3(266, 4, -261), "old save + tile (2,0) offset (256,-256)")
+	Game.new_game()

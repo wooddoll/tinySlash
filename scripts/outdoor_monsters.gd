@@ -1,7 +1,7 @@
 ## 바깥 지형의 몬스터 무리. 지형 시드로 자리와 구성이 정해지고(같은 세상이면 같은 자리),
 ## 무리는 제자리 근처를 어슬렁거리다 플레이어가 가까이 오면 다가옵니다. 닿으면 engaged(무리 번호).
 ## 전투는 main.gd가 그 자리 지형 위에서 실시간 액션 전투로 엽니다 (OutdoorTerrain.battle_grid).
-##   var m := OutdoorMonsters.new(); add_child(m); m.spawn(outdoor, seed, defeated, player)
+##   var m := OutdoorMonsters.new(); add_child(m); m.player = p; m.plan_tile(...) 칸마다; m.wake_near(p) 자주
 class_name OutdoorMonsters
 extends Node3D
 
@@ -29,10 +29,9 @@ signal engaged(group: int)
 
 ## 무리마다 {id, foes, home, node, models, target, wait}
 var groups: Array = []
-## 마을 없는 칸은 어디나 센 무리 (지방 지도, M5)
-var far_everywhere := false
-## 모든 무리 (물리친 것 포함): 번호 → {home, foes}
+## 모든 무리 (물리친 것 포함): 번호 → {home, foes, tile, awake}
 var _all := {}
+var _defeated := {}
 var player: Node3D = null
 var _outdoor: Node3D = null
 var _rng := RandomNumberGenerator.new()
@@ -40,19 +39,23 @@ var _rng := RandomNumberGenerator.new()
 var calm := 0.0
 
 
-## world_seed: 이 칸의 시드, id_base: 무리 번호 앞자리 (지방 칸마다 Region.index × 100, 물리친 무리 기록이 칸끼리 겹치지 않게)
-func spawn(outdoor: Node3D, world_seed: int, defeated: Dictionary, who: Node3D, id_base := 0) -> void:
+## 칸 하나의 무리 자리와 구성을 정함 (모델은 아직, wake_near가 가까워지면 세움). 같은 칸 시드면 같은 자리
+## id_base: 무리 번호 앞자리 (Region.index × 100, 물리친 무리 기록이 칸끼리 겹치지 않게)
+## center: 칸 가운데 세계 좌표, village: 마을 칸이면 가까운 곳은 약한 무리
+func plan_tile(outdoor: Node3D, t: Vector2i, tile_seed: int, defeated: Dictionary, id_base: int, center: Vector2, village: bool) -> void:
 	_outdoor = outdoor
-	player = who
-	_rng.seed = world_seed * 7919 + 13
-	var door: Vector3 = (outdoor.entrance as Transform3D).origin
+	_defeated = defeated
+	_rng.seed = tile_seed * 7919 + 13
+	var door = outdoor.entrance_of(t)
+	var door2 := Vector2(INF, INF) if door == null else Vector2((door as Transform3D).origin.x, (door as Transform3D).origin.z)
 	var half: float = Outdoor.SIZE / 2.0 - 24.0
 	var tries := 0
 	var spots: Array[Vector3] = []
 	while spots.size() < COUNT and tries < 2000:
 		tries += 1
-		var p := Vector3(_rng.randf_range(-half, half), 0, _rng.randf_range(-half, half))
-		if p.length() < KEEP_CLEAR or Vector2(p.x - door.x, p.z - door.z).length() < KEEP_CLEAR * 0.7:
+		var lp := Vector2(_rng.randf_range(-half, half), _rng.randf_range(-half, half))
+		var p := Vector3(lp.x + center.x, 0, lp.y + center.y)
+		if lp.length() < KEEP_CLEAR or Vector2(p.x, p.z).distance_to(door2) < KEEP_CLEAR * 0.7:
 			continue
 		if spots.any(func(q: Vector3) -> bool: return q.distance_to(p) < 18.0):
 			continue
@@ -61,16 +64,44 @@ func spawn(outdoor: Node3D, world_seed: int, defeated: Dictionary, who: Node3D, 
 		spots.append(p)
 	for i in spots.size():
 		var p := spots[i]
-		var far := far_everywhere or p.length() > FAR
+		var far := not village or Vector2(p.x - center.x, p.z - center.y).length() > FAR
 		var pool: Array = FAR_GROUPS if far else NEAR_GROUPS
 		var foes: Array = pool[_rng.randi() % pool.size()]
-		_all[id_base + i] = {"home": p, "foes": foes}
-		if not defeated.has(id_base + i):
-			_spawn_group(id_base + i)
+		_all[id_base + i] = {"home": p, "foes": foes, "tile": t}
+
+
+## 플레이어 둘레 reach칸 안의 무리 중 아직 안 세운 것(물리치지 않은 것)을 세움
+func wake_near(p: Vector3, reach := 150.0, limit := -1) -> void:
+	var near := []
+	for id in _all:
+		var g: Dictionary = _all[id]
+		if g.get("awake", false) or _defeated.has(id):
+			continue
+		var h: Vector3 = g.home
+		var d := Vector2(h.x - p.x, h.z - p.z).length()
+		if d <= reach:
+			near.append([d, id])
+	# 가까운 무리부터, limit개까지 (한 프레임에 모델을 너무 많이 만들지 않게)
+	near.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	if limit >= 0:
+		near.resize(mini(near.size(), limit))
+	for e in near:
+		_all[e[1]]["awake"] = true
+		_spawn_group(e[1], limit >= 0)
+
+
+## 아직 물리치지 않은 모든 무리 [{id, home}] (의뢰판·지도용)
+func alive() -> Array:
+	var out := []
+	for id in _all:
+		if not _defeated.has(id):
+			out.append({"id": id, "home": _all[id].home, "tile": _all[id].tile})
+	return out
 
 
 ## 무리 하나를 제자리에 세움
-func _spawn_group(i: int) -> void:
+## gradual이면 모델을 한 프레임에 하나씩 만듦 (걸어 다니다 깨울 때 멈칫하지 않게). 다 만든 뒤에 움직이기 시작
+func _spawn_group(i: int, gradual := false) -> void:
 	var p: Vector3 = _all[i].home
 	var foes: Array = _all[i].foes
 	var node := Node3D.new()
@@ -87,6 +118,10 @@ func _spawn_group(i: int) -> void:
 		m.position.y = _outdoor.height_at(m.position)
 		m.face(Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)), true)
 		models.append(m)
+		if gradual:
+			await get_tree().process_frame
+			if not is_instance_valid(node) or not is_inside_tree():
+				return
 	groups.append({"id": i, "foes": foes, "home": p, "node": node, "models": models,
 			"target": p, "wait": _rng.randf_range(0.5, 3.0), "chasing": false})
 
@@ -144,6 +179,8 @@ func _process(delta: float) -> void:
 	for g in groups:
 		var lead: Node3D = g.models[0]
 		var to_player := Vector2(me.x - lead.position.x, me.z - lead.position.z)
+		if to_player.length() > 90.0:
+			continue  # 먼 무리는 쉼
 		var from_home := Vector2(lead.position.x - g.home.x, lead.position.z - g.home.z)
 		var chase: bool = calm <= 0.0 and to_player.length() < NOTICE and from_home.length() < LEASH
 		if chase and not g.chasing:

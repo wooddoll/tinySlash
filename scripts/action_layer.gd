@@ -359,9 +359,6 @@ func _on_event(ev: Dictionary) -> void:
 					camera_rig.shake(0.25)
 				elif ev.crit and a == player:
 					camera_rig.shake(0.12)
-			# 멈칫(히트스톱): 맞힌 순간 아주 잠깐 시간이 거의 멈춤
-			if ev.damage > 0 and (a == player or t == player):
-				hitstop(0.09 if ev.crit else (0.07 if t == player else 0.05))
 			if t.c.team != 0:
 				_reveal(t)
 		"text":
@@ -397,26 +394,9 @@ func _on_event(ev: Dictionary) -> void:
 				m.set_base("idle")
 
 
-## 히트스톱: 실제 시간 dur초 동안 게임 시간을 거의 멈춤 (Engine.time_scale). 겹치면 긴 쪽
-static var _stop_until := 0.0
-
-
-func hitstop(dur: float) -> void:
-	if not is_inside_tree():
-		return
-	var now := Time.get_ticks_msec() / 1000.0
-	if now + dur <= _stop_until:
-		return
-	_stop_until = now + dur
-	Engine.time_scale = 0.05
-	get_tree().create_timer(dur, true, false, true).timeout.connect(func() -> void:
-		if Time.get_ticks_msec() / 1000.0 >= _stop_until - 0.001:
-			Engine.time_scale = 1.0)
-
-
+## 장면에서 빠질 때 시간 배율을 되돌림 (예전 히트스톱이 남긴 느린 시간 방지)
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
-	_stop_until = 0.0
 
 
 ## 맞은 몸이 순간 커졌다 돌아옴
@@ -425,7 +405,6 @@ func _punch(m: Node3D, amount: float) -> void:
 	if not m.has_meta("base_scale"):
 		m.set_meta("base_scale", m.scale.x)
 	var tw := m.create_tween()
-	tw.set_ignore_time_scale(true)
 	tw.tween_property(m, "scale", base * amount, 0.04)
 	tw.tween_property(m, "scale", base, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
@@ -451,7 +430,6 @@ func _spark(p: Vector3, col: Color, size: float) -> void:
 		n.add_child(q)
 	n.scale = Vector3.ONE * 0.3
 	var tw := n.create_tween()
-	tw.set_ignore_time_scale(true)
 	tw.set_parallel(true)
 	tw.tween_property(n, "scale", Vector3.ONE * 1.2, 0.16)
 	for q in n.get_children():

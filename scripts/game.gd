@@ -124,6 +124,7 @@ static func snapshot() -> Dictionary:
 		"gold": gold,
 		"place": place,
 		"outside_pos": outside_pos,
+		"world_pos": true,
 		"party_classes": HeroState.party_classes.duplicate(),
 		"day": day,
 		"minute": minute,
@@ -186,6 +187,10 @@ static func restore(d: Dictionary) -> String:
 	if place == "dungeon" and not (d.get("dungeon", {}) as Dictionary).is_empty():
 		dv.restore_run(d.dungeon)
 		return "res://scenes/dungeon.tscn"
+	# 심리스 전 저장은 바깥 자리가 칸 안 좌표 → 세계 좌표로 (칸 가운데를 더함)
+	if not d.get("world_pos", false) and outside_pos != Vector3.INF:
+		var off := Region.offset(tile, 256)
+		outside_pos += Vector3(off.x, 0, off.y)
 	place = "outside"
 	_load_pos = outside_pos
 	return "res://scenes/main.tscn"

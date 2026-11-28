@@ -14,6 +14,7 @@ const TownDialog = preload("res://scripts/town_dialog.gd")
 const Quests = preload("res://rules/quests.gd")
 const Region = preload("res://rules/region.gd")
 const RegionMap = preload("res://scripts/region_map.gd")
+const Minimap = preload("res://scripts/minimap.gd")
 const Reputation = preload("res://rules/reputation.gd")
 const Ambience = preload("res://scripts/ambience.gd")
 const Music = preload("res://scripts/music.gd")
@@ -47,9 +48,6 @@ const FLEE_DIST := 14.0
 const INN_PRICE := 10
 ## 문·의뢰판 앞에서 이만큼 가까우면 Enter/F/Y로 들어감
 const USE_DIST := 1.6
-## 칸 끝에서 이만큼(칸) 안으로 들어오면 이웃 칸으로 넘어감, 넘어가면 반대쪽 끝에서 이만큼 안에 섬
-const EDGE := 4.0
-const ARRIVE := 7.0
 ## 바깥에서 실제 1초에 흐르는 게임 분
 const MINUTES_PER_SECOND := 1.0
 ## 마을 곡이 들리는 거리 (빈터 가운데에서, 칸)
@@ -73,10 +71,10 @@ var _near := {}
 ## 지방 (rules/region.gd), 지도 창
 var region = null
 var region_map: CanvasLayer = null
+var minimap: CanvasLayer = null
 var _minute_acc := 0.0
 var _clock: Label = null
-var _crossing := false
-var _seed := 0
+var _stream_in := 0.0
 var _toast_label: Label
 var _toast_left := 0.0
 var _pending_toast := ""
@@ -125,40 +123,31 @@ func _update_music() -> void:
 	Music.play(self, "village" if near_village else "field")
 
 
-## Terrain3D가 설치돼 있으면 지금 지방 칸(Game.tile)의 노이즈 언덕·숲 지형을 만들고 평평한 바닥·연습용 돌 블록을 치움.
-## 마을 칸이면 빈터에 마을을 세움. 지형 높이·숲 노이즈는 세계 좌표로 뽑아 이웃 칸과 경계에서 맞물림 (rules/region.gd)
+## Terrain3D가 설치돼 있으면 지방 전체(3x3 칸)를 한 지형으로 만들고 평평한 바닥·연습용 돌 블록을 치움 (M5 뒤 심리스).
+## 마을은 가운데 칸 빈터에. 나무·풀·몬스터는 플레이어가 가까이 가는 칸부터 채움 (_stream_near).
+## 세계 좌표: 마을 칸 가운데 = (0, 0). 지금 칸(Game.tile)은 플레이어 자리로 정해짐
 func _build_terrain() -> bool:
 	if not Outdoor.available():
 		return false
 	if world_seed == 0:
 		world_seed = terrain_seed if terrain_seed != 0 else randi() % 100000 + 1
 	region = Game.region()
-	var t: Vector2i = Game.tile
-	_seed = Region.tile_seed(world_seed, t)
-	var here_dungeon: Dictionary = region.dungeon_at(t)
 	outdoor = Outdoor.new()
 	outdoor.name = "Outdoor"
 	add_child(outdoor)
-	var is_village := t == Region.VILLAGE
-	if is_village:
-		village = Village.generate(world_seed, Outdoor.entrance_dir(world_seed))
-		outdoor.keep_out = village.blocked
-	var opts := {"noise_seed": world_seed, "offset": Region.offset(t, Outdoor.SIZE), "village": is_village,
-		"entrance": not here_dungeon.is_empty(), "terrain_at": region.terrain_at.bind(Outdoor.SIZE),
-		"closed": {"w": not Region.inside(t + Vector2i.LEFT), "e": not Region.inside(t + Vector2i.RIGHT),
-			"n": not Region.inside(t + Vector2i.UP), "s": not Region.inside(t + Vector2i.DOWN)}}
-	if not outdoor.generate(_seed, opts):
+	village = Village.generate(world_seed, Outdoor.entrance_dir(world_seed))
+	if not outdoor.generate_region(region, world_seed, village.blocked):
 		outdoor.queue_free()
 		outdoor = null
+		village = null
 		return false
 	$Ground.queue_free()
 	$Props.queue_free()
-	if is_village:
-		town = TownBuilder.new()
-		town.name = "Town"
-		add_child(town)
-		town.build(village, outdoor.height_at, world_seed)
-		town.focus = $Player
+	town = TownBuilder.new()
+	town.name = "Town"
+	add_child(town)
+	town.build(village, outdoor.height_at, world_seed)
+	town.focus = $Player
 	dialog = TownDialog.new()
 	add_child(dialog)
 	dialog.closed.connect(_dialog_closed)
@@ -166,42 +155,81 @@ func _build_terrain() -> bool:
 	add_child(region_map)
 	region_map.travel.connect(_fast_travel)
 	region_map.closed.connect(_dialog_closed)
-	# 칸 가운데에 세움 (조금 위에서 떨어져 땅에 닿음). 던전에서 나왔으면 입구 앞, 칸을 넘어왔으면 그 경계
+	outdoor.entrance_entered.connect(_enter_dungeon)
+	# 처음엔 마을 광장. 던전에서 나왔으면 그 던전 입구 앞, 빠른 이동이면 도착한 자리, 불러왔으면 저장한 자리
 	var player := $Player as Node3D
 	player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.5, 0)
 	var calm := 0.0
 	if back_from_dungeon:
 		back_from_dungeon = false
-		player.global_position = outdoor.before_entrance()
+		player.global_position = outdoor.before_entrance(Game.tile)
 	var arrive = Game.arrival
 	Game.arrival = null
-	if arrive is String and arrive == "entrance" and not here_dungeon.is_empty():
-		player.global_position = outdoor.before_entrance()
+	if arrive is String and arrive == "entrance":
+		player.global_position = outdoor.before_entrance(Game.tile)
 		calm = 3.0
 	elif arrive is Vector2:
 		player.global_position = Vector3(arrive.x, outdoor.height_at(Vector3(arrive.x, 0, arrive.y)) + 0.5, arrive.y)
 		calm = 3.0
-	if arrive != null:
-		_fade_from_black()
-		_pending_toast = region.tiles[t].name + ("" if here_dungeon.is_empty() else " — %s 입구가 있는 곳" % here_dungeon.name)
 	var loaded := Game.take_load_pos()
 	if loaded != Vector3.INF:
 		player.global_position = loaded + Vector3(0, 0.3, 0)
-		_pending_toast = "이어서 합니다 — " + region.tiles[t].name
 		calm = 4.0  # 불러온 자리 바로 옆에 몬스터가 있어도 잠깐은 덤비지 않음
-	if not here_dungeon.is_empty():
-		outdoor.entrance_entered.connect(_enter_dungeon)
+	Game.tile = Outdoor.tile_of(player.global_position)
+	if loaded != Vector3.INF:
+		_pending_toast = "이어서 합니다 — " + region.tiles[Game.tile].name
+	elif arrive != null:
+		_pending_toast = _tile_title(Game.tile)
+	# 무리 자리는 모든 칸에 미리 정하고, 모델은 가까운 것만
 	monsters = Monsters.new()
 	monsters.name = "Monsters"
 	add_child(monsters)
-	monsters.far_everywhere = not is_village
-	monsters.spawn(outdoor, _seed, defeated, player, Region.index(t) * 100)
+	monsters.player = player
+	for t in region.tiles:
+		monsters.plan_tile(outdoor, t, Region.tile_seed(world_seed, t), defeated, Region.index(t) * 100,
+			Region.offset(t, Outdoor.SIZE), t == Region.VILLAGE)
 	monsters.calm = calm
 	monsters.engaged.connect(_fight_outdoor)
+	outdoor.map_image(village.buildings)  # 지도 그림을 일꾼 스레드에서 만들기 시작
+	region_map.setup(outdoor, player, monsters, village.buildings)
+	minimap = Minimap.new()
+	minimap.setup(outdoor, player, $CameraRig, region, monsters, village.buildings)
+	add_child(minimap)
+	outdoor.fill_now(Game.tile)
+	monsters.wake_near(player.global_position, 90.0)
+	_stream_near()
 	_autosave.call_deferred()
 	($CameraRig as Node3D).global_position = player.global_position
 	_apply_daylight()
 	return true
+
+
+## p가 칸 t 바깥으로 margin칸보다 더 나갔나 (경계에서 왔다 갔다 할 때 칸 이름이 계속 뜨지 않게)
+func _beyond_tile(p: Vector3, t: Vector2i, margin: float) -> bool:
+	var off := Region.offset(t, Outdoor.SIZE)
+	var half := Outdoor.SIZE / 2.0 + margin
+	return absf(p.x - off.x) > half or absf(p.z - off.y) > half
+
+
+## 칸 이름 (던전이 있으면 "— ○○ 입구가 있는 곳")
+func _tile_title(t: Vector2i) -> String:
+	var dg: Dictionary = region.dungeon_at(t)
+	return region.tiles[t].name + ("" if dg.is_empty() else " — %s 입구가 있는 곳" % dg.name)
+
+
+## 플레이어 둘레 칸의 나무·풀을 채우고 가까운 몬스터 무리를 세움. 칸이 바뀌면 이름을 띄우고 저장
+func _stream_near() -> void:
+	if outdoor == null:
+		return
+	var p := ($Player as Node3D).global_position
+	outdoor.ensure_near(p)
+	monsters.wake_near(p, 150.0, 1)
+	var t := Outdoor.tile_of(p)
+	if t != Game.tile and _beyond_tile(p, Game.tile, 4.0):
+		Game.tile = t
+		_toast(_tile_title(t))
+		_apply_daylight()  # 오른쪽 위 칸 이름도 바뀜
+		_autosave()
 
 
 func _process(delta: float) -> void:
@@ -232,11 +260,16 @@ func _process(delta: float) -> void:
 		if Input.is_action_just_pressed("map") and not region_map.just_closed():
 			_open_map()
 		_flow_time(delta)
-		_check_edge()
+		_stream_in -= delta
+		if _stream_in <= 0.0:
+			_stream_in = 0.25
+			_stream_near()
 	if outdoor:
 		_autosave_in -= delta
 		if _autosave_in <= 0.0:
 			_autosave()
+	if minimap:
+		minimap.visible = fight == null and not level_dialog.visible and not (dialog.is_open() or region_map.is_open())
 	if _toast_left > 0.0:
 		_toast_left -= delta
 		_toast_label.modulate.a = clampf(_toast_left, 0.0, 1.0)
@@ -252,7 +285,7 @@ func _process(delta: float) -> void:
 
 
 const HINT_SHORT := "WASD 이동 · F 문·의뢰판 · J 일지 · M 지도 · Esc 메뉴 · F1 도움말"
-const HINT_FULL := "[조작]\nWASD / 왼쪽 스틱  이동\nSpace  점프 (싸울 땐 구르기)\nEnter / F  문·의뢰판·던전 입구\nJ  일지 (받은 의뢰, 등급·평판)\nM  지방 지도 · 빠른 이동\nQ / E  카메라 90° 회전 · 휠  줌\n\n[싸움]\nJ / X  공격 · Space  구르기 · K / L  기술 · 1  물약\n\n[시험용]\nB  단독 전투 · G  던전 생성기 · H  모험(시나리오)\n\nEsc  메뉴 (음량·저장)\nF1  도움말 닫기"
+const HINT_FULL := "[조작]\nWASD / 왼쪽 스틱  이동\nSpace  점프 (싸울 땐 구르기)\nEnter / F  문·의뢰판·던전 입구\nJ  일지 (받은 의뢰, 등급·평판)\nM  지방 지도 (내 자리) · 빠른 이동 · 오른쪽 위는 미니맵\nQ / E  카메라 90° 회전 · 휠  줌\n\n[싸움]\nJ / X  공격 · Space  구르기 · K / L  기술 · 1  물약\n\n[시험용]\nB  단독 전투 · G  던전 생성기 · H  모험(시나리오)\n\nEsc  메뉴 (음량·저장)\nF1  도움말 닫기"
 var _hint: Label
 
 
@@ -330,11 +363,12 @@ func _random_pos(rng: RandomNumberGenerator, keep_clear: float) -> Vector3:
 
 
 ## 입구 문턱을 넘으면 이 세상 시드로 정한 던전에서 바로 탐험 시작
-func _enter_dungeon(_body: Node3D) -> void:
-	if get_tree().paused:
+func _enter_dungeon(_body: Node3D, t: Vector2i) -> void:
+	if get_tree().paused or fight != null:
 		return
+	Game.tile = t
 	_autosave()  # 입구 앞 (던전은 들어가서 다시 저장)
-	var dg: Dictionary = region.dungeon_at(Game.tile)
+	var dg: Dictionary = region.dungeon_at(t)
 	Game.dungeon_id = int(dg.id)
 	DungeonView.enter_seed = int(dg.seed)
 	DungeonView.enter_theme = str(dg.theme)
@@ -691,7 +725,7 @@ func _open_board(note := "") -> void:
 
 func _quest_world() -> Dictionary:
 	var groups := []
-	for g in monsters.groups:
+	for g in monsters.alive():
 		var home: Vector3 = g.home
 		groups.append({"id": g.id, "label": monsters.label(g.id), "home": Vector2(home.x, home.z)})
 	var dgs := []
@@ -802,7 +836,7 @@ func _show_ending() -> void:
 ## 소문: 가까운 몬스터 무리, 던전 입구
 func _rumors() -> Array:
 	var news := []
-	for g in monsters.groups:
+	for g in monsters.alive():
 		var home: Vector3 = g.home
 		news.append([Vector2(home.x, home.z).length(), "• %s 무리가 %s쪽 %d걸음쯤에서 어슬렁거린다고 한다." % [
 			monsters.label(g.id), _compass(Vector2(home.x, home.z)), roundi(Vector2(home.x, home.z).length() / 5.0) * 5]])
@@ -905,50 +939,31 @@ func _apply_daylight() -> void:
 	_clock.text = "%s · %s · M: 지도" % [Game.time_text(), region.tiles[Game.tile].name if region else ""]
 
 
-## 칸 끝에 닿으면 이웃 칸으로 (지방 끝은 땅이 솟아 막혀 있음)
-func _check_edge() -> void:
-	if _crossing or outdoor == null:
-		return
-	var p := ($Player as Node3D).global_position
-	var half := Outdoor.SIZE / 2.0
-	var dir := Vector2i.ZERO
-	if p.x > half - EDGE:
-		dir = Vector2i.RIGHT
-	elif p.x < -half + EDGE:
-		dir = Vector2i.LEFT
-	elif p.z > half - EDGE:
-		dir = Vector2i.DOWN
-	elif p.z < -half + EDGE:
-		dir = Vector2i.UP
-	if dir == Vector2i.ZERO or not Region.inside(Game.tile + dir):
-		return
-	# 반대쪽 끝, 같은 줄에서 나타남 (지형 노이즈가 이어져 있어 땅 높이가 맞음)
-	var at := Vector2(p.x, p.z)
-	if dir.x != 0:
-		at.x = -dir.x * (half - ARRIVE)
-	else:
-		at.y = -dir.y * (half - ARRIVE)
-	# 걸어서 넘는 데 드는 시간 (칸 하나를 다 걸은 셈은 아니므로 1시간만)
-	_go_to_tile(Game.tile + dir, at, 60)
-
-
-## 다른 칸으로 옮김 (장면을 새로 읽음). arrive: Vector2 자리 또는 "entrance"
+## 빠른 이동: 검은 화면 → 시간이 흐르고 → 도착한 칸(던전이 있으면 입구 앞, 아니면 가운데)으로 옮김. 장면은 그대로
 func _go_to_tile(t: Vector2i, arrive, minutes: int) -> void:
-	_crossing = true
 	var failed := Game.advance_minutes(minutes)
-	Game.tile = t
-	Game.arrival = arrive
-	Game.place = "outside"
-	Game.outside_pos = Vector3.INF
-	Game.save_game()
 	var names := PackedStringArray()
 	for q in failed:
 		names.append(q.title)
 	_cover_black("%s(으)로…%s" % [region.tiles[t].name, ("\n의뢰 실패: " + ", ".join(names)) if not names.is_empty() else ""])
-	# 검은 화면이 한 번 그려진 뒤 장면을 새로 읽음 (지형을 만드는 동안 멈춘 화면 대신)
 	await get_tree().process_frame
-	await get_tree().process_frame
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	var player := $Player as Node3D
+	var p: Vector3
+	if arrive is String and arrive == "entrance":
+		p = outdoor.before_entrance(t)
+	else:
+		var a: Vector2 = arrive
+		p = Vector3(a.x, outdoor.height_at(Vector3(a.x, 0, a.y)) + 0.5, a.y)
+	player.global_position = p
+	($CameraRig as Node3D).global_position = p
+	Game.tile = t
+	outdoor.fill_now(t)
+	monsters.wake_near(p)
+	monsters.calm = 3.0
+	_apply_daylight()
+	_autosave()
+	_fade_from_black()
+	_toast(_tile_title(t))
 
 
 ## 칸을 옮길 때 가리는 검은 화면
@@ -1007,7 +1022,7 @@ func _fast_travel(t: Vector2i) -> void:
 		return
 	var hours := Region.travel_hours(Game.tile, t)
 	var dg: Dictionary = region.dungeon_at(t)
-	var arrive = Vector2.ZERO if t == Region.VILLAGE or dg.is_empty() else "entrance"
+	var arrive = Region.offset(t, Outdoor.SIZE) if t == Region.VILLAGE or dg.is_empty() else "entrance"
 	_go_to_tile(t, arrive, roundi(hours * 60.0))
 
 
