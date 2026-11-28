@@ -1,6 +1,6 @@
 @echo off
 rem tinySlash 실행
-rem   run.bat          게임 실행 (시작 화면: 이어하기 / 새로 시작. 저장 파일: %APPDATA%\Godot\app_userdata\2.5D Starter\save1.dat)
+rem   run.bat          게임 실행 (시작 화면: 이어하기 / 새로 시작. 저장 파일: %APPDATA%\Godot\app_userdata\tinySlash\save1.dat)
 rem   run.bat edit     Godot 편집기로 열기
 rem   run.bat test     규칙 테스트
 rem   run.bat import   에셋을 새로 설치한 뒤 한 번 (가져오기)

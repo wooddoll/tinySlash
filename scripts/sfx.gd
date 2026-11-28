@@ -3,6 +3,7 @@
 extends RefCounted
 
 const BASE := "res://assets/kenney/audio/"
+const AudioSettings = preload("res://scripts/audio_settings.gd")
 
 ## 그룹 -> [파일들], 기본 볼륨(dB)
 const GROUPS := {
@@ -49,6 +50,7 @@ static func path_of(file: String) -> String:
 
 
 static func play(node: Node, group: String, volume_db := 0.0, pitch_jitter := 0.08) -> void:
+	AudioSettings.ensure()
 	if muted or node == null or not node.is_inside_tree():
 		return
 	if not GROUPS.has(group):
@@ -62,6 +64,7 @@ static func play(node: Node, group: String, volume_db := 0.0, pitch_jitter := 0.
 	p.stream = _streams[file]
 	p.volume_db = float(GROUPS[group][1]) + volume_db
 	p.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
+	p.bus = "SFX"
 	p.autoplay = true  # 트리에 들어가면 재생
 	p.finished.connect(p.queue_free)
 	# 장면 _ready 중에는 루트에 바로 붙일 수 없어서 미룸

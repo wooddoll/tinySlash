@@ -341,8 +341,13 @@ func _on_event(ev: Dictionary) -> void:
 		"hit":
 			var t: ActionCombat.Actor = ev.target
 			var tm: CharacterModel = views[t].model if views.has(t) else null
+			var ours: bool = a != null and a.c.team == 0 and t.c.team != 0
 			if tm:
-				tm.flash()
+				# 파티가 때리면 흰 번쩍임 + 몸이 움찔(크기), 맞으면 붉은 번쩍임
+				tm.flash(Color(1, 1, 1) if ours else Color(1, 0.15, 0.1))
+				if ev.damage > 0:
+					_punch(tm, 1.18 if ev.crit else 1.1)
+					_spark(tm.global_position + Vector3(0, 0.7, 0), Color(1, 0.85, 0.3) if ev.crit else Color(1, 0.95, 0.8), 0.9 if ev.crit else 0.6)
 				if t.state == "stun":
 					tm.play_once("hit")
 				_popup(tm, str(ev.damage) + ("!" if ev.crit else ""),
@@ -354,6 +359,9 @@ func _on_event(ev: Dictionary) -> void:
 					camera_rig.shake(0.25)
 				elif ev.crit and a == player:
 					camera_rig.shake(0.12)
+			# 멈칫(히트스톱): 맞힌 순간 아주 잠깐 시간이 거의 멈춤
+			if ev.damage > 0 and (a == player or t == player):
+				hitstop(0.09 if ev.crit else (0.07 if t == player else 0.05))
 			if t.c.team != 0:
 				_reveal(t)
 		"text":
@@ -387,6 +395,68 @@ func _on_event(ev: Dictionary) -> void:
 			_reveal(a)
 			if m:
 				m.set_base("idle")
+
+
+## 히트스톱: 실제 시간 dur초 동안 게임 시간을 거의 멈춤 (Engine.time_scale). 겹치면 긴 쪽
+static var _stop_until := 0.0
+
+
+func hitstop(dur: float) -> void:
+	if not is_inside_tree():
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now + dur <= _stop_until:
+		return
+	_stop_until = now + dur
+	Engine.time_scale = 0.05
+	get_tree().create_timer(dur, true, false, true).timeout.connect(func() -> void:
+		if Time.get_ticks_msec() / 1000.0 >= _stop_until - 0.001:
+			Engine.time_scale = 1.0)
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+	_stop_until = 0.0
+
+
+## 맞은 몸이 순간 커졌다 돌아옴
+func _punch(m: Node3D, amount: float) -> void:
+	var base := Vector3.ONE * (m.get_meta("base_scale", m.scale.x) as float)
+	if not m.has_meta("base_scale"):
+		m.set_meta("base_scale", m.scale.x)
+	var tw := m.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.tween_property(m, "scale", base * amount, 0.04)
+	tw.tween_property(m, "scale", base, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## 맞은 자리에 번쩍이는 불꽃 (납작한 별 두 장이 커지며 사라짐)
+func _spark(p: Vector3, col: Color, size: float) -> void:
+	var n := Node3D.new()
+	add_child(n)
+	n.global_position = p
+	for i in 2:
+		var q := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(size, size * 0.18)
+		q.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.no_depth_test = true
+		mat.albedo_color = col
+		q.material_override = mat
+		q.rotation.z = randf() * PI + i * PI / 2.0
+		n.add_child(q)
+	n.scale = Vector3.ONE * 0.3
+	var tw := n.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.set_parallel(true)
+	tw.tween_property(n, "scale", Vector3.ONE * 1.2, 0.16)
+	for q in n.get_children():
+		tw.tween_property((q as MeshInstance3D).material_override, "albedo_color:a", 0.0, 0.18)
+	tw.chain().tween_callback(n.queue_free)
 
 
 ## 깨어난 몬스터는 안개와 상관없이 보이게

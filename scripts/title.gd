@@ -4,6 +4,7 @@ extends Control
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Game = preload("res://scripts/game.gd")
 const Sfx = preload("res://scripts/sfx.gd")
+const AudioSettings = preload("res://scripts/audio_settings.gd")
 
 const PLACE_NAMES := {"outside": "바깥", "dungeon": "던전"}
 
@@ -41,6 +42,10 @@ func _ready() -> void:
 	var cont := _button(box, "이어하기", _continue)
 	_new_btn = _button(box, "새로 시작", _on_new)
 	_button(box, "끝내기", func() -> void: get_tree().quit())
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 10
+	box.add_child(gap)
+	AudioSettings.build_sliders(box)
 	cont.grab_focus()
 	Sfx.wire_buttons(self)
 

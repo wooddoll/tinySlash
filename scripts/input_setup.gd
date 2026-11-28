@@ -28,6 +28,8 @@ const MAP := {
 	"journal": [KEY_J],
 	# 바깥: 지방 지도 (M5)
 	"map": [KEY_M],
+	# 도움말 (조작 전부 보기, M7)
+	"help": [KEY_F1],
 }
 
 ## 게임패드 버튼

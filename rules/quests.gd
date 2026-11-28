@@ -17,16 +17,16 @@ const BOARD_SIZE := 3
 const TEMPLATES := [
 	{"id": "hunt", "kind": "group", "title": "{foe} 무리 처치",
 		"text": "{dir}쪽 {dist}걸음쯤에 {foe} 무리가 자리를 잡아 나무꾼들이 숲에 못 들어갑니다. 물리쳐 주세요.",
-		"giver": "나무꾼 조합", "gold": [30, 50], "xp": [40, 70], "days": [2, 3]},
+		"giver": "나무꾼 조합", "gold": [30, 50], "xp": [100, 160], "days": [2, 3]},
 	{"id": "escort_road", "kind": "group", "title": "길목의 {foe}",
 		"text": "장사꾼 수레가 {dir}쪽 길목에서 {foe} 무리에게 쫓겨 돌아왔습니다. 길을 다시 열어 주세요.",
-		"giver": "잡화점 주인", "gold": [35, 55], "xp": [40, 70], "days": [2, 4]},
+		"giver": "잡화점 주인", "gold": [35, 55], "xp": [100, 160], "days": [2, 4]},
 	{"id": "boss", "kind": "boss", "rank": 1, "title": "{dungeon} {floor}층의 우두머리",
 		"text": "{where} {dungeon} {floor}층 출구를 무언가 강한 것이 지키고 있다는 소문입니다. 그것을 쓰러뜨리면 조합이 사례합니다.",
-		"giver": "모험가 조합", "gold": [70, 110], "xp": [90, 150], "days": [3, 5]},
+		"giver": "모험가 조합", "gold": [70, 110], "xp": [220, 340], "days": [3, 5]},
 	{"id": "fetch", "kind": "fetch", "title": "잃어버린 {item}",
 		"text": "{where} {dungeon}에 들어갔다 돌아오지 못한 동료가 {item}을(를) 지니고 있었습니다. {floor}층 어딘가에 떨어져 있을 겁니다. 찾아 주세요.",
-		"giver": "여관 주인", "gold": [50, 80], "xp": [60, 100], "days": [3, 5],
+		"giver": "여관 주인", "gold": [50, 80], "xp": [150, 240], "days": [3, 5],
 		"items": ["은 목걸이", "가문 인장 반지", "낡은 기도서", "약초상의 장부", "청동 열쇠"]},
 ]
 

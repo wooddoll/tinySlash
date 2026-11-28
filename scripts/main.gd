@@ -15,6 +15,7 @@ const Quests = preload("res://rules/quests.gd")
 const Region = preload("res://rules/region.gd")
 const RegionMap = preload("res://scripts/region_map.gd")
 const Reputation = preload("res://rules/reputation.gd")
+const Ambience = preload("res://scripts/ambience.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -77,8 +78,14 @@ var _pending_toast := ""
 var _autosave_in := AUTOSAVE_EVERY
 
 
+var ambience: AudioStreamPlayer = null
+
+
 func _ready() -> void:
 	InputSetup.register()
+	ambience = Ambience.new()
+	ambience.name = "Ambience"
+	add_child(ambience)
 	if not _build_terrain():
 		_scatter_decor()
 	_add_hint()
@@ -173,6 +180,8 @@ func _process(delta: float) -> void:
 			_town_process()
 		elif Input.is_action_just_pressed("journal"):
 			_open_journal()
+		if Input.is_action_just_pressed("help") and _hint:
+			_toggle_help()
 		if Input.is_action_just_pressed("map") and not region_map.just_closed():
 			_open_map()
 		_flow_time(delta)
@@ -195,10 +204,30 @@ func _process(delta: float) -> void:
 		get_tree().change_scene_to_file("res://scenes/scenario.tscn")
 
 
+const HINT_SHORT := "WASD 이동 · F 문·의뢰판 · J 일지 · M 지도 · F1 도움말"
+const HINT_FULL := "[조작]\nWASD / 왼쪽 스틱  이동\nSpace  점프 (싸울 땐 구르기)\nEnter / F  문·의뢰판·던전 입구\nJ  일지 (받은 의뢰, 등급·평판)\nM  지방 지도 · 빠른 이동\nQ / E  카메라 90° 회전 · 휠  줌\n\n[싸움]\nJ / X  공격 · Space  구르기 · K / L  기술 · 1  물약\n\n[시험용]\nB  단독 전투 · G  던전 생성기 · H  모험(시나리오)\n\nF1  도움말 닫기"
+var _hint: Label
+
+
+## F1: 짧은 안내 ↔ 조작 전부 (어두운 판 위에)
+func _toggle_help() -> void:
+	var full := _hint.text == HINT_SHORT
+	_hint.text = HINT_FULL if full else HINT_SHORT
+	if full:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.05, 0.04, 0.03, 0.82)
+		sb.set_content_margin_all(12)
+		sb.set_corner_radius_all(4)
+		_hint.add_theme_stylebox_override("normal", sb)
+	else:
+		_hint.remove_theme_stylebox_override("normal")
+
+
 func _add_hint() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
-	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Enter/F 문·의뢰판 · J 일지 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
+	_hint = label
+	label.text = HINT_SHORT
 	label.position = Vector2(16, 12)
 	label.add_theme_constant_override("outline_size", 6)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -811,6 +840,8 @@ func _apply_daylight() -> void:
 		var night2 := 1.0 - smoothstep(0.0, 0.25, up)
 		we.environment.ambient_light_energy = lerpf(1.0, 0.35, night2)
 		we.environment.background_energy_multiplier = lerpf(1.0, 0.15, night2)
+	if ambience:
+		ambience.strength = lerpf(1.0, 0.45, 1.0 - smoothstep(0.0, 0.25, up))
 	if _clock == null:
 		var layer := CanvasLayer.new()
 		_clock = Label.new()

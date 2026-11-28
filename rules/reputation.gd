@@ -12,7 +12,7 @@ const ALLIES := {"guild": ["village"], "village": ["guild"]}
 const SUCCESS := 6
 const FAIL := -4
 ## 등급: [이름, 필요한 조합 평판, 필요한 주인공 레벨]
-const RANKS := [["비회원", 0, 0], ["견습", 0, 1], ["정회원", 15, 2], ["베테랑", 35, 4]]
+const RANKS := [["비회원", 0, 0], ["견습", 0, 1], ["정회원", 15, 2], ["베테랑", 35, 3]]
 const TOP_RANK := 3
 ## 마지막 의뢰: 가장 먼 던전의 이 층 우두머리
 const FINAL_FLOOR := 3

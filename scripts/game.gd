@@ -57,7 +57,19 @@ static var saved_at := 0
 
 
 static func has_save() -> bool:
+	_migrate_old_dir()
 	return FileAccess.file_exists(save_path)
+
+
+## 프로젝트 이름이 "2.5D Starter"였을 때의 저장 폴더에서 저장 파일·설정을 한 번 옮겨 옴 (M7에 이름을 tinySlash로 바꿈)
+static func _migrate_old_dir() -> void:
+	if save_path != "user://save1.dat" or FileAccess.file_exists(save_path):
+		return
+	var old := OS.get_user_data_dir().get_base_dir().path_join("2.5D Starter")
+	for f in ["save1.dat", "settings.cfg"]:
+		var src := old.path_join(f)
+		if FileAccess.file_exists(src) and not FileAccess.file_exists("user://" + f):
+			DirAccess.copy_absolute(src, ProjectSettings.globalize_path("user://" + f))
 
 
 ## 새 게임: 모든 상태를 처음으로 (세계 시드는 바깥에 나갈 때 새로 정함)
