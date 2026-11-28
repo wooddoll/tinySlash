@@ -9,6 +9,7 @@ const Sfx = preload("res://scripts/sfx.gd")
 const PartyPanel = preload("res://scripts/party_panel.gd")
 const RadialMenu = preload("res://scripts/radial_menu.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
+const WindFoliage = preload("res://scripts/wind_foliage.gd")
 
 ## . 평지  1/2/3 높이 0.5/1.0/1.5  , 험지(덤불)  T 나무(완전 엄폐)  # 바위(낮은 벽)
 ## 던전용: X 던전 벽(통과 불가, 완전 엄폐)  P 돌기둥(완전 엄폐)
@@ -149,7 +150,7 @@ const NATURE_PROPS := {
 
 func _nature_prop(parent: Node3D, ch: String, cell: Vector2i, top: Vector3) -> void:
 	var names: Array = NATURE_PROPS[ch][0]
-	var n: Node3D = (load(NATURE % names[(cell.x * 7 + cell.y * 13) % names.size()]) as PackedScene).instantiate()
+	var n: Node3D = WindFoliage.scene(NATURE % names[(cell.x * 7 + cell.y * 13) % names.size()]).instantiate()
 	n.scale = Vector3.ONE * float(NATURE_PROPS[ch][1]) * (0.9 + 0.2 * ((cell.x * 3 + cell.y) % 3) / 2.0)
 	n.rotation.y = (cell.x * 5 + cell.y * 11) * 0.7
 	n.position = top

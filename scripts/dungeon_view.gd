@@ -58,6 +58,8 @@ static var _pending_toast := ""
 static var used_fires := {}
 ## 전장의 안개: 탐험 중 본 칸
 static var seen := {}
+## 탐험 중 보이는 거리 (칸, 바닥을 따라). 방 안이면 방 전체 + 둘레 이만큼
+const SIGHT := 6
 
 @onready var focus: Node3D = $Focus
 @onready var rig: Node3D = $CameraRig
@@ -1174,15 +1176,19 @@ func _fog_apply_all() -> void:
 
 ## 들어선 칸에서 보이는 칸: 방이면 방 전체, 통로면 바닥을 따라 3걸음까지
 static func visible_from(d: Dungeon, c: Vector2i) -> Array:
+	# 방 안이면 방 전체와 그 둘레 SIGHT칸, 통로면 SIGHT칸 (바닥을 따라 걸어서 닿는 거리)
+	var start: Array = [c]
 	var room := d.room_at(c)
 	if room >= 0:
-		return (d.rooms[room].cells as Array).duplicate()
-	var out: Array = [c]
-	var dist := {c: 0}
-	var q: Array = [c]
+		start = (d.rooms[room].cells as Array).duplicate()
+	var out: Array = start.duplicate()
+	var dist := {}
+	for s0 in start:
+		dist[s0] = 0
+	var q: Array = start.duplicate()
 	while not q.is_empty():
 		var cur: Vector2i = q.pop_front()
-		if dist[cur] >= 3:
+		if dist[cur] >= SIGHT:
 			continue
 		for dd in Dungeon.DIRS4:
 			var n: Vector2i = cur + dd

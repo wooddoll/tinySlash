@@ -14,6 +14,7 @@ const HILL := 14.0
 const CLEARING := 14.0
 const TEX := "res://assets/terrain/"
 const NATURE := "res://assets/quaternius/nature/%s.scn"
+const WindFoliage = preload("res://scripts/wind_foliage.gd")
 ## 식생: [모델들, 몇 그루(대략), 숲 노이즈 문턱(높을수록 숲 가운데만), 크기 범위, 가장 가파른 경사(코사인)]
 const FOLIAGE := [
 	[["CommonTree_1", "CommonTree_2", "CommonTree_3", "CommonTree_4", "CommonTree_5"], 2600, 0.0, Vector2(0.8, 1.3), 0.85],
@@ -162,7 +163,7 @@ func _setup_material() -> void:
 func _mesh_id(model: String) -> int:
 	if _mesh_ids.has(model):
 		return _mesh_ids[model]
-	var scene := _wind_grass_scene() if model == "Grass_Wind" else load(NATURE % model) as PackedScene
+	var scene := _wind_grass_scene() if model == "Grass_Wind" else WindFoliage.scene(NATURE % model)
 	if scene == null:
 		return -1
 	var id := _mesh_ids.size()

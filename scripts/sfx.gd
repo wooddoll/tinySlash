@@ -32,11 +32,11 @@ const GROUPS := {
 	"confirm": [["interface-sounds/confirmation_001"], -4.0],
 	"cast": [["interface-sounds/glass_002", "interface-sounds/glass_004"], -6.0],
 	"switch": [["ui-audio/switch2", "ui-audio/switch3"], -8.0],
-	# 음성
-	"fight": [["voiceover-pack-fighter/fight"], -6.0],
-	"win": [["voiceover-pack/Male/you_win"], -2.0],
-	"lose": [["voiceover-pack/Male/you_lose"], -2.0],
-	"level_up": [["voiceover-pack/Male/level_up"], -2.0],
+	# 전투 시작·끝 (예전 음성 "FIGHT", "YOU WIN"은 어색해서 효과음으로 바꿈, 2026-11-28)
+	"fight": [["rpg-audio/drawKnife2"], -2.0],
+	"win": [["interface-sounds/confirmation_002"], -2.0],
+	"lose": [["interface-sounds/error_006"], -4.0],
+	"level_up": [["interface-sounds/maximize_008"], -2.0],
 }
 
 static var _streams := {}

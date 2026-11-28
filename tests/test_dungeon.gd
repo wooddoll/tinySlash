@@ -383,14 +383,15 @@ func test_fog_visible_cells() -> void:
 	const DV = preload("res://scripts/dungeon_view.gd")
 	var d := DungeonGenerator.generate(params(DungeonParams.Algorithm.BSP, 4))
 	var r: Dictionary = d.rooms[d.start_room]
-	eq(DV.visible_from(d, r.center).size(), (r.cells as Array).size(), "room shows whole room")
+	var rv := DV.visible_from(d, r.center)
+	check((r.cells as Array).all(func(c: Vector2i) -> bool: return rv.has(c)), "room shows whole room")
 	for c in d.flood(d.start).dist:
 		if d.room_at(c) == -1:
 			var v := DV.visible_from(d, c)
 			check(v.has(c), "corridor sees itself")
 			for n in v:
 				check(d.is_floor(n), "only floor cells")
-				check(maxi(absi(n.x - c.x), absi(n.y - c.y)) <= 3, "within 3 steps")
+				check(maxi(absi(n.x - c.x), absi(n.y - c.y)) <= DV.SIGHT, "within SIGHT steps")
 			break
 
 
