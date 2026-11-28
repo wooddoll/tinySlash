@@ -1,6 +1,6 @@
 # TODO
 
-규칙은 [rules.md](rules.md), 구현 상태는 [implementation.md](implementation.md)에 있습니다.
+기획(무엇을 어떤 순서로)은 [design.md](design.md), 규칙은 [rules.md](rules.md), 구현 상태는 [implementation.md](implementation.md)에 있습니다.
 
 ## 0. 다음에 할 만한 것 (우선순위)
 1. 액션 전투 손맛: 직접 해 보고 조정 (2026-11-27 시뮬레이션으로 기본 균형은 맞춤 — 몬스터 준비 중 버티기, 구르기 끊기·입력 기억, 길 찾기, 동료 회복, 전투 카메라). 남은 것: 싸움이 2~3초로 짧음(몬스터 HP는 D&D 그대로), 타격감(멈칫·소리)

@@ -6,7 +6,7 @@ Godot 4.7로 만드는 2.5D 아이소메트릭 턴제 전술 RPG 프로토타입
 - `scenes/battle.tscn` 격자 턴제 전투
 - `scenes/dungeon.tscn` 파라미터 기반 던전 생성기
 - `rules/` 화면과 분리된 규칙 엔진
-- 문서: [규칙](docs/rules.md) · [구현](docs/implementation.md) · [TODO](docs/todo.md)
+- 문서: [기획](docs/design.md) · [규칙](docs/rules.md) · [구현](docs/implementation.md) · [TODO](docs/todo.md)
 
 실행 (Windows): `run.bat` 더블클릭. `run.bat edit` 편집기, `run.bat test` 테스트, `run.bat import` 에셋 새로 설치한 뒤 한 번.
 Godot는 이 폴더 옆 `..\Godot_v4.7.2-stable_win64.exe\` 에 있다고 보고, 다르면 `GODOT` 환경 변수로 지정합니다.
