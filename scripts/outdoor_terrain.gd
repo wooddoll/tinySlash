@@ -24,7 +24,7 @@ const FOLIAGE := [
 	[["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], 260, -1.0, Vector2(0.6, 1.6), 0.0],
 	[["Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Common_Short", "Grass_Common_Tall", "Clover_1"], 6000, -0.35, Vector2(0.4, 0.7), 0.8],
 	# 바람에 흔들리는 풀 덤불 (EmacEArt Stylized Grass, tools/install_emace_grass.sh). 없으면 건너뜀
-	[["Grass_Wind"], 40000, -0.6, Vector2(0.35, 0.6), 0.78],
+	[["Grass_Wind"], 110000, -1.0, Vector2(0.35, 0.6), 0.78],
 ]
 const WIND_GRASS_MESH := "res://assets/emace_grass/Meshes/EA_Grass_Clump.mesh"
 const WIND_GRASS_MAT := "res://assets/emace_grass/Materials/EA_Grass_Green.tres"
