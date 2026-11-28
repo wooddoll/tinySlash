@@ -28,7 +28,7 @@
   ],
   "xp": 450,
   "cr": 2,
-  "model": "kaykit/Skeleton_Warrior",
+  "model": "dark/skeleton",
   "weapon_model": "Skeleton_Blade+Skeleton_Shield_Large_A",
   "scale": 1.15,
   "tint": [

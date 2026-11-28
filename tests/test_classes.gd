@@ -824,7 +824,7 @@ func test_wild_shape() -> void:
 	check(not Catalog.druid(2).spells.is_empty(), "base sheet untouched")
 	ClassFeatures.on_incapacitated(cb, d)
 	check(d.true_stats == null, "reverts when incapacitated")
-	eq(d.stats.model, "kaykit/Mage", "back to druid")
+	eq(d.stats.model, "qhero/druid", "back to druid")
 
 
 func test_wild_shape_short_rest() -> void:

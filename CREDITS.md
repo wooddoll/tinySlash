@@ -59,6 +59,15 @@ Medieval Village MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset
 dungeon floor (world-space triplanar, so cell borders do not show) replace the KayKit walls and floor tiles; its stone columns, stairs, fence and brick rubble, plus
 Fantasy Props MegaKit crates, barrels, chests, torches, lanterns, banners and candles, replace the other KayKit room props.
 
+Universal Base Characters and Modular Character Outfits - Fantasy (Standard) by Quaternius, CC0 1.0,
+from itch.io (quaternius.itch.io). Baked by `tools/bake_heroes.gd` into `assets/quaternius/heroes/`:
+the base body's head and hairstyles are put on the Ranger and Peasant outfits for the cleric, barbarian,
+rogue, monk, ranger, bard, druid and villager models (replacing the KayKit adventurers), animated with
+the Universal Animation Library and Explosive RPG clips.
+
+Bestiary - Dungeon Monsters Kit (Standard) by Quaternius, Quaternius Asset License (QAL) v1.0, from
+itch.io. Downloaded for later monster work; not used yet.
+
 The Eightfold Archive (Hadal: Drowned Bellwarden, Hadal Cantor, Ossuary Regent) by Bento Models,
 from Fab (check the listing's license terms before any release). LOD2 meshes with 512 px textures and
 renamed clips are baked into `assets/dark/<bellwarden|cantor|regent>/` by `tools/bake_boss.gd`.

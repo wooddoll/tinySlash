@@ -4,6 +4,7 @@
 ##   "quaternius/orc"         Quaternius 몬스터 (assets/quaternius/monsters, CC0)
 ##   "animals/wolf"           Quaternius 동물 (assets/quaternius/animals, CC0)
 ##   끝에 "*3"을 붙이면 작은 몸 셋을 한 칸에 모아 세웁니다 (떼: "animals/rat*3")
+##   "qhero/ranger"           Quaternius 옷+기본 몸 (tools/bake_heroes.gd, assets/quaternius/heroes)
 ##   "dark/knight"            다크 판타지 (Fab Bento Pack을 tools/bake_dark.gd로 줄인 것, assets/dark)
 ##   "mini-characters/..."    Kenney 모델 (옛 캐릭터 이름은 ALIASES로 새 모델에 연결)
 ## 무기: Kenney는 "팩/이름" 하나를 오른팔에 붙입니다.
@@ -17,6 +18,8 @@ const KAYKIT_ITEM := "res://assets/kaykit/items/%s.gltf"
 const QUATERNIUS := "res://assets/quaternius/monsters/%s.glb"
 const ANIMALS := "res://assets/quaternius/animals/%s.glb"
 const DARK := "res://assets/dark/%s/%s.scn"
+## Quaternius 옷+기본 몸 캐릭터 (tools/bake_heroes.gd)
+const QHERO := "res://assets/quaternius/heroes/%s/%s.scn"
 ## 떼의 몸들 자리 (칸 안, 월드 유닛)
 ## 나는 떼의 몸마다 더하는 높이 (월드 유닛). 같은 높이로 붙어 다니지 않게
 const SWARM_LIFT := [0.14, -0.1, 0.24, 0.02, -0.14]
@@ -46,24 +49,34 @@ const RAW_HEIGHT := {
 }
 ## 옛 Kenney 캐릭터 이름 → 새 모델 (예전 시나리오 팩도 그대로 돌아가게)
 const ALIASES := {
-	"mini-characters/character-knight": "kaykit/Knight",
-	"mini-characters/character-female-a": "kaykit/Rogue",
-	"mini-characters/character-female-b": "kaykit/Mage",
-	"mini-characters/character-female-c": "kaykit/Rogue_Hooded",
-	"mini-characters/character-female-d": "kaykit/Rogue",
-	"mini-characters/character-female-e": "kaykit/Rogue_Hooded",
-	"mini-characters/character-female-f": "kaykit/Mage",
-	"mini-characters/character-male-a": "kaykit/Barbarian",
-	"mini-characters/character-male-b": "kaykit/Barbarian",
-	"mini-characters/character-male-c": "kaykit/Barbarian",
-	"mini-characters/character-male-d": "kaykit/Rogue_Hooded",
-	"mini-characters/character-male-e": "kaykit/Barbarian",
-	"mini-characters/character-male-f": "kaykit/Barbarian",
-	"mini-characters/character-worker": "kaykit/Barbarian",
-	"mini-characters/character-raider": "kaykit/Rogue_Hooded",
+	"mini-characters/character-knight": "qhero/ranger",
+	"mini-characters/character-female-a": "qhero/villager_f",
+	"mini-characters/character-female-b": "qhero/cleric",
+	"mini-characters/character-female-c": "qhero/rogue",
+	"mini-characters/character-female-d": "qhero/villager_f",
+	"mini-characters/character-female-e": "qhero/bard",
+	"mini-characters/character-female-f": "qhero/villager_f",
+	"mini-characters/character-male-a": "qhero/villager_m",
+	"mini-characters/character-male-b": "qhero/barbarian",
+	"mini-characters/character-male-c": "qhero/villager_m",
+	"mini-characters/character-male-d": "qhero/rogue",
+	"mini-characters/character-male-e": "qhero/monk",
+	"mini-characters/character-male-f": "qhero/druid",
+	"mini-characters/character-worker": "qhero/villager_m",
+	"mini-characters/character-raider": "qhero/rogue",
 	"mini-characters/character-zombie": "quaternius/zombie",
 	"mini-dungeon/character-orc": "quaternius/orc",
-	"mini-dungeon/character-human": "kaykit/Knight",
+	"mini-dungeon/character-human": "qhero/ranger",
+	# 예전 KayKit 모험가 (저장 파일·시나리오 팩이 아직 가리킬 수 있음)
+	"kaykit/Knight": "qhero/ranger",
+	"kaykit/Barbarian": "qhero/barbarian",
+	"kaykit/Mage": "qhero/cleric",
+	"kaykit/Rogue": "qhero/rogue",
+	"kaykit/Rogue_Hooded": "qhero/rogue",
+	"kaykit/Skeleton_Warrior": "dark/skeleton",
+	"kaykit/Skeleton_Minion": "dark/skeleton",
+	"kaykit/Skeleton_Rogue": "dark/skeleton",
+	"kaykit/Skeleton_Mage": "dark/skeleton",
 }
 ## 엔진이 부르는 동작 이름 → 팩마다 다른 실제 이름 후보 (앞에서부터 있는 것)
 ## Quaternius 이름은 "CharacterArmature|Idle"처럼 뼈대 이름이 앞에 붙어 있어 끝부분으로 찾습니다
@@ -118,13 +131,14 @@ func setup(path: String, size := 1.0, weapon := "") -> void:
 		copies = clampi(int(path.get_slice("*", 1)), 1, SWARM_SPOTS.size())
 		path = path.get_slice("*", 0)
 	var parts := path.split("/")
-	var kenney := not parts[0] in ["kaykit", "quaternius", "animals", "dark"]
+	var kenney := not parts[0] in ["kaykit", "quaternius", "animals", "dark", "qhero"]
 	var scene: PackedScene = null
 	match parts[0]:
 		"kaykit": scene = load(KAYKIT % parts[1])
 		"quaternius": scene = load(QUATERNIUS % parts[1])
 		"animals": scene = load(ANIMALS % parts[1])
 		"dark": scene = load(DARK % [parts[1], parts[1]])
+		"qhero": scene = load(QHERO % [parts[1], parts[1]])
 	if scene:
 		model = scene.instantiate() as Node3D
 	else:
