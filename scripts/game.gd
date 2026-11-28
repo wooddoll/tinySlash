@@ -12,6 +12,7 @@ const VERSION := 1
 const START_GOLD := 30
 const DUNGEON_VIEW := "res://scripts/dungeon_view.gd"
 const Quests = preload("res://rules/quests.gd")
+const Region = preload("res://rules/region.gd")
 
 ## 바깥 세상 시드 (0이면 다음에 바깥으로 나갈 때 새로 정함)
 static var world_seed := 0
@@ -27,8 +28,16 @@ static var place := "outside"
 static var outside_pos := Vector3.INF
 ## 이번에 불러온 바깥 자리를 main.gd가 한 번 쓰고 비움
 static var _load_pos := Vector3.INF
-## 날짜 (하루 단위, 여관·쉼터에서 자면 하루가 감)
+## 날짜와 시각 (M5): day일째 minute분 (0~1439). 바깥에서는 실제 1초에 1분씩 흐르고, 자거나 빠른 이동하면 훌쩍 지남
 static var day := 1
+static var minute := 8 * 60
+## 지금 있는 지방 칸 (rules/region.gd, 마을 칸이 (1, 1)), 들어가 있는 던전 번호
+static var tile := Vector2i(1, 1)
+static var dungeon_id := 0
+## 칸을 넘거나 빠른 이동해서 도착할 자리 (x, z). "entrance"면 그 칸 던전 입구 앞. main.gd가 한 번 쓰고 비움
+static var arrival = null
+static var _region = null
+static var _region_seed := -1
 ## 받은 의뢰들 (rules/quests.gd 사전), 의뢰판에 붙은 의뢰와 그 날짜, 다음 의뢰 번호
 static var quests: Array = []
 static var board: Array = []
@@ -53,6 +62,11 @@ static func new_game() -> void:
 	outside_pos = Vector3.INF
 	_load_pos = Vector3.INF
 	day = 1
+	minute = 8 * 60
+	tile = Region.VILLAGE
+	dungeon_id = 0
+	arrival = null
+	_region = null
 	quests = []
 	board = []
 	board_day = 0
@@ -87,6 +101,9 @@ static func snapshot() -> Dictionary:
 		"outside_pos": outside_pos,
 		"party_classes": HeroState.party_classes.duplicate(),
 		"day": day,
+		"minute": minute,
+		"tile": [tile.x, tile.y],
+		"dungeon_id": dungeon_id,
 		"quests": quests.duplicate(true),
 		"board": board.duplicate(true),
 		"board_day": board_day,
@@ -106,10 +123,28 @@ static func restore(d: Dictionary) -> String:
 	outside_pos = d.get("outside_pos", Vector3.INF)
 	saved_at = int(d.get("saved_at", 0))
 	day = int(d.get("day", 1))
+	minute = int(d.get("minute", 8 * 60))
+	var tl: Array = d.get("tile", [])
+	dungeon_id = int(d.get("dungeon_id", 0))
+	_region = null
+	arrival = null
 	quests = (d.get("quests", []) as Array).duplicate(true)
 	board = (d.get("board", []) as Array).duplicate(true)
 	board_day = int(d.get("board_day", 0))
 	next_uid = int(d.get("next_uid", 1))
+	if tl.size() == 2:
+		tile = Vector2i(int(tl[0]), int(tl[1]))
+	else:
+		# 지방 지도(M5) 전 저장: 모두 마을 칸에서 있던 일. 무리 번호에 칸 앞자리를 붙임
+		tile = Region.VILLAGE
+		var base := Region.index(Region.VILLAGE) * 100
+		var nd := {}
+		for k in defeated:
+			nd[int(k) + base if int(k) < 100 else int(k)] = true
+		defeated = nd
+		for q in quests + board:
+			if q.get("kind", "") == "group" and int(q.target) < 100:
+				q.target = int(q.target) + base
 	if d.has("party_classes"):
 		HeroState.party_classes = (d.party_classes as Array).duplicate()
 	var dv = load(DUNGEON_VIEW)
@@ -159,10 +194,39 @@ static func take_load_pos() -> Vector3:
 	return p
 
 
-## 하루가 지남. 기한을 넘긴 의뢰들을 돌려줌
+## 시간이 흐름 (분). 날이 바뀌면 기한을 넘긴 의뢰들을 돌려줌
+static func advance_minutes(m: int) -> Array:
+	var failed := []
+	minute += maxi(m, 0)
+	while minute >= 1440:
+		minute -= 1440
+		day += 1
+		failed.append_array(Quests.tick(quests, day))
+	return failed
+
+
+## 다음 hour시까지 잠 (여관, 바깥에서 쓰러짐)
+static func sleep_until(hour: int) -> Array:
+	var target := hour * 60
+	return advance_minutes(target - minute if minute < target else 1440 - minute + target)
+
+
+## 하루가 지남 (24시간)
 static func advance_day() -> Array:
-	day += 1
-	return Quests.tick(quests, day)
+	return advance_minutes(1440)
+
+
+## "3일째 14:05"
+static func time_text() -> String:
+	return "%d일째 %02d:%02d" % [day, minute / 60, minute % 60]
+
+
+## 이 세계의 지방 (세계 시드로 정해짐)
+static func region():
+	if _region == null or _region_seed != world_seed:
+		_region = Region.generate(world_seed)
+		_region_seed = world_seed
+	return _region
 
 
 ## 의뢰판: 날이 바뀌었으면 새로 붙임 (받은 것과 겹치지 않게)

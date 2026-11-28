@@ -21,17 +21,19 @@ const TEMPLATES := [
 	{"id": "escort_road", "kind": "group", "title": "길목의 {foe}",
 		"text": "장사꾼 수레가 {dir}쪽 길목에서 {foe} 무리에게 쫓겨 돌아왔습니다. 길을 다시 열어 주세요.",
 		"giver": "잡화점 주인", "gold": [35, 55], "xp": [40, 70], "days": [2, 4]},
-	{"id": "boss", "kind": "boss", "title": "던전 {floor}층의 우두머리",
-		"text": "{dir}쪽 언덕 던전의 {floor}층 출구를 무언가 강한 것이 지키고 있다는 소문입니다. 그것을 쓰러뜨리면 조합이 사례합니다.",
+	{"id": "boss", "kind": "boss", "title": "{dungeon} {floor}층의 우두머리",
+		"text": "{where} {dungeon} {floor}층 출구를 무언가 강한 것이 지키고 있다는 소문입니다. 그것을 쓰러뜨리면 조합이 사례합니다.",
 		"giver": "모험가 조합", "gold": [70, 110], "xp": [90, 150], "days": [3, 5]},
 	{"id": "fetch", "kind": "fetch", "title": "잃어버린 {item}",
-		"text": "던전에 들어갔다 돌아오지 못한 동료가 {item}을(를) 지니고 있었습니다. {floor}층 어딘가에 떨어져 있을 겁니다. 찾아 주세요.",
+		"text": "{where} {dungeon}에 들어갔다 돌아오지 못한 동료가 {item}을(를) 지니고 있었습니다. {floor}층 어딘가에 떨어져 있을 겁니다. 찾아 주세요.",
 		"giver": "여관 주인", "gold": [50, 80], "xp": [60, 100], "days": [3, 5],
 		"items": ["은 목걸이", "가문 인장 반지", "낡은 기도서", "약초상의 장부", "청동 열쇠"]},
 ]
 
 
-## 의뢰판에 붙일 의뢰들. world: {groups: [{id, label, home: Vector2}], entrance: Vector2, max_floor, day}
+## 의뢰판에 붙일 의뢰들. world: {groups: [{id, label, home: Vector2}], max_floor, day,
+##   dungeons: [{id, name, tile (칸 이름), dir (마을에서 본 방향, 마을 칸이면 "이곳"), hours (마을에서 빠른 이동 시간)}]}
+## 던전 의뢰의 기한 = 1일(던전 안) + 왕복 여행 시간 × 2.5 (기획 12.2), 적어도 템플릿의 최소 일수
 ## taken: 이미 받은(진행 중) 의뢰들 — 같은 무리를 두 번 겨냥하지 않음
 static func offers(seed_value: int, world: Dictionary, taken: Array, next_uid: int) -> Array:
 	var rng := RandomNumberGenerator.new()
@@ -43,7 +45,7 @@ static func offers(seed_value: int, world: Dictionary, taken: Array, next_uid: i
 			if q.kind == "group":
 				busy_groups[int(q.target)] = true
 			else:
-				busy_floor["%s%d" % [q.kind, int(q.floor)]] = true
+				busy_floor["%s%d:%d" % [q.kind, int(q.get("dungeon", 0)), int(q.floor)]] = true
 	var groups: Array = (world.get("groups", []) as Array).filter(func(g) -> bool: return not busy_groups.has(int(g.id)))
 	var out := []
 	var tries := 0
@@ -63,17 +65,24 @@ static func offers(seed_value: int, world: Dictionary, taken: Array, next_uid: i
 				var home: Vector2 = g.home
 				fill = {"foe": g.label, "dir": compass(home), "dist": roundi(home.length() / 5.0) * 5}
 			"boss", "fetch":
+				var dgs: Array = world.get("dungeons", [])
+				if dgs.is_empty():
+					continue
+				var dg: Dictionary = dgs[rng.randi() % dgs.size()]
 				var f := rng.randi_range(1, maxi(1, int(world.get("max_floor", 2))))
-				var key := "%s%d" % [t.kind, f]
-				if busy_floor.has(key) or out.any(func(o) -> bool: return o.kind == t.kind and int(o.floor) == f):
+				var key := "%s%d:%d" % [t.kind, int(dg.id), f]
+				if busy_floor.has(key) or out.any(func(o) -> bool: return o.kind == t.kind and int(o.get("dungeon", 0)) == int(dg.id) and int(o.floor) == f):
 					continue
 				q.floor = f
-				var e: Vector2 = world.get("entrance", Vector2(-1, -1))
-				fill = {"floor": f, "dir": compass(e)}
+				q["dungeon"] = int(dg.id)
+				fill = {"floor": f, "dungeon": str(dg.name),
+					"where": "마을 근처" if str(dg.dir) == "이곳" else "%s쪽 %s의" % [dg.dir, dg.tile]}
+				q["travel_days"] = 1 + ceili(float(dg.get("hours", 0.0)) * 2.0 * 2.5 / 24.0)
 				if t.has("items"):
 					q.item = str(t.items[rng.randi() % t.items.size()])
 					fill["item"] = q.item
-		var days := rng.randi_range(int(t.days[0]), int(t.days[1]))
+		var days := maxi(rng.randi_range(int(t.days[0]), int(t.days[1])), int(q.get("travel_days", 0)))
+		q.erase("travel_days")
 		fill["days"] = days
 		q["days"] = days
 		q.title = _fill(str(t.title), fill)
@@ -101,18 +110,19 @@ static func on_group_defeated(quests: Array, group: int) -> Array:
 	return _complete(quests, func(q) -> bool: return q.kind == "group" and int(q.target) == group)
 
 
-static func on_boss(quests: Array, floor_no: int) -> Array:
-	return _complete(quests, func(q) -> bool: return q.kind == "boss" and int(q.floor) == floor_no)
+## dungeon: 던전 번호 (rules/region.gd). 지방 지도 전 의뢰는 0번(마을 칸 던전)
+static func on_boss(quests: Array, dungeon: int, floor_no: int) -> Array:
+	return _complete(quests, func(q) -> bool: return q.kind == "boss" and int(q.get("dungeon", 0)) == dungeon and int(q.floor) == floor_no)
 
 
-static func on_item(quests: Array, floor_no: int) -> Array:
-	return _complete(quests, func(q) -> bool: return q.kind == "fetch" and int(q.floor) == floor_no)
+static func on_item(quests: Array, dungeon: int, floor_no: int) -> Array:
+	return _complete(quests, func(q) -> bool: return q.kind == "fetch" and int(q.get("dungeon", 0)) == dungeon and int(q.floor) == floor_no)
 
 
-## 이 층에 놓아야 할 의뢰 물건 (찾을 것이 없으면 빈 사전)
-static func item_on_floor(quests: Array, floor_no: int) -> Dictionary:
+## 이 던전 이 층에 놓아야 할 의뢰 물건 (찾을 것이 없으면 빈 사전)
+static func item_on_floor(quests: Array, dungeon: int, floor_no: int) -> Dictionary:
 	for q in quests:
-		if q.state == "active" and q.kind == "fetch" and int(q.floor) == floor_no:
+		if q.state == "active" and q.kind == "fetch" and int(q.get("dungeon", 0)) == dungeon and int(q.floor) == floor_no:
 			return q
 	return {}
 

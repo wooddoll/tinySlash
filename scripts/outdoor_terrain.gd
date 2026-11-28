@@ -51,6 +51,8 @@ var _obstacles: StaticBody3D = null
 var solids: Array[Vector3] = []
 ## 마을 건물 자리 (Callable(p: Vector2, pad: float) -> bool). generate 전에 넣으면 그 자리엔 풀·나무를 두지 않고, 전투 격자에서 막힘
 var keep_out: Callable
+## 이 칸 가운데의 세계 좌표 (숲 노이즈를 칸 너머로 잇는 데 씀)
+var _noise_off := Vector2.ZERO
 ## 이 모델들(이름 앞부분)에는 충돌체를 붙임: [앞부분, 반지름(크기 1일 때)]
 const SOLID := [["CommonTree_", 0.22], ["Pine_", 0.25], ["TwistedTree_", 0.22], ["DeadTree_", 0.2], ["Rock_Medium_", 0.5]]
 
@@ -75,7 +77,17 @@ static func entrance_dir(seed_value: int) -> Vector2:
 	return Vector2(cos(ang), sin(ang))
 
 
-func generate(seed_value: int) -> bool:
+## opts (지방 지도, M5. 없으면 예전처럼 마을 칸 하나):
+##   noise_seed  지형 높이 노이즈 시드 (지방 전체가 같은 값이라 칸 경계에서 땅이 맞물림, 기본 seed_value)
+##   offset      이 칸 가운데의 세계 좌표 (Region.offset)
+##   village     가운데 빈터(마을 자리)와 입구까지 돌길 (기본 true)
+##   entrance    던전 입구 (기본 true)
+##   closed      막힌 쪽 {"w","e","n","s": bool} — 지방 끝은 땅을 높여 막음 (기본 모두 막힘)
+var village := true
+var has_entrance := true
+
+
+func generate(seed_value: int, opts: Dictionary = {}) -> bool:
 	if not available():
 		push_warning("Terrain3D가 설치되지 않음 (tools/install_terrain3d.sh)")
 		return false
@@ -87,8 +99,13 @@ func generate(seed_value: int) -> bool:
 	_setup_material()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
+	village = bool(opts.get("village", true))
+	has_entrance = bool(opts.get("entrance", true))
+	var off: Vector2 = opts.get("offset", Vector2.ZERO)
+	var closed: Dictionary = opts.get("closed", {"w": true, "e": true, "n": true, "s": true})
+	_noise_off = off
 	var hills := FastNoiseLite.new()
-	hills.seed = seed_value
+	hills.seed = int(opts.get("noise_seed", seed_value))
 	hills.frequency = 0.012
 	hills.fractal_octaves = 4
 	var img := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF)
@@ -102,34 +119,51 @@ func generate(seed_value: int) -> bool:
 	# 그래야 문이 카메라 쪽을 보고 뒤 둔덕에 가려지지 않음. 그 자리의 원래 높이로 터를 고르고, 빈터까지 비탈길
 	var ang := deg_to_rad(225.0 + rng.randf_range(-35.0, 35.0))
 	var e2 := Vector2(cos(ang), sin(ang)) * ENTRANCE_DIST
-	var e_h := (hills.get_noise_2d(e2.x, e2.y) * 0.5 + 0.5) * HILL
-	var c_h := _clearing_height(hills)
 	var face := Vector3(-e2.x, 0, -e2.y).normalized()
+	if not village:
+		# 마을이 없는 칸: 가운데에서 25~55칸 떨어진 아무 데나, 문은 카메라 쪽(+X+Z)을 봄
+		var a2 := rng.randf() * TAU
+		e2 = Vector2(cos(a2), sin(a2)) * rng.randf_range(25.0, 55.0)
+		var fa := deg_to_rad(45.0 + rng.randf_range(-35.0, 35.0))
+		face = Vector3(cos(fa), 0, sin(fa))
+	var e_h := (hills.get_noise_2d(e2.x + off.x, e2.y + off.y) * 0.5 + 0.5) * HILL
+	var c_h := (hills.get_noise_2d(off.x, off.y) * 0.5 + 0.5) * HILL
 	var f2 := Vector2(face.x, face.z)
 	entrance = Transform3D(Basis.looking_at(-face, Vector3.UP), Vector3(e2.x, e_h, e2.y))
 	for y in SIZE:
 		for x in SIZE:
 			var wx := x - half
 			var wz := y - half
-			var h := (hills.get_noise_2d(wx, wz) * 0.5 + 0.5) * HILL
-			# 가운데 빈터는 평평하게 (가장자리로 갈수록 원래 높이)
-			var d := Vector2(wx, wz).length()
-			var t := smoothstep(CLEARING, CLEARING * 2.2, d)
-			h = lerpf(c_h, h, t)
-			# 입구 앞 터
-			var de := Vector2(wx, wz).distance_to(e2)
-			h = lerpf(e_h, h, smoothstep(PAD, PAD * 2.0, de))
-			# 빈터 → 입구 길: 길 위는 두 높이 사이 비탈
-			var along := clampf(Vector2(wx, wz).dot(e2) / e2.length_squared(), 0.0, 1.0)
-			var off := Vector2(wx, wz).distance_to(e2 * along)
-			h = lerpf(lerpf(c_h, e_h, smoothstep(0.3, 0.9, along)), h, smoothstep(PATH_W, PATH_W * 3.0, off))
-			# 입구 뒤 둔덕: 문이 비탈에 박힌 것처럼 (뒤로 갈수록 솟았다가 다시 낮아짐)
-			var rel := Vector2(wx, wz) - e2
-			var back := rel.dot(-f2)
-			var lat := absf(rel.dot(Vector2(-f2.y, f2.x)))
-			h += MOUND * smoothstep(0.9, 3.0, back) * (1.0 - smoothstep(6.0, 14.0, back)) * (1.0 - smoothstep(3.0, 9.0, lat))
-			# 지도 끝은 높여 막힌 느낌
-			var edge := maxf(absf(wx), absf(wz)) / half
+			var h := (hills.get_noise_2d(wx + off.x, wz + off.y) * 0.5 + 0.5) * HILL
+			if village:
+				# 가운데 빈터는 평평하게 (가장자리로 갈수록 원래 높이)
+				var d := Vector2(wx, wz).length()
+				var t := smoothstep(CLEARING, CLEARING * 2.2, d)
+				h = lerpf(c_h, h, t)
+			if has_entrance:
+				# 입구 앞 터
+				var de := Vector2(wx, wz).distance_to(e2)
+				h = lerpf(e_h, h, smoothstep(PAD, PAD * 2.0, de))
+				if village:
+					# 빈터 → 입구 길: 길 위는 두 높이 사이 비탈
+					var along := clampf(Vector2(wx, wz).dot(e2) / e2.length_squared(), 0.0, 1.0)
+					var pd := Vector2(wx, wz).distance_to(e2 * along)
+					h = lerpf(lerpf(c_h, e_h, smoothstep(0.3, 0.9, along)), h, smoothstep(PATH_W, PATH_W * 3.0, pd))
+				# 입구 뒤 둔덕: 문이 비탈에 박힌 것처럼 (뒤로 갈수록 솟았다가 다시 낮아짐)
+				var rel := Vector2(wx, wz) - e2
+				var back := rel.dot(-f2)
+				var lat := absf(rel.dot(Vector2(-f2.y, f2.x)))
+				h += MOUND * smoothstep(0.9, 3.0, back) * (1.0 - smoothstep(6.0, 14.0, back)) * (1.0 - smoothstep(3.0, 9.0, lat))
+			# 지방 끝(막힌 쪽)은 높여 막힌 느낌. 이웃 칸이 있는 쪽은 그대로 이어짐
+			var edge := 0.0
+			if closed.get("w", true):
+				edge = maxf(edge, -wx / half)
+			if closed.get("e", true):
+				edge = maxf(edge, wx / half)
+			if closed.get("n", true):
+				edge = maxf(edge, -wz / half)
+			if closed.get("s", true):
+				edge = maxf(edge, wz / half)
 			h += smoothstep(0.8, 1.0, edge) * HILL * 1.5
 			img.set_pixel(x, y, Color(h, 0, 0, 1))
 	terrain.data.import_images([img, ctl, null], Vector3(-half, 0, -half), 0.0, 1.0)
@@ -138,9 +172,11 @@ func generate(seed_value: int) -> bool:
 	_obstacles = StaticBody3D.new()
 	_obstacles.name = "Obstacles"
 	add_child(_obstacles)
-	_scatter(rng, seed_value)
-	_path_stones(rng, e2)
-	_build_entrance()
+	_scatter(rng, int(opts.get("noise_seed", seed_value)))
+	if village and has_entrance:
+		_path_stones(rng, e2)
+	if has_entrance:
+		_build_entrance()
 	return true
 
 
@@ -215,7 +251,7 @@ func _wind_grass_scene() -> PackedScene:
 ## 숲 노이즈가 높은 곳에 나무, 경사가 급하면 바위만
 func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 	var forest := FastNoiseLite.new()
-	forest.seed = seed_value + 17
+	forest.seed = seed_value + 17  # 지방 전체가 같은 숲 노이즈 (칸을 넘어 이어짐)
 	forest.frequency = 0.02
 	var lim := SIZE / 2.0 - 4.0
 	for layer in FOLIAGE:
@@ -226,13 +262,13 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 			var d := Vector2(p.x, p.z).length()
 			var is_grass: bool = String(models[0]).begins_with("Grass")
 			# 빈터: 풀만 (가운데는 비움)
-			if d < CLEARING * (0.5 if is_grass else 1.3):
+			if village and d < CLEARING * (0.5 if is_grass else 1.3):
 				continue
 			if (not is_grass or models[0] == "Grass_Wind") and _near_path(Vector2(p.x, p.z)):
 				continue
 			if keep_out.is_valid() and keep_out.call(Vector2(p.x, p.z), 0.4 if is_grass else 1.5):
 				continue
-			if forest.get_noise_2d(p.x, p.z) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
+			if forest.get_noise_2d(p.x + _noise_off.x, p.z + _noise_off.y) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
 				continue
 			var n: Vector3 = terrain.data.get_normal(p)
 			if not n.is_finite() or n.y < float(layer[4]):
@@ -271,9 +307,13 @@ func _add_obstacle(model: String, p: Vector3, s: float) -> void:
 
 ## 입구 터나 길 위인가 (큰 식생을 두지 않음)
 func _near_path(p: Vector2) -> bool:
+	if not has_entrance:
+		return false
 	var e2 := Vector2(entrance.origin.x, entrance.origin.z)
 	if p.distance_to(e2) < PAD * 1.6:
 		return true
+	if not village:
+		return false
 	var along := clampf(p.dot(e2) / e2.length_squared(), 0.0, 1.0)
 	return p.distance_to(e2 * along) < PATH_W * 2.0
 

@@ -31,6 +31,10 @@ static var cleared := {}
 static var exploring := false
 ## 바깥 지형의 던전 입구로 들어왔을 때 그 던전 시드 (0이 아니면 그 던전에서 바로 탐험을 시작)
 static var enter_seed := 0
+## 바깥 입구로 들어올 때 그 던전의 몬스터 주제·생성 방식·이름 (rules/region.gd, M5)
+static var enter_theme := "mixed"
+static var enter_algorithm := 0
+static var enter_name := ""
 ## 바깥에서 들어온 탐험인가, 그리고 들어온 층 (그 층 시작 칸이 바깥으로 나가는 출구)
 static var from_outside := false
 static var entry_floor := 1
@@ -144,6 +148,8 @@ func _ready() -> void:
 		from_outside = true
 		saved = DungeonParams.new()
 		saved.rng_seed = enter_seed
+		saved.theme = enter_theme
+		saved.algorithm = enter_algorithm as DungeonParams.Algorithm
 		enter_seed = 0
 		exploring = false
 		cleared.clear()
@@ -156,7 +162,7 @@ func _ready() -> void:
 		retreat_cell = Vector2i(-1, -1)
 		floor_no = saved.floor_depth
 		entry_floor = floor_no
-		_pending_toast = "들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로"
+		_pending_toast = "%s — 들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로" % enter_name if enter_name != "" else "들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로"
 	if saved == null:
 		saved = DungeonParams.new()
 		saved.rng_seed = randi_range(1, 999999)
@@ -386,7 +392,7 @@ func _place_quest_item(d: Dungeon) -> void:
 	_quest_item_nodes.clear()
 	if not from_outside:
 		return
-	var q := Quests.item_on_floor(Game.quests, params.floor_depth)
+	var q := Quests.item_on_floor(Game.quests, Game.dungeon_id, params.floor_depth)
 	if q.is_empty():
 		return
 	var best := -1.0
@@ -427,7 +433,7 @@ func _place_quest_item(d: Dungeon) -> void:
 
 
 func _pick_quest_item() -> void:
-	var q := Quests.item_on_floor(Game.quests, floor_no)
+	var q := Quests.item_on_floor(Game.quests, Game.dungeon_id, floor_no)
 	quest_item_cell = Vector2i(-1, -1)
 	for n in _quest_item_nodes:
 		if is_instance_valid(n):
@@ -435,7 +441,7 @@ func _pick_quest_item() -> void:
 	_quest_item_nodes.clear()
 	if q.is_empty():
 		return
-	Quests.on_item(Game.quests, floor_no)
+	Quests.on_item(Game.quests, Game.dungeon_id, floor_no)
 	Sfx.play(self, "chest")
 	_toast("찾았어요: %s — 의뢰판에서 보상 받기" % q.item)
 	_autosave()
@@ -1137,7 +1143,7 @@ func _on_fight_over(xp: int) -> void:
 		if not r.encounter.is_empty() and not cleared.has(r.id) and action.ac.room_clear(r.id):
 			cleared[r.id] = true
 			if from_outside and r.encounter.get("boss", false):
-				for q in Quests.on_boss(Game.quests, floor_no):
+				for q in Quests.on_boss(Game.quests, Game.dungeon_id, floor_no):
 					news.append("의뢰 끝: %s — 의뢰판에서 보상 받기" % q.title)
 	if not news.is_empty():
 		get_tree().create_timer(2.5).timeout.connect(func() -> void: _toast("\n".join(news)))
@@ -1553,10 +1559,10 @@ func _long_rest() -> void:
 	for h in party():
 		h.long_rest()
 	rested_here = true
-	var failed := Game.advance_day()
+	var failed := Game.advance_minutes(8 * 60)
 	_write_save()
 	Sfx.play(self, "confirm")
-	_toast("긴 휴식 (%d일째): HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요%s" % [Game.day,
+	_toast("긴 휴식 (8시간, %d일째): HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요%s" % [Game.day,
 		"".join(failed.map(func(q): return "\n의뢰 실패: %s (기한 지남)" % q.title))])
 	_heroes_changed()
 

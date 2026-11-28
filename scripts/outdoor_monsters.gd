@@ -29,6 +29,8 @@ signal engaged(group: int)
 
 ## 무리마다 {id, foes, home, node, models, target, wait}
 var groups: Array = []
+## 마을 없는 칸은 어디나 센 무리 (지방 지도, M5)
+var far_everywhere := false
 ## 모든 무리 (물리친 것 포함): 번호 → {home, foes}
 var _all := {}
 var player: Node3D = null
@@ -38,7 +40,8 @@ var _rng := RandomNumberGenerator.new()
 var calm := 0.0
 
 
-func spawn(outdoor: Node3D, world_seed: int, defeated: Dictionary, who: Node3D) -> void:
+## world_seed: 이 칸의 시드, id_base: 무리 번호 앞자리 (지방 칸마다 Region.index × 100, 물리친 무리 기록이 칸끼리 겹치지 않게)
+func spawn(outdoor: Node3D, world_seed: int, defeated: Dictionary, who: Node3D, id_base := 0) -> void:
 	_outdoor = outdoor
 	player = who
 	_rng.seed = world_seed * 7919 + 13
@@ -58,12 +61,12 @@ func spawn(outdoor: Node3D, world_seed: int, defeated: Dictionary, who: Node3D) 
 		spots.append(p)
 	for i in spots.size():
 		var p := spots[i]
-		var far := p.length() > FAR
+		var far := far_everywhere or p.length() > FAR
 		var pool: Array = FAR_GROUPS if far else NEAR_GROUPS
 		var foes: Array = pool[_rng.randi() % pool.size()]
-		_all[i] = {"home": p, "foes": foes}
-		if not defeated.has(i):
-			_spawn_group(i)
+		_all[id_base + i] = {"home": p, "foes": foes}
+		if not defeated.has(id_base + i):
+			_spawn_group(id_base + i)
 
 
 ## 무리 하나를 제자리에 세움

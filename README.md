@@ -3,7 +3,7 @@
 Godot 4.7로 만드는 2.5D 쿼터뷰 실시간 액션 어드벤처 프로토타입입니다. 규칙은 SRD 5.2.1(CC-BY-4.0)을 바탕으로 했습니다.
 
 - `scenes/title.tscn` 시작 화면 (이어하기 / 새로 시작)
-- `scenes/main.tscn` 빈터 마을과 바깥 지형 탐험. G: 던전 생성기
+- `scenes/main.tscn` 빈터 마을과 3×3 지방 탐험. M: 지방 지도(빠른 이동), J: 의뢰 일지, G: 던전 생성기
 - `scenes/battle.tscn` 단독 전투 시험장 (B 키)
 - `scenes/dungeon.tscn` 파라미터 기반 던전 생성기
 - `rules/` 화면과 분리된 규칙 엔진

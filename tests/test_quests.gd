@@ -14,7 +14,9 @@ func check(cond: bool, msg: String) -> void:
 
 func _world(day := 1) -> Dictionary:
 	return {"groups": [{"id": 0, "label": "늑대", "home": Vector2(30, 10)}, {"id": 3, "label": "고블린 졸개", "home": Vector2(-40, -50)}],
-		"entrance": Vector2(-28, -28), "max_floor": 2, "day": day}
+		"dungeons": [{"id": 0, "name": "버려진 동굴", "tile": "바람 등성이", "dir": "이곳", "hours": 0.0},
+			{"id": 2, "name": "무너진 광산", "tile": "까마귀 언덕", "dir": "남동", "hours": 8.5}],
+		"max_floor": 2, "day": day}
 
 
 func test_offers_fill_slots() -> void:
@@ -33,6 +35,12 @@ func test_offers_fill_slots() -> void:
 				check(int(q.floor) >= 1 and int(q.floor) <= 2, "층 범위")
 			if q.kind == "fetch":
 				check(str(q.item) != "", "물건 이름")
+			if q.kind != "group":
+				check(int(q.dungeon) in [0, 2], "있는 던전을 겨냥")
+				if int(q.dungeon) == 2:
+					# 8.5시간 거리: 왕복 17시간 × 2.5 → 1 + 2 = 적어도 3일
+					check(int(q.days) >= 3, "먼 던전은 기한이 넉넉함")
+					check(str(q.text).contains("남동쪽 까마귀 언덕의"), "던전 위치가 글에 들어감: " + str(q.text))
 	check(Quests.offers(5, _world(1), [], 1) == Quests.offers(5, _world(1), [], 1), "같은 날 같은 의뢰판")
 
 
@@ -47,9 +55,9 @@ func test_progress_and_deadline() -> void:
 	check(g.deadline == 3, "기한 = 받은 날 + 일수")
 	check(Quests.on_group_defeated(qs, 0).is_empty(), "다른 무리는 무관")
 	check(Quests.on_group_defeated(qs, 3).size() == 1 and g.state == "done", "무리 처치")
-	check(Quests.on_boss(qs, 1).is_empty() and Quests.on_boss(qs, 2).size() == 1, "보스 층")
-	check(Quests.item_on_floor(qs, 1) == f, "1층에 물건")
-	check(Quests.item_on_floor(qs, 2).is_empty(), "2층엔 없음")
+	check(Quests.on_boss(qs, 2, 2).is_empty() and Quests.on_boss(qs, 0, 1).is_empty() and Quests.on_boss(qs, 0, 2).size() == 1, "보스 층")
+	check(Quests.item_on_floor(qs, 0, 1) == f and Quests.item_on_floor(qs, 2, 1).is_empty(), "1층에 물건")
+	check(Quests.item_on_floor(qs, 0, 2).is_empty(), "2층엔 없음")
 	# 같은 무리를 겨냥한 의뢰는 다시 안 붙음
 	var g2 := g.duplicate()
 	g2.state = "active"

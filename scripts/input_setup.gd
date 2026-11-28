@@ -26,6 +26,8 @@ const MAP := {
 	# 시나리오: 방 수색, 일지
 	"search": [KEY_R],
 	"journal": [KEY_J],
+	# 바깥: 지방 지도 (M5)
+	"map": [KEY_M],
 }
 
 ## 게임패드 버튼
@@ -43,6 +45,7 @@ const JOY := {
 	"back": [JOY_BUTTON_START],
 	"search": [JOY_BUTTON_DPAD_DOWN],
 	"journal": [JOY_BUTTON_BACK],
+	"map": [JOY_BUTTON_DPAD_LEFT],
 }
 ## Godot 기본 창 조작에 패드 버튼을 더함: A 확인, B 취소 (프로젝트 입력 맵에는 키만 있음)
 const UI_JOY := {"ui_accept": JOY_BUTTON_A, "ui_cancel": JOY_BUTTON_B}
