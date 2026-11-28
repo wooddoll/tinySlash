@@ -17,3 +17,4 @@ assets/quaternius/
 # Terrain3D 플러그인과 지형 텍스처 (tools/install_terrain3d.sh로 설치)
 addons/terrain_3d/
 assets/terrain/
+assets/emace_grass/

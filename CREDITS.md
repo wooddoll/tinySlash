@@ -104,6 +104,10 @@ Installed into `addons/terrain_3d/` (with its `LICENSE.txt`) by `tools/install_t
 Ground037 and Rock023 textures by ambientCG (ambientcg.com), CC0 1.0, taken from the Terrain3D demo
 into `assets/terrain/`.
 
+EmacEArt Stylized Grass (grass shader with wind) by EmacEArt (https://emaceart.itch.io), free on the Godot
+Asset Store under the EmacEArt Asset License (use in projects allowed, no redistribution of the assets).
+Installed into `assets/emace_grass/` by `tools/install_emace_grass.sh`; used for the grass on outdoor battle maps.
+
 ## Audio
 
 Interface Sounds, Impact Sounds, RPG Audio, UI Audio, Voiceover Pack,

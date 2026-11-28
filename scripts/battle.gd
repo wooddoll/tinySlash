@@ -141,8 +141,8 @@ func _outdoor_look() -> bool:
 
 const NATURE := "res://assets/quaternius/nature/%s.scn"
 const NATURE_PROPS := {
-	"T": [["CommonTree_1", "CommonTree_2", "CommonTree_3", "Pine_1", "Pine_2"], 0.6],
-	"#": [["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], 0.75],
+	"T": [["CommonTree_1", "CommonTree_2", "CommonTree_3", "Pine_1", "Pine_2"], 0.45],
+	"#": [["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], 0.6],
 	",": [["Bush_Common", "Fern_1", "Plant_1"], 0.8],
 }
 
@@ -154,6 +154,58 @@ func _nature_prop(parent: Node3D, ch: String, cell: Vector2i, top: Vector3) -> v
 	n.rotation.y = (cell.x * 5 + cell.y * 11) * 0.7
 	n.position = top
 	parent.add_child(n)
+
+
+const GROUND_TEX := "res://assets/terrain/ground037_alb_ht.png"
+const GRASS_MESH := "res://assets/emace_grass/Meshes/EA_Grass_Clump.mesh"
+const GRASS_MAT := "res://assets/emace_grass/Materials/EA_Grass_Green.tres"
+
+
+## 바깥 전투 바닥: 바깥 지형과 같은 풀 흙 텍스처(ambientCG)를 월드 좌표로 이어 붙임. 칸 구분은 아주 옅은 명암만
+func _outdoor_mats(mats: Dictionary) -> void:
+	if not ResourceLoader.exists(GROUND_TEX):
+		return
+	var tex: Texture2D = load(GROUND_TEX)
+	var tints := {"a": Color(0.72, 0.8, 0.62), "b": Color(0.67, 0.75, 0.58), "brush": Color(0.58, 0.66, 0.5), "dirt": Color(0.75, 0.7, 0.6)}
+	for key in tints:
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.albedo_color = tints[key]
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3.ONE * 0.15
+		m.roughness = 1.0
+		mats[key] = m
+
+
+## 바람에 흔들리는 풀 덤불(EmacEArt Stylized Grass)을 걸을 수 있는 칸마다 몇 개씩. 덤불 칸(,)은 더 빽빽하고 크게
+func _scatter_grass(parent: Node3D, map: Array) -> void:
+	if not ResourceLoader.exists(GRASS_MESH) or not ResourceLoader.exists(GRASS_MAT):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var xfs: Array[Transform3D] = []
+	for c in grid.heights:
+		var ch := (map[c.y] as String)[c.x]
+		if ch in ["X", "T", "#", "P"]:
+			continue
+		var n := 8 if ch == "," else 4
+		for i in n:
+			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.32, 0.45) * (1.35 if ch == "," else 1.0))
+			var pos := Vector3(c.x + rng.randf_range(0.1, 0.9), grid.heights[c], c.y + rng.randf_range(0.1, 0.9))
+			xfs.append(Transform3D(b, pos))
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = load(GRASS_MESH)
+	mm.instance_count = xfs.size()
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+	var inst := MultiMeshInstance3D.new()
+	inst.name = "Grass"
+	inst.multimesh = mm
+	inst.material_override = load(GRASS_MAT)
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(inst)
 
 
 ## 끝나고 돌아갈 곳 이름 (Esc 안내)
@@ -176,6 +228,8 @@ func _build_world() -> void:
 		"wall": _mat(Color(0.3, 0.29, 0.33)),
 		"cave": _mat(Color(0.4, 0.29, 0.24)),
 	}
+	if _outdoor_look():
+		_outdoor_mats(mats)
 	if _indoor():
 		var env: Environment = $WorldEnvironment.environment.duplicate()
 		env.background_mode = Environment.BG_COLOR
@@ -315,6 +369,8 @@ func _build_world() -> void:
 		Kenney.decorate(terrain, floors, open_cell, grid.get_height, is_cave,
 				func(c: Vector2i) -> bool: return grid.walls.has(c) or grid.difficult.has(c),
 				func(_c: Vector2i) -> String: return str(custom.get("room_theme", "")))
+	if _outdoor_look():
+		_scatter_grass(terrain, map)
 	focus.position = Vector3(w / 2.0, 0, h / 2.0)
 
 
