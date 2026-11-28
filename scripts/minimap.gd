@@ -119,6 +119,10 @@ func _draw_view() -> void:
 	var n := c + turn(Vector2(0, -1), yaw) * (SIDE / 2.0 - 11.0)
 	view.draw_circle(n, 8.0, Color(0, 0, 0, 0.55))
 	view.draw_string(font, n + Vector2(-5, 5), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.95, 0.85))
+	# 지금 지역 이름
+	var here := str(region.tiles[Game.tile].name) if region else ""
+	view.draw_string_outline(font, Vector2(8, SIDE - 8), here, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0))
+	view.draw_string(font, Vector2(8, SIDE - 8), here, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.95, 0.85))
 	# 나 (보는 쪽 화살표)
 	var f: Vector3 = player.get("facing") if player.get("facing") != null else Vector3(0, 0, -1)
 	var d := turn(Vector2(f.x, f.z).normalized(), yaw)

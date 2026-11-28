@@ -11,6 +11,10 @@ const SIDE := 290.0
 const MIN_CELL := 6.5
 const FADE := 0.5
 
+## 한 변 픽셀, 크면 나를 가운데로 따라가나 (큰 지도 창은 false: 언제나 층 전체), 표시 크기 상한
+var side := SIDE
+var follow := true
+var mark_max := 1.0
 var view: Node  # dungeon_view.gd (인스턴스)
 var dv: Script  # dungeon_view.gd 스크립트 (seen·opened·used_fires·floor_no는 static)
 var _tex: ImageTexture = null
@@ -23,8 +27,11 @@ var _born := {}  # 칸 → 처음 본 시각 (서서히 나타나기)
 var _fading := false
 
 
+func _ready() -> void:
+	custom_minimum_size = Vector2(side, side)
+
+
 func _init() -> void:
-	custom_minimum_size = Vector2(SIDE, SIDE)
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -127,7 +134,7 @@ func _draw() -> void:
 	var bh := absf(d.width * sin(target_yaw)) + absf(d.height * cos(target_yaw))
 	var s := minf((size.x - 12.0) / bw, (size.y - 12.0) / bh)
 	var focus := Vector2(d.width, d.height) / 2.0
-	if s < MIN_CELL:
+	if s < MIN_CELL and follow:
 		s = MIN_CELL
 		focus = _me_pos()
 	var c := size / 2.0
@@ -137,7 +144,7 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var at := func(p: Vector2) -> Vector2: return c + Minimap.turn(p - focus, yaw) * s
 	var seen: Dictionary = dv.seen
-	var k := clampf(s / 9.0, 0.55, 1.0)
+	var k := clampf(s / 9.0, 0.55, mark_max)
 	# 계단·물건
 	var marks := []
 	if seen.has(d.start):
@@ -156,6 +163,10 @@ func _draw() -> void:
 		marks.append([view.merchant, Color(0.75, 0.55, 0.95), "tent"])
 	if view.quest_item_cell != Vector2i(-1, -1) and seen.has(view.quest_item_cell):
 		marks.append([view.quest_item_cell, Color(1.0, 0.85, 0.2), "quest"])
+	# 아직 남은 몬스터 방 (방 가운데를 봤으면)
+	for r in d.rooms:
+		if not r.encounter.is_empty() and not dv.cleared.has(r.id) and seen.has(r.center):
+			marks.append([r.center, Color(0.75, 0.15, 0.12), "foe"])
 	for m in marks:
 		_mark(at.call(Vector2(m[0]) + Vector2(0.5, 0.5)), m[1], m[2], k, font)
 	# 지금 보이는 몬스터
@@ -201,6 +212,10 @@ func _mark(p: Vector2, col: Color, kind: String, k: float, font: Font) -> void:
 			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -3.5) * k, p + Vector2(2.5, 2.5) * k, p + Vector2(-2.5, 2.5) * k]), ink)
 		"tent":
 			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -3.5) * k, p + Vector2(3.5, 2.5) * k, p + Vector2(-3.5, 2.5) * k]), ink)
+		"foe":
+			var w := 2.6 * k
+			draw_line(p + Vector2(-w, -w), p + Vector2(w, w), Color(1, 0.92, 0.85), 1.6)
+			draw_line(p + Vector2(-w, w), p + Vector2(w, -w), Color(1, 0.92, 0.85), 1.6)
 		"quest":
 			draw_string(font, p + Vector2(-2.2, 4.5) * k, "!", HORIZONTAL_ALIGNMENT_LEFT, -1, int(12 * k), ink)
 		_:

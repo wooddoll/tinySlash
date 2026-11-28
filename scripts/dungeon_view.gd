@@ -99,6 +99,8 @@ var controls := {}
 var info_label: RichTextLabel
 ## 탐험 중 오른쪽 패널 위 미니맵 (scripts/dungeon_minimap.gd)
 var minimap: Control
+## 큰 층 지도 창 (탐험 중 M)
+var map_layer: CanvasLayer
 var room_label: RichTextLabel
 var fight_button: Button
 var seed_box: SpinBox
@@ -647,6 +649,7 @@ func _build_ui() -> void:
 	minimap.view = self
 	minimap.visible = false
 	rbox.add_child(minimap)
+	_build_map_window()
 	info_label = _rich(rbox)
 	room_label = _rich(rbox)
 	fight_button = Button.new()
@@ -893,7 +896,13 @@ func _process(delta: float) -> void:
 				_long_rest()
 				_update_shop()
 			return
-		if Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
+		if map_layer.visible:
+			if Input.is_action_just_pressed("map") or Input.is_action_just_pressed("back") or Input.is_action_just_pressed("explore"):
+				_show_map(false)
+			return
+		if Input.is_action_just_pressed("map") and explorer:
+			_show_map(true)
+		elif Input.is_action_just_pressed("explore") or Input.is_action_just_pressed("back"):
 			_set_exploring(false)
 		elif Input.is_action_just_pressed("end_turn") and explorer and action and action.ac.fighting():
 			_toast("싸우는 중이에요!")
@@ -999,6 +1008,52 @@ func _add_lantern(n: Node3D) -> void:
 	n.add_child(l)
 
 
+## 큰 층 지도 창: 본 곳 전체를 크게 (작은 미니맵과 같은 그림, 화면 가운데). 여는 동안 싸움·움직임 멈춤
+func _build_map_window() -> void:
+	map_layer = CanvasLayer.new()
+	map_layer.layer = 7
+	map_layer.visible = false
+	add_child(map_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	map_layer.add_child(dim)
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.add_theme_stylebox_override("panel", _panel_style())
+	map_layer.add_child(panel)
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var title := Label.new()
+	title.name = "Title"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 20)
+	box.add_child(title)
+	var big := DungeonMinimap.new()
+	big.name = "Big"
+	big.view = self
+	big.side = 540.0
+	big.follow = false
+	big.mark_max = 1.6
+	box.add_child(big)
+	var foot := Label.new()
+	foot.text = "본 곳만 보여요 · 빨간 X = 남은 몬스터 방 · M / Esc: 닫기"
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
+	box.add_child(foot)
+
+
+func _show_map(on: bool) -> void:
+	map_layer.visible = on
+	if explorer:
+		explorer.active = not on
+	if on:
+		(map_layer.find_child("Title", true, false) as Label).text = "%s %d층 지도" % [enter_name if from_outside and enter_name != "" else "던전", floor_no]
+		Sfx.play(self, "open")
+
+
 func _apply_mode() -> void:
 	left_panel.visible = not exploring
 	party_panel.visible = exploring
@@ -1037,7 +1092,7 @@ func _apply_mode() -> void:
 		rig.target = explorer
 		rig.ortho_size = 10.0
 		get_tree().call_group("room_label", "hide")  # 액션 중에는 방 번호를 숨김
-		help_label.text = "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 상호작용: Y/Enter · 카메라: LB·RB/Q·E · 생성기로: Back/Tab"
+		help_label.text = "이동: 왼쪽 스틱/WASD · 공격: X/J (누르고 있으면 계속) · 구르기: A/Space · 기술: B/K · 기술2: 십자→/L · 물약: 십자↑/1 · 상호작용: Y/Enter · 지도: M · 카메라: LB·RB/Q·E · 생성기로: Back/Tab"
 		_update_explore_info()
 	else:
 		var had_action := action != null
