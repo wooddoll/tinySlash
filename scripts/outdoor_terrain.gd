@@ -64,6 +64,12 @@ var _trees := PackedFloat32Array()
 var _solid_r := {}
 ## 도는 일꾼 스레드 작업 번호
 var _tasks: Array[int] = []
+## 칸 → [길까지 거리(칸 픽셀마다), 그 자리 길 높이]. 길이 없는 칸은 없음
+var _road_rast := {}
+## 칠하기 값: 길 한가운데, 길 가장자리 섞임 8단계 (일꾼 스레드에서 쓰려고 미리 구함)
+var _road_ctl := 0.0
+var _road_edge: Array[float] = []
+var _auto_ctl := 0.0
 var _shapes := {}
 ## 같은 것을 값으로: Vector3(x, z, 반지름). 바깥 전투 격자(battle_grid)가 막힌 칸을 정할 때 씀
 var solids: Array[Vector3] = []
@@ -80,6 +86,12 @@ const MAP_MPP := 2.0
 static var _map_img: Image = null
 static var _map_seed := -1
 static var _map_task := -1
+## 길: 마을 빈터에서 다른 칸 던전 입구까지 흙길 (세계 좌표 점들 x, 높이, z). 세계 시드마다 한 번 찾아 기억
+const ROAD_HALF := 1.3
+const ROAD_REACH := 5.0
+const ROAD_TEX := 2
+static var _roads: Array = []
+static var _roads_seed := -1
 
 
 static func available() -> bool:
@@ -170,6 +182,12 @@ func generate_region(reg, world_seed: int, keep: Callable = Callable()) -> bool:
 		tiles[t] = info
 		if not _cache.has(t):
 			todo.append([t, info, e2, e_h, face, has_door, null])
+	# 길 (기억에 없으면 찾고) → 칸마다 길까지 거리 그림
+	_prepare_road_ctl()
+	if _roads_seed != world_seed:
+		_roads = _find_roads()
+		_roads_seed = world_seed
+	_rasterize_roads()
 	# 아직 기억에 없는 칸의 높이는 일꾼 스레드들이 나눠서 만듦
 	if not todo.is_empty():
 		var group := WorkerThreadPool.add_group_task(func(k: int) -> void:
@@ -237,10 +255,16 @@ func _tile_images(t: Vector2i, info: Dictionary, e2: Vector2, e_h: float, face: 
 	for j in n:
 		for i in n:
 			coarse[j * n + i] = _raw_height(off.x - half + i * 2, off.y - half + j * 2)
-	# 칠하기 지도: 모든 칸을 "자동"(경사에 따라 풀/바위)으로. 비트값을 float로 담는 형식.
-	var auto_bits: int = ClassDB.class_call_static("Terrain3DUtil", "enc_auto", true)
-	var ctl := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF)
-	ctl.fill(Color(ClassDB.class_call_static("Terrain3DUtil", "as_float", auto_bits), 0, 0, 1))
+	# 칠하기 지도: 모든 칸을 "자동"(경사에 따라 풀/바위)으로, 길은 흙. 비트값을 float로 담는 형식.
+	var cs_arr := PackedFloat32Array()
+	cs_arr.resize(SIZE * SIZE)
+	cs_arr.fill(_auto_ctl)
+	var road: Array = _road_rast.get(t, [])
+	var rd := PackedFloat32Array()
+	var rh := PackedFloat32Array()
+	if not road.is_empty():
+		rd = road[0]
+		rh = road[1]
 	var village: bool = info.village
 	var c_h := _raw_height(off.x, off.y)
 	var f2 := Vector2(face.x, face.z)
@@ -262,6 +286,16 @@ func _tile_images(t: Vector2i, info: Dictionary, e2: Vector2, e_h: float, face: 
 			var fx := (x & 1) * 0.5
 			var h := lerpf(lerpf(coarse[k], coarse[k + 1], fx), lerpf(coarse[k + n], coarse[k + n + 1], fx), fy)
 			var q := Vector2(wx, wz)
+			if not rd.is_empty():
+				var pi := y * SIZE + x
+				var dr := rd[pi]
+				if dr < ROAD_REACH:
+					# 길은 가로로 평평하게 깎고 둘레는 이어지게
+					h = lerpf(rh[pi], h, smoothstep(ROAD_HALF + 0.3, ROAD_REACH, dr))
+					if dr < ROAD_HALF:
+						cs_arr[pi] = _road_ctl
+					elif dr < ROAD_HALF + 1.0:
+						cs_arr[pi] = _road_edge[clampi(int((dr - ROAD_HALF) * 8.0), 0, 7)]
 			if village:
 				# 가운데 빈터는 평평하게 (가장자리로 갈수록 원래 높이)
 				var d := q.length()
@@ -297,7 +331,233 @@ func _tile_images(t: Vector2i, info: Dictionary, e2: Vector2, e_h: float, face: 
 				h += smoothstep(0.82, 1.0, edge) * RIM
 			hs[y * SIZE + x] = h
 	var img := Image.create_from_data(SIZE, SIZE, false, Image.FORMAT_RF, hs.to_byte_array())
+	var ctl := Image.create_from_data(SIZE, SIZE, false, Image.FORMAT_RF, cs_arr.to_byte_array())
 	return [img, ctl, hs]
+
+
+## 칠하기 값 미리 구하기 (Terrain3DUtil은 일꾼 스레드에서 부르지 않음)
+func _prepare_road_ctl() -> void:
+	var u := "Terrain3DUtil"
+	_auto_ctl = ClassDB.class_call_static(u, "as_float", ClassDB.class_call_static(u, "enc_auto", true))
+	var base_road: int = ClassDB.class_call_static(u, "enc_base", ROAD_TEX)
+	_road_ctl = ClassDB.class_call_static(u, "as_float", base_road)
+	_road_edge.clear()
+	for i in 8:
+		# 가장자리: 바탕은 풀(0), 위에 흙을 점점 옅게
+		var bits: int = ClassDB.class_call_static(u, "enc_base", 0) | ClassDB.class_call_static(u, "enc_overlay", ROAD_TEX) \
+			| ClassDB.class_call_static(u, "enc_blend", int(lerpf(220.0, 30.0, i / 7.0)))
+		_road_edge.append(ClassDB.class_call_static(u, "as_float", bits))
+
+
+## 길 찾기: 마을 빈터 가장자리에서 다른 칸 던전 입구 앞까지, 8칸 격자에서 가파른 곳을 피해 돌아감 (A*).
+## 먼저 낸 길 위는 싸게 쳐서 길이 서로 합쳐짐. 결과는 매끄럽게 다듬고 2칸마다 점, 높이도 앞뒤로 고르게
+func _find_roads() -> Array:
+	var cell := 8.0
+	var o := map_origin()
+	var nx := int(Region.W * SIZE / cell)
+	var nz := int(Region.H * SIZE / cell)
+	var hg := PackedFloat32Array()
+	hg.resize(nx * nz)
+	for j in nz:
+		for i in nx:
+			hg[j * nx + i] = _raw_height(o.x + (i + 0.5) * cell, o.y + (j + 0.5) * cell)
+	var used := {}
+	var out := []
+	var goals := []
+	for t in tiles:
+		if tiles[t].village or tiles[t].entrance == null:
+			continue
+		var xf: Transform3D = tiles[t].entrance
+		var front := xf * Vector3(0, 0, 7.0)
+		goals.append(Vector2(front.x, front.z))
+	# 가까운 입구부터 (나중 길이 앞 길에 붙음)
+	goals.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.length() < b.length())
+	for g in goals:
+		var start := (g as Vector2).normalized() * (CLEARING * 1.3)
+		var to_cell := func(w: Vector2) -> Vector2i:
+			return Vector2i(clampi(int((w.x - o.x) / cell), 0, nx - 1), clampi(int((w.y - o.y) / cell), 0, nz - 1))
+		var a: Vector2i = to_cell.call(start)
+		var b: Vector2i = to_cell.call(g)
+		var cells := _astar(hg, nx, nz, cell, a, b, used)
+		if cells.is_empty():
+			continue
+		for c in cells:
+			used[c] = true
+		var pts := PackedVector2Array([start])
+		for k in range(1, cells.size() - 1):
+			pts.append(o + (Vector2(cells[k]) + Vector2(0.5, 0.5)) * cell)
+		pts.append(g)
+		for it in 3:
+			pts = _chaikin(pts)
+		out.append(_road_points(pts))
+	return out
+
+
+func _astar(hg: PackedFloat32Array, nx: int, nz: int, cell: float, a: Vector2i, b: Vector2i, used: Dictionary) -> Array:
+	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+	var g := {a: 0.0}
+	var prev := {}
+	var open := [[0.0, a]]
+	var done := {}
+	while not open.is_empty():
+		var cur: Vector2i = _heap_pop(open)[1]
+		if cur == b:
+			break
+		if done.has(cur):
+			continue
+		done[cur] = true
+		for dd in dirs:
+			var n: Vector2i = cur + dd
+			if n.x < 2 or n.y < 2 or n.x >= nx - 2 or n.y >= nz - 2:
+				continue  # 지방 끝 언덕은 피함
+			var len := cell * (1.4142 if dd.x != 0 and dd.y != 0 else 1.0)
+			var slope := absf(hg[n.y * nx + n.x] - hg[cur.y * nx + cur.x]) / len
+			var cost := len * (1.0 + 40.0 * slope * slope) * (0.45 if used.has(n) else 1.0)
+			var ng: float = g[cur] + cost
+			if ng < float(g.get(n, INF)):
+				g[n] = ng
+				prev[n] = cur
+				_heap_push(open, [ng + Vector2(n - b).length() * cell * 0.45, n])
+	if not prev.has(b) and a != b:
+		return []
+	var path := [b]
+	var c := b
+	while c != a:
+		c = prev[c]
+		path.push_front(c)
+	return path
+
+
+## 가장 싼 것을 먼저 꺼내는 더미 (h[i][0]이 값)
+static func _heap_push(h: Array, e: Array) -> void:
+	h.append(e)
+	var i := h.size() - 1
+	while i > 0:
+		var p := (i - 1) >> 1
+		if h[p][0] <= h[i][0]:
+			break
+		var tmp = h[p]
+		h[p] = h[i]
+		h[i] = tmp
+		i = p
+
+
+static func _heap_pop(h: Array) -> Array:
+	var top: Array = h[0]
+	var last: Array = h.pop_back()
+	if not h.is_empty():
+		h[0] = last
+		var i := 0
+		var n := h.size()
+		while true:
+			var l := i * 2 + 1
+			var r := l + 1
+			var m := i
+			if l < n and h[l][0] < h[m][0]:
+				m = l
+			if r < n and h[r][0] < h[m][0]:
+				m = r
+			if m == i:
+				break
+			var tmp = h[m]
+			h[m] = h[i]
+			h[i] = tmp
+			i = m
+	return top
+
+
+static func _chaikin(p: PackedVector2Array) -> PackedVector2Array:
+	var out := PackedVector2Array([p[0]])
+	for i in p.size() - 1:
+		out.append(p[i].lerp(p[i + 1], 0.25))
+		out.append(p[i].lerp(p[i + 1], 0.75))
+	out.append(p[p.size() - 1])
+	return out
+
+
+## 2칸 간격 점 (x, 높이, z). 높이는 앞뒤 점과 고르게 섞어 길이 울퉁불퉁하지 않게
+func _road_points(p: PackedVector2Array) -> PackedVector3Array:
+	var pts := PackedVector2Array([p[0]])
+	var carry := 0.0
+	for i in p.size() - 1:
+		var a := p[i]
+		var seg := a.distance_to(p[i + 1])
+		var d := 2.0 - carry
+		while d <= seg:
+			pts.append(a.lerp(p[i + 1], d / seg))
+			d += 2.0
+		carry = seg - (d - 2.0)
+	pts.append(p[p.size() - 1])
+	var hs := PackedFloat32Array()
+	for q in pts:
+		hs.append(_raw_height(q.x, q.y))
+	var out := PackedVector3Array()
+	for i in pts.size():
+		var sum := 0.0
+		var cnt := 0
+		for k in range(maxi(0, i - 4), mini(pts.size(), i + 5)):
+			sum += hs[k]
+			cnt += 1
+		out.append(Vector3(pts[i].x, sum / cnt, pts[i].y))
+	return out
+
+
+## 칸 픽셀마다 가까운 길까지 거리와 그 자리 길 높이
+func _rasterize_roads() -> void:
+	_road_rast.clear()
+	var half := SIZE / 2.0
+	for road in _roads:
+		var pts: PackedVector3Array = road
+		for i in pts.size() - 1:
+			var a := Vector2(pts[i].x, pts[i].z)
+			var b := Vector2(pts[i + 1].x, pts[i + 1].z)
+			var ab := b - a
+			var l2 := maxf(ab.length_squared(), 1e-6)
+			for wz in range(floori(minf(a.y, b.y) - ROAD_REACH), ceili(maxf(a.y, b.y) + ROAD_REACH) + 1):
+				for wx in range(floori(minf(a.x, b.x) - ROAD_REACH), ceili(maxf(a.x, b.x) + ROAD_REACH) + 1):
+					var q := Vector2(wx, wz)
+					var u := clampf((q - a).dot(ab) / l2, 0.0, 1.0)
+					var dist := q.distance_to(a + ab * u)
+					if dist >= ROAD_REACH:
+						continue
+					var t := Outdoor_tile_of(wx, wz)
+					if not tiles.has(t):
+						continue
+					var off: Vector2 = tiles[t].offset
+					var px := wx - int(off.x - half)
+					var py := wz - int(off.y - half)
+					if px < 0 or py < 0 or px >= SIZE or py >= SIZE:
+						continue
+					if not _road_rast.has(t):
+						var dd := PackedFloat32Array()
+						dd.resize(SIZE * SIZE)
+						dd.fill(1e9)
+						var hh := PackedFloat32Array()
+						hh.resize(SIZE * SIZE)
+						_road_rast[t] = [dd, hh]
+					var r: Array = _road_rast[t]
+					var k := py * SIZE + px
+					if dist < r[0][k]:
+						r[0][k] = dist
+						r[1][k] = lerpf(pts[i].y, pts[i + 1].y, u)
+
+
+static func Outdoor_tile_of(wx: int, wz: int) -> Vector2i:
+	return Vector2i(floori((wx + SIZE / 2.0) / SIZE), floori((wz + SIZE / 2.0) / SIZE)) + Region.VILLAGE
+
+
+## 세계 자리에서 가까운 길까지 거리 (길이 멀면 큰 값)
+func _road_d(wx: float, wz: float) -> float:
+	var t := Outdoor_tile_of(floori(wx), floori(wz))
+	var r: Array = _road_rast.get(t, [])
+	if r.is_empty():
+		return 1e9
+	var off: Vector2 = tiles[t].offset
+	var px := floori(wx) - int(off.x - SIZE / 2.0)
+	var py := floori(wz) - int(off.y - SIZE / 2.0)
+	if px < 0 or py < 0 or px >= SIZE or py >= SIZE:
+		return 1e9
+	return (r[0] as PackedFloat32Array)[py * SIZE + px]
 
 
 ## 칸의 높이 이미지 (없으면 null)
@@ -375,6 +635,9 @@ func _build_map(buildings: Array) -> void:
 				c = c.lerp(wood, 0.6)
 			if in_clearing:
 				c = c.lerp(dirt, 0.35 * (1.0 - smoothstep(CLEARING * 0.4, CLEARING * 1.3, q.length())))
+			var rdm := _road_d(wx, wz)
+			if rdm < ROAD_HALF + 0.6:
+				c = dirt
 			if e2 != Vector2.ZERO:
 				var along := clampf(q.dot(e2) / e2.length_squared(), 0.0, 1.0)
 				if q.distance_to(e2 * along) < PATH_W and along > 0.05:
@@ -429,8 +692,16 @@ func _setup_material() -> void:
 	rock.albedo_texture = load(TEX + "rock023_alb_ht.png")
 	rock.normal_texture = load(TEX + "rock023_nrm_rgh.png")
 	rock.uv_scale = 0.08
+	# 흙길: 바위 텍스처를 잘게, 흙빛으로
+	var dirt = ClassDB.instantiate("Terrain3DTextureAsset")
+	dirt.name = "Dirt"
+	dirt.albedo_texture = rock.albedo_texture
+	dirt.normal_texture = rock.normal_texture
+	dirt.uv_scale = 0.3
+	dirt.albedo_color = Color(0.78, 0.62, 0.44)
 	terrain.assets.set_texture_asset(0, grass)
 	terrain.assets.set_texture_asset(1, rock)
+	terrain.assets.set_texture_asset(ROAD_TEX, dirt)
 	terrain.material.world_background = 0  # NONE: 지도 밖은 비움
 	terrain.material.auto_shader_enabled = true
 	terrain.material.set_shader_param("auto_slope", 1.5)
@@ -519,6 +790,8 @@ func _scatter_tile(t: Vector2i, sliced := true) -> void:
 				continue
 			if has_door and (not is_grass or models[0] == "Grass_Wind") and _near_path(t, Vector2(p.x, p.z)):
 				continue
+			if _road_d(p.x, p.z) < (3.0 if not is_grass else 1.6):
+				continue
 			if village and keep_out.is_valid() and lp.length_squared() < 4900.0 and keep_out.call(Vector2(p.x, p.z), 0.4 if is_grass else 1.5):
 				continue
 			var trees: float = _look(p.x, p.z).y
@@ -605,6 +878,8 @@ func _wind_grass(t: Vector2i, layer: Array, out: Array[Transform3D]) -> void:
 			continue
 		var wp := Vector2(lx + off.x, lz + off.y)
 		if has_door and _near_path(t, wp):
+			continue
+		if _road_d(wp.x, wp.y) < 1.6:
 			continue
 		if village and d2 < 4900.0 and keep_out.is_valid() and keep_out.call(wp, 0.4):
 			continue

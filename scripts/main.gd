@@ -271,6 +271,7 @@ func _process(delta: float) -> void:
 		_autosave_in -= delta
 		if _autosave_in <= 0.0:
 			_autosave()
+	_update_xray()
 	if minimap:
 		minimap.visible = fight == null and not level_dialog.visible and not (dialog.is_open() or region_map.is_open())
 	if _toast_left > 0.0:
@@ -1072,3 +1073,17 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_autosave()
+
+
+## 나무가 주인공(싸울 땐 전투 주인공)을 가리지 않게 셰이더에 자리를 알려 줌 (shaders/foliage_wind.gdshader)
+func _update_xray() -> void:
+	var t: Node3D = $CameraRig.target
+	var p := t.global_position + Vector3(0, 1.0, 0) if is_instance_valid(t) else Vector3(0, -1000, 0)
+	if fight != null and fight.player != null and outdoor:
+		p = fight.position + Vector3(fight.player.pos.x, 0, fight.player.pos.y)
+		p.y = outdoor.height_at(p) + 1.0
+	RenderingServer.global_shader_parameter_set("xray_target", p)
+
+
+func _exit_tree() -> void:
+	RenderingServer.global_shader_parameter_set("xray_target", Vector3(0, -1000, 0))

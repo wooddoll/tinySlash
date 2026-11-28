@@ -16,3 +16,10 @@ window/size/viewport_height=720
 
 textures/canvas_textures/default_texture_filter=0
 anti_aliasing/quality/msaa_3d=2
+
+[shader_globals]
+
+xray_target={
+"type": "vec3",
+"value": Vector3(0, -1000, 0)
+}

@@ -16,6 +16,9 @@ uniform float sway = 0.035;
 uniform float flutter = 0.0;
 uniform float wind_speed = 1.1;
 uniform vec2 wind_dir = vec2(1.0, 0.25);
+// 주인공 가슴 자리 (main.gd가 매 프레임 넣음). 카메라와 주인공 사이에 있는 잎·줄기는 점점이 비워서 주인공이 보이게
+global uniform vec3 xray_target;
+const float BAYER[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
 void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
@@ -40,6 +43,16 @@ void fragment() {
 	}
 	ALBEDO = a.rgb;
 	ALPHA = a.a;
+	vec3 tv = (VIEW_MATRIX * vec4(xray_target, 1.0)).xyz;
+	vec2 dd = VERTEX.xy - tv.xy;
+	float dist = length(vec2(dd.x, dd.y * 0.75));
+	if (VERTEX.z > tv.z + 0.6 && dist < 2.4) {
+		float fade = 0.85 * (1.0 - smoothstep(1.2, 2.4, dist));
+		ivec2 p = ivec2(FRAGCOORD.xy) % 4;
+		if ((BAYER[p.y * 4 + p.x] + 0.5) / 16.0 < fade) {
+			ALPHA = 0.0;
+		}
+	}
 	ALPHA_SCISSOR_THRESHOLD = cutoff;
 	if (use_normal) {
 		NORMAL_MAP = texture(normal_texture, UV).rgb;
