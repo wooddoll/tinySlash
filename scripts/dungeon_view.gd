@@ -29,6 +29,9 @@ static var cleared := {}
 static var exploring := false
 ## 바깥 지형의 던전 입구로 들어왔을 때 그 던전 시드 (0이 아니면 그 던전에서 바로 탐험을 시작)
 static var enter_seed := 0
+## 바깥에서 들어온 탐험인가, 그리고 들어온 층 (그 층 시작 칸이 바깥으로 나가는 출구)
+static var from_outside := false
+static var entry_floor := 1
 ## 탐험을 다시 시작할 칸 (-1이면 시작 지점)
 static var explore_cell := Vector2i(-1, -1)
 ## 방에 들어서기 직전 칸. 전투에서 도망치면(Esc) 여기로 돌아옴
@@ -114,9 +117,10 @@ var shop_buy: Button
 
 func _ready() -> void:
 	InputSetup.register()
-	var from_outside := enter_seed != 0
-	if from_outside:
+	var came_in := enter_seed != 0
+	if came_in:
 		# 같은 입구는 늘 같은 던전. 이전 탐험 기록은 비움
+		from_outside = true
 		saved = DungeonParams.new()
 		saved.rng_seed = enter_seed
 		enter_seed = 0
@@ -128,6 +132,9 @@ func _ready() -> void:
 		selected = -1
 		explore_cell = Vector2i(-1, -1)
 		retreat_cell = Vector2i(-1, -1)
+		floor_no = saved.floor_depth
+		entry_floor = floor_no
+		_pending_toast = "들어온 곳(햇빛 비치는 칸)에서 Enter: 바깥으로"
 	if saved == null:
 		saved = DungeonParams.new()
 		saved.rng_seed = randi_range(1, 999999)
@@ -136,7 +143,7 @@ func _ready() -> void:
 	_build_ui()
 	Sfx.wire_buttons(self)
 	_generate()
-	if from_outside:
+	if came_in:
 		_set_exploring(true)
 
 
@@ -274,8 +281,18 @@ func _build_world() -> void:
 			mm.set_instance_transform(i, list[i][0])
 			_fog_add(list[i][1], [mm, i, list[i][0]])
 
-	# 시작 지점 (파란 원판)
-	_fog_add(d.start, [_marker_disc(d.start, Color(0.3, 0.6, 1.0))])
+	# 시작 지점 (파란 원판). 바깥에서 들어온 층이면 바깥 출구: 위에서 햇빛이 비침
+	if _outside_exit_here():
+		var disc := _marker_disc(d.start, Color(1.0, 0.92, 0.7))
+		var sun := OmniLight3D.new()
+		sun.light_color = Color(1.0, 0.95, 0.8)
+		sun.light_energy = 2.5
+		sun.omni_range = 3.5
+		sun.position = Vector3(0, 1.6, 0)
+		disc.add_child(sun)
+		_fog_add(d.start, [disc])
+	else:
+		_fog_add(d.start, [_marker_disc(d.start, Color(0.3, 0.6, 1.0))])
 
 	# 몬스터, 보물, 방 번호
 	for r in d.rooms:
@@ -766,7 +783,9 @@ func _process(delta: float) -> void:
 			_toast("싸우는 중이에요!")
 		elif Input.is_action_just_pressed("end_turn") and explorer:
 			var fire := _fire_near(explorer.cell)
-			if fire != Vector2i(-1, -1):
+			if _outside_exit_here() and explorer.cell == dungeon.start:
+				_go_outside()
+			elif fire != Vector2i(-1, -1):
 				_open_rest(fire)
 			elif _near(shelter, explorer.cell) or _near(merchant, explorer.cell):
 				_open_shop()
@@ -923,6 +942,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		action.ac.wake_room(r)
 	if to == dungeon.exit:
 		_toast("출구 계단 — Enter: 다음 층으로")
+	elif to == dungeon.start and _outside_exit_here():
+		_toast("바깥 출구 — Enter: 밖으로")
 	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
 		_toast("모닥불 — Enter: 짧은 휴식")
 	elif (_near(shelter, to) or _near(merchant, to)) and not (_near(shelter, from) or _near(merchant, from)):
@@ -1601,3 +1622,17 @@ func _fight() -> void:
 		return
 	Battle.custom = dungeon.battle_setup(selected)
 	get_tree().change_scene_to_file("res://scenes/battle.tscn")
+
+
+
+## 이 층 시작 칸이 바깥으로 나가는 출구인가 (바깥 입구로 들어와 아직 그 층)
+func _outside_exit_here() -> bool:
+	return from_outside and floor_no == entry_floor
+
+
+## 들어온 바깥 지형의 입구 앞으로 (main.gd가 같은 시드로 지형을 다시 만듦)
+func _go_outside() -> void:
+	Sfx.play(self, "stairs")
+	from_outside = false
+	exploring = false
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
