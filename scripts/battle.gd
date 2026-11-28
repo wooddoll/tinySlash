@@ -129,6 +129,38 @@ func _dungeon() -> bool:
 	return custom.has("map")
 
 
+## 던전 방 전투 (어두운 바닥·벽). 바깥 지형에서 만난 몬스터(style "outdoor")는 풀밭 그대로
+func _indoor() -> bool:
+	return _dungeon() and custom.get("style", "") != "outdoor"
+
+
+## 바깥 지형 전투: 나무·바위·덤불을 바깥 장면과 같은 Quaternius 모델로 (구운 장면이 없으면 예전 모양)
+func _outdoor_look() -> bool:
+	return custom.get("style", "") == "outdoor" and ResourceLoader.exists(NATURE % "CommonTree_1")
+
+
+const NATURE := "res://assets/quaternius/nature/%s.scn"
+const NATURE_PROPS := {
+	"T": [["CommonTree_1", "CommonTree_2", "CommonTree_3", "Pine_1", "Pine_2"], 0.6],
+	"#": [["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], 0.75],
+	",": [["Bush_Common", "Fern_1", "Plant_1"], 0.8],
+}
+
+
+func _nature_prop(parent: Node3D, ch: String, cell: Vector2i, top: Vector3) -> void:
+	var names: Array = NATURE_PROPS[ch][0]
+	var n: Node3D = (load(NATURE % names[(cell.x * 7 + cell.y * 13) % names.size()]) as PackedScene).instantiate()
+	n.scale = Vector3.ONE * float(NATURE_PROPS[ch][1]) * (0.9 + 0.2 * ((cell.x * 3 + cell.y) % 3) / 2.0)
+	n.rotation.y = (cell.x * 5 + cell.y * 11) * 0.7
+	n.position = top
+	parent.add_child(n)
+
+
+## 끝나고 돌아갈 곳 이름 (Esc 안내)
+func _back_word() -> String:
+	return "바깥으로" if custom.get("style", "") == "outdoor" else "던전으로"
+
+
 func _build_world() -> void:
 	var map := _map()
 	var h := map.size()
@@ -144,7 +176,7 @@ func _build_world() -> void:
 		"wall": _mat(Color(0.3, 0.29, 0.33)),
 		"cave": _mat(Color(0.4, 0.29, 0.24)),
 	}
-	if _dungeon():
+	if _indoor():
 		var env: Environment = $WorldEnvironment.environment.duplicate()
 		env.background_mode = Environment.BG_COLOR
 		# [다크 판타지] 던전 방 전투는 어둡게: 약한 푸른 달빛 + 횃불이 주인공
@@ -204,7 +236,7 @@ func _build_world() -> void:
 			elif ch == ",":
 				mat_key = "brush"
 			mesh.material_override = mats[mat_key]
-			if _dungeon():
+			if _indoor():
 				mesh.material_override = mats["wall"]
 				var yaw := ((x * 3 + y) % 4) * PI / 2.0
 				if custom.get("style", "") == "cave":
@@ -225,7 +257,9 @@ func _build_world() -> void:
 			var top := Vector3(x + 0.5, th, y + 0.5)
 			var cave: bool = custom.get("style", "") == "cave"
 			var turn := ((x * 5 + y * 3) % 4) * PI / 2.0
-			if ch == "T":
+			if _outdoor_look() and ch in ["T", "#", ","]:
+				_nature_prop(terrain, ch, cell, top)
+			elif ch == "T":
 				# 유닛을 덜 가리게 바깥 장면보다 작게
 				_kenney(terrain, Kenney.pick(Kenney.TREES, cell), top, turn, Kenney.NATURE, 1.5)
 			elif ch == "P" and cave:
@@ -234,11 +268,11 @@ func _build_world() -> void:
 				_kenney(terrain, Kenney.pick(Kenney.CAVE_ROCKS, cell), top, turn, Kenney.NATURE, 1.0, 2.6)
 			elif ch == "," and cave:
 				_kenney(terrain, Kenney.pick(Kenney.CAVE_RUBBLE, cell), top, turn, Kenney.NATURE, 1.5)
-			elif ch == "P" and _dungeon():
+			elif ch == "P" and _indoor():
 				_kenney(terrain, "column", top, 0.0)
-			elif ch == "#" and _dungeon():
+			elif ch == "#" and _indoor():
 				_kenney(terrain, "rocks", top, (x % 4) * PI / 2.0)
-			elif ch == "," and _dungeon():
+			elif ch == "," and _indoor():
 				_kenney(terrain, "stones", top, (y % 4) * PI / 2.0)
 			elif ch == "P":
 				var pillar := MeshInstance3D.new()
@@ -258,7 +292,7 @@ func _build_world() -> void:
 				rock.material_override = mats["stone"]
 				rock.position = top + Vector3(0, 0.5, 0)
 				terrain.add_child(rock)
-			elif ch == "," and not _dungeon():
+			elif ch == "," and not _indoor():
 				for i in 3:
 					var gp := top + Vector3(-0.3 + i * 0.3, 0.0, -0.2 + (i % 2) * 0.35)
 					_kenney(terrain, Kenney.pick(Kenney.GRASS, cell + Vector2i(i, 0)), gp, turn + i, Kenney.NATURE, 1.6)
@@ -270,7 +304,7 @@ func _build_world() -> void:
 			ov.visible = false
 			terrain.add_child(ov)
 			overlays[cell] = ov
-	if _dungeon():
+	if _indoor():
 		var floors: Array = []
 		for c in grid.heights:
 			if not _is_wall_char(map, c):
@@ -1442,7 +1476,7 @@ func _build_action_ui() -> void:
 	log_l.add_theme_color_override("font_outline_color", Color.BLACK)
 	layer.add_child(log_l)
 	var help_l := Label.new()
-	help_l.text = ACTION_HELP_DUNGEON if _dungeon() else ACTION_HELP
+	help_l.text = (ACTION_HELP_DUNGEON.replace("던전으로", _back_word())) if _dungeon() else ACTION_HELP
 	help_l.anchor_top = 1.0
 	help_l.anchor_bottom = 1.0
 	help_l.offset_left = 12
@@ -1495,12 +1529,12 @@ func _action_result(won: bool, xp: int) -> void:
 			custom["level_up"] = level_up
 		var lead: HeroState = heroes[0]
 		Sfx.play(self, "level_up" if level_up > 0 else "win")
-		res.text = "승리!\n경험치 %d → 한 명당 +%d · 레벨 %d%s\nEsc: 던전으로" % [xp, share, lead.level(),
-			"\n레벨 업!" if level_up > 0 else ""]
+		res.text = "승리!\n경험치 %d → 한 명당 +%d · 레벨 %d%s\nEsc: %s" % [xp, share, lead.level(),
+			"\n레벨 업!" if level_up > 0 else "", _back_word()]
 	else:
 		Sfx.play(self, "win" if won else "lose")
 		res.text = ("승리!\n경험치 %d" % xp if won else "패배...") + (
-			"\nR: 다시 · Esc: 던전으로" if _dungeon() else "\nF1~F8: 다른 조우 · R: 다시 · Esc: 바깥으로")
+			"\nR: 다시 · Esc: " + _back_word() if _dungeon() else "\nF1~F8: 다른 조우 · R: 다시 · Esc: 바깥으로")
 	res.visible = true
 
 

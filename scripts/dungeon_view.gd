@@ -32,6 +32,10 @@ static var enter_seed := 0
 ## 바깥에서 들어온 탐험인가, 그리고 들어온 층 (그 층 시작 칸이 바깥으로 나가는 출구)
 static var from_outside := false
 static var entry_floor := 1
+## 지나온 층 기억: 층 번호 → {params, cleared, opened, used_fires, seen}. 계단을 다시 오르내리면 그 층 그대로
+static var floor_memory := {}
+## 위층으로 올라와서 이 층 내려가는 계단 위에서 시작
+static var _arrive_down := false
 ## 탐험을 다시 시작할 칸 (-1이면 시작 지점)
 static var explore_cell := Vector2i(-1, -1)
 ## 방에 들어서기 직전 칸. 전투에서 도망치면(Esc) 여기로 돌아옴
@@ -129,6 +133,7 @@ func _ready() -> void:
 		opened.clear()
 		used_fires.clear()
 		seen.clear()
+		floor_memory.clear()
 		selected = -1
 		explore_cell = Vector2i(-1, -1)
 		retreat_cell = Vector2i(-1, -1)
@@ -269,6 +274,8 @@ func _build_world() -> void:
 		else:
 			add.call("rocks", Transform3D(spin.call(), _top(c)), c)
 	add.call("stairs", Transform3D(Basis.IDENTITY, _top(d.exit)), d.exit)
+	if _up_stairs_here():
+		add.call("stairs", Transform3D(Basis(Vector3.UP, PI), _top(d.start)), d.start)
 
 	for model in model_xf:
 		var parts: PackedStringArray = model.split("/")
@@ -282,6 +289,7 @@ func _build_world() -> void:
 			_fog_add(list[i][1], [mm, i, list[i][0]])
 
 	# 시작 지점 (파란 원판). 바깥에서 들어온 층이면 바깥 출구: 위에서 햇빛이 비침
+	# 탐험을 시작한 층보다 깊으면 시작 칸은 오르는 계단 (모델은 위에서 놓음)
 	if _outside_exit_here():
 		var disc := _marker_disc(d.start, Color(1.0, 0.92, 0.7))
 		var sun := OmniLight3D.new()
@@ -291,6 +299,8 @@ func _build_world() -> void:
 		sun.position = Vector3(0, 1.6, 0)
 		disc.add_child(sun)
 		_fog_add(d.start, [disc])
+	elif _up_stairs_here():
+		_fog_add(d.start, [_marker_disc(d.start, Color(0.75, 0.7, 0.55))])  # 오르는 계단: 흐린 돌빛
 	else:
 		_fog_add(d.start, [_marker_disc(d.start, Color(0.3, 0.6, 1.0))])
 
@@ -785,6 +795,8 @@ func _process(delta: float) -> void:
 			var fire := _fire_near(explorer.cell)
 			if _outside_exit_here() and explorer.cell == dungeon.start:
 				_go_outside()
+			elif _up_stairs_here() and explorer.cell == dungeon.start:
+				_change_floor(floor_no - 1)
 			elif fire != Vector2i(-1, -1):
 				_open_rest(fire)
 			elif _near(shelter, explorer.cell) or _near(merchant, explorer.cell):
@@ -818,8 +830,13 @@ func _set_exploring(on: bool) -> void:
 		# 생성기에서 새로 시작하면 금화, 층 수, 파티 상태를 처음부터
 		gold = 0
 		floor_no = params.floor_depth
-		hero = _fresh_member(0)
-		ally = _fresh_member(1)
+		entry_floor = floor_no
+		floor_memory.clear()
+		# 바깥에서 들어왔으면 바깥 전투에서 키운 파티 그대로
+		if not from_outside or hero == null:
+			hero = _fresh_member(0)
+		if not from_outside or ally == null:
+			ally = _fresh_member(1)
 		rested_here = false
 		_write_save()  # 탐험을 시작한 곳이 첫 저장
 	else:
@@ -893,6 +910,9 @@ func _apply_mode() -> void:
 			_pending_toast = ""
 		if explorer == null:
 			var at := explore_cell if dungeon.is_walkable(explore_cell) else dungeon.start
+			if _arrive_down:
+				at = dungeon.exit
+				_arrive_down = false
 			explorer = Explorer.new()
 			world.add_child(explorer)
 			explorer.setup(dungeon, at, hero.stats().model, hero.stats().weapon_model)
@@ -944,6 +964,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 		_toast("출구 계단 — Enter: 다음 층으로")
 	elif to == dungeon.start and _outside_exit_here():
 		_toast("바깥 출구 — Enter: 밖으로")
+	elif to == dungeon.start and _up_stairs_here():
+		_toast("오르는 계단 — Enter: %d층으로" % (floor_no - 1))
 	elif _fire_near(to) != Vector2i(-1, -1) and _fire_near(from) == Vector2i(-1, -1):
 		_toast("모닥불 — Enter: 짧은 휴식")
 	elif (_near(shelter, to) or _near(merchant, to)) and not (_near(shelter, from) or _near(merchant, from)):
@@ -1080,23 +1102,47 @@ func _open_chest_anim(chest: Node3D, instant: bool) -> void:
 
 
 func _next_floor() -> void:
+	_change_floor(floor_no + 1)
+
+
+## 계단으로 층을 옮김. 처음 가는 아래층은 새로 만들고, 지나온 층은 기억한 그대로 (오르면 내려가는 계단 위에 섬)
+func _change_floor(to: int) -> void:
 	var keep_gold := gold
-	floor_no += 1
+	var up := to < floor_no
+	floor_memory[floor_no] = {"params": params.duplicate_params(), "cleared": cleared.duplicate(),
+			"opened": opened.duplicate(), "used_fires": used_fires.duplicate(), "seen": seen.duplicate()}
+	floor_no = to
 	Sfx.play(self, "stairs")
 	rested_here = false
-	# 몬스터 예산을 파티 레벨, 인원, 층 깊이에 맞춤
-	params.party_level = hero.level()
-	params.party_size = party().size()
-	params.floor_depth = floor_no
+	var mem: Dictionary = floor_memory.get(to, {})
 	_syncing = true
-	(controls["party_level"] as HSlider).value = hero.level()
-	(controls["party_size"] as HSlider).value = party().size()
-	(controls["floor_depth"] as HSlider).value = floor_no
+	if mem.is_empty():
+		# 몬스터 예산을 파티 레벨, 인원, 층 깊이에 맞춤
+		params.party_level = hero.level()
+		params.party_size = party().size()
+		params.floor_depth = floor_no
+		params.rng_seed = randi_range(1, 999999)
+	else:
+		var p: DungeonParams = mem.params
+		for prop in ["rng_seed", "floor_depth", "party_level", "party_size"]:
+			params.set(prop, p.get(prop))
+	(controls["party_level"] as HSlider).value = params.party_level
+	(controls["party_size"] as HSlider).value = params.party_size
+	(controls["floor_depth"] as HSlider).value = params.floor_depth
+	seed_box.value = params.rng_seed
 	_syncing = false
-	seed_box.value = randi_range(1, 999999)  # _set_param이 탐험 상태를 비우고 다시 만듦
+	_set_param("rng_seed", params.rng_seed)  # 탐험 상태를 비우고 다시 만듦
+	if not mem.is_empty():
+		cleared = (mem.cleared as Dictionary).duplicate()
+		opened = (mem.opened as Dictionary).duplicate()
+		used_fires = (mem.used_fires as Dictionary).duplicate()
+		seen = (mem.seen as Dictionary).duplicate()
+	_arrive_down = up
 	gold = keep_gold
-	if is_save_floor(floor_no):
-		_write_save()  # 쉼터가 있는 층에 도착하면 저장
+	if up:
+		_toast("%d층 (올라옴)" % floor_no if floor_no != entry_floor or not from_outside else "%d층 — 햇빛 비치는 칸에서 Enter: 바깥으로" % floor_no)
+	elif is_save_floor(floor_no) and mem.is_empty():
+		_write_save()  # 쉼터가 있는 층에 처음 도착하면 저장
 		_toast("%d층 — 쉼터가 있어요 (저장했어요)" % floor_no)
 	else:
 		_toast("%d층" % floor_no)
@@ -1628,6 +1674,11 @@ func _fight() -> void:
 ## 이 층 시작 칸이 바깥으로 나가는 출구인가 (바깥 입구로 들어와 아직 그 층)
 func _outside_exit_here() -> bool:
 	return from_outside and floor_no == entry_floor
+
+
+## 이 층 시작 칸이 위층으로 오르는 계단인가 (탐험을 시작한 층보다 깊음)
+func _up_stairs_here() -> bool:
+	return floor_no > entry_floor
 
 
 ## 들어온 바깥 지형의 입구 앞으로 (main.gd가 같은 시드로 지형을 다시 만듦)
