@@ -20,10 +20,10 @@
 | Bestiary - Dungeon Monsters Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/bestiary-dungeon-monsters-kit) | **QAL v1.0** | 아니요 | 위와 같음 | 고블린 졸개·전사(퍼글린), 고블린 대장(임프) | 씀 |
 | Characters - Fantasy Races Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/characters-fantasy-races) | **QAL v1.0** | 아니요 | `assets/quaternius/heroes/` · `tools/bake_heroes.gd` | 보스 오크 족장(붉은 오크 머리), 납골 섭정(다크엘프 머리) | 씀 |
 | Ultimate Monsters Bundle | Quaternius | [poly.pizza](https://poly.pizza/bundle/Ultimate-Monsters-Bundle-5oyGWAmOB6) | CC0 | 아니요 | `assets/quaternius/monsters/` (원본 glb) | 박쥐 떼(demon), 벌레 떼(armabee), 오크·좀비 등 옛 이름 | 씀 |
-| Animated Animal Pack, Rat | Quaternius | [poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS) | CC0 | 아니요 | `assets/quaternius/animals/` (원본 glb) | 늑대, 쥐 떼 | 씀 |
+| Animated Animal Pack, Rat | Quaternius | [poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS) | CC0 | 아니요 | `assets/quaternius/animals/` (원본 glb) | 늑대, 쥐 떼, 보스 접붙인 들소(황소) | 씀 |
 | RPG Animations GLB FREE | Explosive LLC | [Godot 에셋 스토어](https://store.godotengine.org/asset/explosive-llc/rpg-character-animations-pack-free/) | **MIT** | 아니요 | `tools/retarget.gd`로 옮김 | 웅크리기·다친 대기·점프·구르기 등 | 씀 |
 | Stylized Dark Fantasy Skeleton | Hotstrike Studio | [Fab](https://www.fab.com/listings/de87148f-4683-48bb-be42-e772a620fb35) | **CC-BY** | 예 | `assets/dark/skeleton/` · `tools/bake_undead.gd` | 스켈레톤 | 씀 |
-| The Eightfold Archive (보스 8종) | Bento Models | [Fab](https://www.fab.com/listings/5311167e-f8c4-4f53-ab89-defee5d1a228) | Fab Standard | 예 | `assets/dark/<보스>/` · `tools/bake_boss.gd` (칸토르·섭정은 안 씀) | 던전 보스: 종지기(Hadal), 버어휠·왜가리·실접목사·겨울 접순·들소(Glasshouse) | 씀 |
+| The Eightfold Archive (보스 8종) | Bento Models | [Fab](https://www.fab.com/listings/5311167e-f8c4-4f53-ab89-defee5d1a228) | Fab Standard | 예 | `assets/dark/<보스>/` · `tools/bake_boss.gd` (칸토르·섭정·들소는 안 씀) | 던전 보스: 종지기(Hadal), 버어휠·왜가리·실접목사·겨울 접순(Glasshouse) | 씀 |
 | Free Rigged Dark Fantasy Knight | Bento Pack (Pedro Bento) | [Fab](https://www.fab.com/listings/04f3294d-4338-4458-a7a9-16f6fc11142c) | Fab Standard | 예 | `assets/dark/knight/` · `tools/bake_dark.gd` | 스켈레톤에 동작·롱소드를 옮길 때만 씀 (굽는 시점) | 간접 |
 | Kenney 3D 키트: Mini Dungeon, Mini Characters, Survival Kit, Nature Kit, Modular Cave Kit | Kenney | [kenney.nl](https://kenney.nl/assets) | CC0 | 아니요 | `assets/kenney/<팩>/` (각 팩에 License.txt) | 야외 나무·풀, 텐트·모닥불·망치, 동굴 바위. 옛 조각·캐릭터 이름은 새 모델로 바꿔 이어 줌 | 씀 (일부) |
 | Kenney 오디오: Interface, Impact, RPG, UI Audio, Voiceover Pack(+Fighter) | Kenney | [kenney.nl](https://kenney.nl/assets) | CC0 | 아니요 | `assets/kenney/audio/` | 효과음, 목소리 | 씀 |
@@ -53,7 +53,7 @@
    - Godot는 기본 설정으로 프로젝트 안 리소스를 모두 내보냅니다. 그래서 지우거나 내보내기 설정에서 빼야 쓰지 않는 Fab·Unity 파일이 배포본에 들어가지 않습니다.
    - `assets/dark/knight`는 스켈레톤을 다시 구울 때만 필요하니 내보내기에서 뺍니다.
 2. **생성형 AI 표시**
-   - "AI 생성: 예"인 에셋은 해골, 보스 6종, 옛 Bento 캐릭터입니다.
+   - "AI 생성: 예"인 에셋은 해골, 보스 5종, 옛 Bento 캐릭터입니다.
    - 일부 판매처(예: Steam)는 출시 때 AI 생성 콘텐츠를 밝히라고 요구합니다.
 3. **MIT 문구**: Explosive RPG의 MIT 문구를 `CREDITS.md`에 붙입니다.
 4. **KayKit 정리**: 화살과 대체용 던전 조각만 남았습니다. Quaternius로 바꾸면 KayKit을 통째로 뺄 수 있습니다.

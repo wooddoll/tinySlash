@@ -86,14 +86,14 @@ const ANIMS := {
 	"hurt": ["Idle", "Flying_Idle", "Rat_Idle"],
 	"walk": ["Walking_A", "Walk", "Fast_Flying", "Flying_Idle", "Rat_Walk"],
 	"sprint": ["Running_A", "Run", "Gallop", "Walk", "Fast_Flying", "Rat_Run"],
-	"crouch": ["Lie_Idle", "Duck", "Idle_2_HeadLow", "Idle", "Flying_Idle", "Rat_Idle"],
+	"crouch": ["Lie_Idle", "Duck", "Idle_2_HeadLow", "Idle_Headlow", "Idle", "Flying_Idle", "Rat_Idle"],
 	"die": ["Death_A", "Death", "Rat_Death"],
 	"jump": ["Jump_Full_Short", "Jump", "Gallop_Jump", "Rat_Jump"],
 	"hit": ["Hit_A", "HitReact", "HitRecieve", "Idle_HitReact_Left"],
-	"attack-melee-right": ["1H_Melee_Attack_Chop", "Punch", "Bite_Front", "Headbutt", "Attack", "Rat_Attack"],
-	"holding-right-shoot": ["1H_Ranged_Shoot", "Punch", "Bite_Front", "Headbutt", "Attack", "Rat_Attack"],
+	"attack-melee-right": ["1H_Melee_Attack_Chop", "Punch", "Bite_Front", "Headbutt", "Attack_Headbutt", "Attack", "Rat_Attack"],
+	"holding-right-shoot": ["1H_Ranged_Shoot", "Punch", "Bite_Front", "Headbutt", "Attack_Kick", "Attack", "Rat_Attack"],
 	"dodge": ["Dodge_Forward", "Roll", "Jump_Full_Short", "Jump", "Gallop_Jump", "Rat_Jump"],
-	"cast": ["Spellcast_Shoot", "Spellcasting", "1H_Ranged_Shoot", "Punch", "Attack"],
+	"cast": ["Spellcast_Shoot", "Spellcasting", "1H_Ranged_Shoot", "Punch", "Attack_Kick", "Attack"],
 }
 const ONCE := ["die", "hit", "jump", "attack-melee-right", "holding-right-shoot", "dodge", "cast"]
 

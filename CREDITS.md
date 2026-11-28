@@ -75,14 +75,14 @@ itch.io. Puglin and Imp models (goblin minion/warrior/boss), baked by `tools/bak
 The assets may not be redistributed as assets, so they stay out of the public repository.
 
 The Eightfold Archive by Bento Models, from Fab under the Fab Standard License (made with generative
-AI tools). Six bosses are used: Drowned Bellwarden (Hadal) and Burr Wheel, Rain
-Heron, Silk Grafter, Winter Scion, Graft Aurochs (Glasshouse). The lightest LOD meshes with small
+AI tools). Five bosses are used: Drowned Bellwarden (Hadal) and Burr Wheel, Rain
+Heron, Silk Grafter, Winter Scion (Glasshouse). The lightest LOD meshes with small
 textures and renamed clips are baked into `assets/dark/<name>/` by `tools/bake_boss.gd`.
 The original downloads stay outside the project and must not be shared or uploaded publicly.
 
-Ultimate Monsters Bundle and Animated Animal Pack (wolf, fox, husky) and Rat by Quaternius, CC0 1.0,
+Ultimate Monsters Bundle and Animated Animal Pack (wolf, fox, husky, bull) and Rat by Quaternius, CC0 1.0,
 from poly.pizza. Files are in `assets/quaternius/monsters/` and `assets/quaternius/animals/` with a
-`License.txt`. Used for the bat and insect swarms, wolves and rats.
+`License.txt`. Used for the bat and insect swarms, wolves, rats and the aurochs boss (bull).
 
 Characters - Fantasy Races Kit (Standard) by Quaternius, Quaternius Asset License (QAL) v1.0, from
 itch.io. The orc and elf heads are put on the outfits by `tools/bake_heroes.gd` for the orc chief and

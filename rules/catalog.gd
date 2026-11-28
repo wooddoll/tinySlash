@@ -747,7 +747,8 @@ static func monster(id: String) -> CreatureStats:
 			_m(s, "접붙인 들소", 5.0, 1800, [21, 10, 19, 3, 12, 6], 14, 95, 8, Rules.Size.HUGE, 0)
 			s.weapons = [weapon("aurochs_gore")]
 			s.creature_type = "beast"
-			s.model = "dark/aurochs"
+			s.sprite_scale = 1.7
+			s.model = "animals/bull"
 			s.weapon_model = ""
 		"swarm_rats":
 			_m(s, "쥐 떼", 0.25, 50, [9, 11, 9, 2, 10, 3], 10, 14, 6, Rules.Size.MEDIUM, 0)
