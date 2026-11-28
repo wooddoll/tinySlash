@@ -8,6 +8,10 @@ Godot 4.7로 만드는 2.5D 아이소메트릭 턴제 전술 RPG 프로토타입
 - `rules/` 화면과 분리된 규칙 엔진
 - 문서: [규칙](docs/rules.md) · [구현](docs/implementation.md) · [TODO](docs/todo.md)
 
+실행 (Windows): `run.bat` 더블클릭. `run.bat edit` 편집기, `run.bat test` 테스트, `run.bat import` 에셋 새로 설치한 뒤 한 번.
+Godot는 이 폴더 옆 `..\Godot_v4.7.2-stable_win64.exe\` 에 있다고 보고, 다르면 `GODOT` 환경 변수로 지정합니다.
+저장소에 없는 에셋은 `tools/install_*.sh`로 설치합니다 ([docs/assets.md](docs/assets.md)).
+
 테스트:
 ```
 Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/run_tests.gd
