@@ -2,6 +2,7 @@ extends Node3D
 
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
+const Outdoor = preload("res://scripts/outdoor_terrain.gd")
 
 @export var tree_count := 40
 @export var grass_count := 150
@@ -9,12 +10,40 @@ const Kenney = preload("res://scripts/kenney.gd")
 @export var world_half_size := 18.0
 
 @onready var decor: Node3D = $Decor
+## 0이면 실행할 때마다 새 지형
+@export var terrain_seed := 0
+
+## 만든 지형 (Terrain3D가 없으면 null: 예전 평평한 풀밭 + Kenney 나무)
+var outdoor: Node3D = null
+var _seed := 0
 
 
 func _ready() -> void:
 	InputSetup.register()
-	_scatter_decor()
+	if not _build_terrain():
+		_scatter_decor()
 	_add_hint()
+
+
+## Terrain3D가 설치돼 있으면 노이즈 언덕·숲 지형을 만들고 평평한 바닥·연습용 돌 블록을 치움
+func _build_terrain() -> bool:
+	if not Outdoor.available():
+		return false
+	_seed = terrain_seed if terrain_seed != 0 else randi() % 100000 + 1
+	outdoor = Outdoor.new()
+	outdoor.name = "Outdoor"
+	add_child(outdoor)
+	if not outdoor.generate(_seed):
+		outdoor.queue_free()
+		outdoor = null
+		return false
+	$Ground.queue_free()
+	$Props.queue_free()
+	# 빈터 가운데에 세움 (조금 위에서 떨어져 땅에 닿음)
+	var player := $Player as Node3D
+	player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.3, 0)
+	($CameraRig as Node3D).global_position = player.global_position
+	return true
 
 
 func _process(_delta: float) -> void:
@@ -30,7 +59,7 @@ func _process(_delta: float) -> void:
 func _add_hint() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
-	label.text = "WASD 이동 · Space 점프 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
+	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
 	label.position = Vector2(16, 12)
 	label.add_theme_constant_override("outline_size", 6)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)

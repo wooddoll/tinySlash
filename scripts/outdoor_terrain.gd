@@ -28,6 +28,10 @@ const FOLIAGE := [
 var terrain: Node3D = null
 ## 모델 이름 → 메시 번호
 var _mesh_ids := {}
+## 부딪히는 식생 (나무·바위) 충돌체를 담는 노드
+var _obstacles: StaticBody3D = null
+## 이 모델들(이름 앞부분)에는 충돌체를 붙임: [앞부분, 반지름(크기 1일 때)]
+const SOLID := [["CommonTree_", 0.22], ["Pine_", 0.25], ["TwistedTree_", 0.22], ["DeadTree_", 0.2], ["Rock_Medium_", 0.5]]
 
 
 static func available() -> bool:
@@ -79,6 +83,11 @@ func generate(seed_value: int) -> bool:
 			h += smoothstep(0.8, 1.0, edge) * HILL * 1.5
 			img.set_pixel(x, y, Color(h, 0, 0, 1))
 	terrain.data.import_images([img, ctl, null], Vector3(-half, 0, -half), 0.0, 1.0)
+	# 땅 전체에 충돌 (캐릭터가 언덕을 오르내림). 256칸이라 한 번에 만들어도 가벼움
+	terrain.collision.mode = ClassDB.class_get_integer_constant("Terrain3DCollision", "FULL_GAME")
+	_obstacles = StaticBody3D.new()
+	_obstacles.name = "Obstacles"
+	add_child(_obstacles)
 	_scatter(rng, seed_value)
 	return true
 
@@ -154,6 +163,7 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 			if not by_model.has(m):
 				by_model[m] = []
 			by_model[m].append(xf)
+			_add_obstacle(m, p, s)
 		for m in by_model:
 			var id := _mesh_id(m)
 			if id < 0:
@@ -161,3 +171,17 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 			var xfs: Array[Transform3D] = []
 			xfs.assign(by_model[m])
 			terrain.instancer.add_transforms(id, xfs)
+
+
+## 나무 줄기·바위에 부딪히게 원기둥 충돌체 (식생 배치는 그림만 그림)
+func _add_obstacle(model: String, p: Vector3, s: float) -> void:
+	for e in SOLID:
+		if model.begins_with(e[0]):
+			var shape := CollisionShape3D.new()
+			var cyl := CylinderShape3D.new()
+			cyl.radius = float(e[1]) * s
+			cyl.height = 2.0
+			shape.shape = cyl
+			shape.position = p + Vector3(0, 1.0, 0)
+			_obstacles.add_child(shape)
+			return
