@@ -391,8 +391,18 @@ func test_fog_visible_cells() -> void:
 			check(v.has(c), "corridor sees itself")
 			for n in v:
 				check(d.is_floor(n), "only floor cells")
-				check(maxi(absi(n.x - c.x), absi(n.y - c.y)) <= DV.SIGHT, "within SIGHT steps")
+				check((n - c).length_squared() <= DV.SIGHT * DV.SIGHT, "within SIGHT")
+				check(DV.line_clear(d, c, n), "straight line not blocked")
 			break
+	# 벽 뒤는 가까워도 안 보임: 칸 하나짜리 벽 너머 바닥
+	var w := Dungeon.new(7, 3)
+	for x in 7:
+		for y in 3:
+			if x != 3:
+				w.set_tile(Vector2i(x, y), Dungeon.Tile.FLOOR)
+	var seen_w := DV.visible_from(w, Vector2i(2, 1))
+	check(seen_w.has(Vector2i(0, 1)), "same side visible")
+	check(not seen_w.has(Vector2i(4, 1)), "behind wall hidden")
 
 
 func test_shelter_floors_and_cell() -> void:

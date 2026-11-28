@@ -6,14 +6,15 @@ extends RefCounted
 
 const SHADER := preload("res://shaders/foliage_wind.gdshader")
 ## 재질 이름(앞부분) → [휘는 정도, 잎 떨림]. 없는 재질은 흔들지 않음
+## 휘는 양은 높이² /(1+높이)라 키 작은 풀·꽃은 값을 크게 줘야 눈에 보임 (풀 1칸 → 끝이 0.2칸)
 const WIND := {
 	"mat_Bark_": [0.035, 0.0],
 	"mat_Leaves_NormalTree": [0.035, 0.012],
 	"mat_Leaves_Pine": [0.03, 0.006],
 	"mat_Leaves_TwistedTree": [0.04, 0.015],
-	"mat_Leaves": [0.06, 0.02],
-	"mat_Flowers": [0.06, 0.02],
-	"mat_Grass": [0.08, 0.01],
+	"mat_Leaves": [0.15, 0.025],
+	"mat_Flowers": [0.15, 0.025],
+	"mat_Grass": [0.4, 0.03],
 }
 
 static var _mats := {}

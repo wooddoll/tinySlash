@@ -58,7 +58,7 @@ static var _pending_toast := ""
 static var used_fires := {}
 ## 전장의 안개: 탐험 중 본 칸
 static var seen := {}
-## 탐험 중 보이는 거리 (칸, 바닥을 따라). 방 안이면 방 전체 + 둘레 이만큼
+## 탐험 중 보이는 거리 (칸, 일직선 시야). 방 안이면 그 방은 거리와 상관없이 보임 (횃불)
 const SIGHT := 6
 
 @onready var focus: Node3D = $Focus
@@ -1176,28 +1176,38 @@ func _fog_apply_all() -> void:
 
 ## 들어선 칸에서 보이는 칸: 방이면 방 전체, 통로면 바닥을 따라 3걸음까지
 static func visible_from(d: Dungeon, c: Vector2i) -> Array:
-	# 방 안이면 방 전체와 그 둘레 SIGHT칸, 통로면 SIGHT칸 (바닥을 따라 걸어서 닿는 거리)
-	var start: Array = [c]
+	# 일직선 시야: 칸 가운데에서 칸 가운데로 그은 선이 벽(바닥이 아닌 칸)에 막히지 않으면 보임.
+	# 거리는 SIGHT칸(원 모양) 안. 방 안이면 횃불로 밝아서 그 방 칸은 거리와 상관없이 (선이 막히지 않으면) 보임.
+	var out: Array = []
 	var room := d.room_at(c)
+	var reach := SIGHT
 	if room >= 0:
-		start = (d.rooms[room].cells as Array).duplicate()
-	var out: Array = start.duplicate()
-	var dist := {}
-	for s0 in start:
-		dist[s0] = 0
-	var q: Array = start.duplicate()
-	while not q.is_empty():
-		var cur: Vector2i = q.pop_front()
-		if dist[cur] >= SIGHT:
-			continue
-		for dd in Dungeon.DIRS4:
-			var n: Vector2i = cur + dd
-			if dist.has(n) or not d.is_floor(n):
+		var rect: Rect2i = d.rooms[room].rect
+		reach = maxi(reach, maxi(rect.size.x, rect.size.y))
+	for y in range(c.y - reach, c.y + reach + 1):
+		for x in range(c.x - reach, c.x + reach + 1):
+			var t := Vector2i(x, y)
+			if not d.is_floor(t):
 				continue
-			dist[n] = dist[cur] + 1
-			out.append(n)
-			q.append(n)
+			var near := (t - c).length_squared() <= SIGHT * SIGHT
+			if not near and not (room >= 0 and d.room_at(t) == room):
+				continue
+			if line_clear(d, c, t):
+				out.append(t)
 	return out
+
+
+## 두 칸 사이에 벽이 없는가 (선을 1/4칸씩 따라가며 지나는 칸이 모두 바닥인지)
+static func line_clear(d: Dungeon, a: Vector2i, b: Vector2i) -> bool:
+	var from := Vector2(a) + Vector2(0.5, 0.5)
+	var to := Vector2(b) + Vector2(0.5, 0.5)
+	var steps := int(ceil(from.distance_to(to) * 4.0))
+	for k in range(1, steps):
+		var p := from.lerp(to, float(k) / steps)
+		var cell := Vector2i(floori(p.x), floori(p.y))
+		if cell != b and not d.is_floor(cell):
+			return false
+	return true
 
 
 func _reveal(c: Vector2i) -> void:
