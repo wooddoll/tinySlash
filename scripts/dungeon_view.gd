@@ -3,6 +3,7 @@
 extends Node3D
 
 const Loading = preload("res://scripts/loading.gd")
+const DungeonMinimap = preload("res://scripts/dungeon_minimap.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Battle = preload("res://scripts/battle.gd")
 const Kenney = preload("res://scripts/kenney.gd")
@@ -96,6 +97,8 @@ var _last_size := Vector2i.ZERO
 # UI
 var controls := {}
 var info_label: RichTextLabel
+## 탐험 중 오른쪽 패널 위 미니맵 (scripts/dungeon_minimap.gd)
+var minimap: Control
 var room_label: RichTextLabel
 var fight_button: Button
 var seed_box: SpinBox
@@ -640,6 +643,10 @@ func _build_ui() -> void:
 	layer.add_child(right)
 	var rbox := VBoxContainer.new()
 	right.add_child(rbox)
+	minimap = DungeonMinimap.new()
+	minimap.view = self
+	minimap.visible = false
+	rbox.add_child(minimap)
 	info_label = _rich(rbox)
 	room_label = _rich(rbox)
 	fight_button = Button.new()
@@ -995,6 +1002,7 @@ func _add_lantern(n: Node3D) -> void:
 func _apply_mode() -> void:
 	left_panel.visible = not exploring
 	party_panel.visible = exploring
+	minimap.visible = exploring
 	fight_button.visible = not exploring
 	_show_room(hover_mesh, -1)
 	if exploring:
