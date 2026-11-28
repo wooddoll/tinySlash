@@ -1,11 +1,11 @@
-## 음량 설정 (M7): 버스 셋(Master, SFX 효과음, Ambient 환경음)과 user://settings.cfg에 저장한 음량(0~1).
+## 음량 설정 (M7): 버스 넷(Master, Music 음악, SFX 효과음, Ambient 환경음)과 user://settings.cfg에 저장한 음량(0~1).
 ## 처음 쓸 때 버스를 만들고 저장한 음량을 적용합니다. 다른 스크립트는 const AudioSettings = preload("res://scripts/audio_settings.gd").
 extends RefCounted
 
 const PATH := "user://settings.cfg"
-const BUSES := ["Master", "SFX", "Ambient"]
-const LABELS := {"Master": "전체", "SFX": "효과음", "Ambient": "환경음"}
-const DEFAULTS := {"Master": 0.8, "SFX": 1.0, "Ambient": 0.7}
+const BUSES := ["Master", "Music", "SFX", "Ambient"]
+const LABELS := {"Master": "전체", "Music": "음악", "SFX": "효과음", "Ambient": "환경음"}
+const DEFAULTS := {"Master": 0.8, "Music": 0.6, "SFX": 1.0, "Ambient": 0.7}
 
 static var _ready := false
 static var volumes := {}

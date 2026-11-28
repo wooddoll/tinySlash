@@ -46,6 +46,7 @@ func _ready() -> void:
 	gap.custom_minimum_size.y = 10
 	box.add_child(gap)
 	AudioSettings.build_sliders(box)
+	load("res://scripts/music.gd").play(self, "field")
 	cont.grab_focus()
 	Sfx.wire_buttons(self)
 

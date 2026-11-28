@@ -148,6 +148,7 @@ func _ready() -> void:
 	amb.mode = "cave"
 	amb.name = "Ambience"
 	add_child(amb)
+	load("res://scripts/music.gd").play(self, "dungeon")
 	var came_in := enter_seed != 0
 	if came_in:
 		# 같은 입구는 늘 같은 던전. 이전 탐험 기록은 비움

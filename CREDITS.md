@@ -115,3 +115,9 @@ and Voiceover Pack: Fighter by Kenney (www.kenney.nl),
 licensed under Creative Commons Zero (CC0). Attribution is not required but appreciated.
 Files are in `assets/kenney/audio/<pack>/` with each pack's `License.txt`.
 Voiceover Pack voices: Jeffrey M. Smith (male) and Giselle (female), see `voiceover-pack/Credits.txt`.
+
+Music from OpenGameArt.org, all licensed under Creative Commons Zero (CC0).
+Not in the repository; `tools/install_music.sh` downloads them to `assets/music/`.
+- "Medieval: Minstrel Dance" by RandomMind (village) — https://opengameart.org/content/medieval-minstrel-dance
+- "Medieval: Exploration" by RandomMind (field) — https://opengameart.org/content/medieval-exploration
+- "Dungeon Ambience" by yd (dungeon) — https://opengameart.org/content/dungeon-ambience

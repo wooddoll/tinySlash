@@ -16,6 +16,7 @@ const Region = preload("res://rules/region.gd")
 const RegionMap = preload("res://scripts/region_map.gd")
 const Reputation = preload("res://rules/reputation.gd")
 const Ambience = preload("res://scripts/ambience.gd")
+const Music = preload("res://scripts/music.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -49,6 +50,8 @@ const EDGE := 4.0
 const ARRIVE := 7.0
 ## 바깥에서 실제 1초에 흐르는 게임 분
 const MINUTES_PER_SECOND := 1.0
+## 마을 곡이 들리는 거리 (빈터 가운데에서, 칸)
+const VILLAGE_MUSIC_RADIUS := 40.0
 
 ## 만든 지형 (Terrain3D가 없으면 null: 예전 평평한 풀밭 + Kenney 나무)
 var outdoor: Node3D = null
@@ -91,6 +94,16 @@ func _ready() -> void:
 	_add_hint()
 	if _pending_toast != "":
 		_toast(_pending_toast)
+	_update_music()
+
+
+## 마을 가까이는 마을 곡, 그 밖은 들판 곡 (1초마다 봄)
+var _music_check := 0.0
+
+
+func _update_music() -> void:
+	var near_village := village != null and ($Player as Node3D).global_position.length() < VILLAGE_MUSIC_RADIUS
+	Music.play(self, "village" if near_village else "field")
 
 
 ## Terrain3D가 설치돼 있으면 지금 지방 칸(Game.tile)의 노이즈 언덕·숲 지형을 만들고 평평한 바닥·연습용 돌 블록을 치움.
@@ -173,6 +186,10 @@ func _build_terrain() -> bool:
 
 
 func _process(delta: float) -> void:
+	_music_check -= delta
+	if _music_check <= 0.0:
+		_music_check = 1.0
+		_update_music()
 	if fight != null:
 		_fight_process(delta)
 	elif dialog != null and not dialog.is_open() and not region_map.is_open():
