@@ -3,6 +3,7 @@ extends Node3D
 const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
 const Outdoor = preload("res://scripts/outdoor_terrain.gd")
+const DungeonView = preload("res://scripts/dungeon_view.gd")
 
 @export var tree_count := 40
 @export var grass_count := 150
@@ -12,6 +13,10 @@ const Outdoor = preload("res://scripts/outdoor_terrain.gd")
 @onready var decor: Node3D = $Decor
 ## 0이면 실행할 때마다 새 지형
 @export var terrain_seed := 0
+
+## 이번 판의 바깥 세상 시드 (던전에 다녀와도 같은 지형), 던전에서 돌아왔으면 입구 앞에서 시작
+static var world_seed := 0
+static var back_from_dungeon := false
 
 ## 만든 지형 (Terrain3D가 없으면 null: 예전 평평한 풀밭 + Kenney 나무)
 var outdoor: Node3D = null
@@ -29,7 +34,9 @@ func _ready() -> void:
 func _build_terrain() -> bool:
 	if not Outdoor.available():
 		return false
-	_seed = terrain_seed if terrain_seed != 0 else randi() % 100000 + 1
+	if world_seed == 0:
+		world_seed = terrain_seed if terrain_seed != 0 else randi() % 100000 + 1
+	_seed = world_seed
 	outdoor = Outdoor.new()
 	outdoor.name = "Outdoor"
 	add_child(outdoor)
@@ -39,9 +46,13 @@ func _build_terrain() -> bool:
 		return false
 	$Ground.queue_free()
 	$Props.queue_free()
-	# 빈터 가운데에 세움 (조금 위에서 떨어져 땅에 닿음)
+	# 빈터 가운데에 세움 (조금 위에서 떨어져 땅에 닿음). 던전에서 나왔으면 입구 앞
 	var player := $Player as Node3D
 	player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.3, 0)
+	if back_from_dungeon:
+		back_from_dungeon = false
+		player.global_position = outdoor.before_entrance()
+	outdoor.entrance_entered.connect(_enter_dungeon)
 	($CameraRig as Node3D).global_position = player.global_position
 	return true
 
@@ -112,3 +123,12 @@ func _random_pos(rng: RandomNumberGenerator, keep_clear: float) -> Vector3:
 		if p.length() > keep_clear:
 			return p
 	return Vector3.ZERO
+
+
+## 입구 문턱을 넘으면 이 세상 시드로 정한 던전에서 바로 탐험 시작
+func _enter_dungeon(_body: Node3D) -> void:
+	if get_tree().paused:
+		return
+	DungeonView.enter_seed = world_seed * 31 + 7
+	back_from_dungeon = true
+	get_tree().change_scene_to_file.call_deferred("res://scenes/dungeon.tscn")

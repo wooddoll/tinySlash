@@ -27,6 +27,8 @@ static var selected := -1
 static var cleared := {}
 ## 탐험 모드 상태 (전투에 다녀와도 이어짐)
 static var exploring := false
+## 바깥 지형의 던전 입구로 들어왔을 때 그 던전 시드 (0이 아니면 그 던전에서 바로 탐험을 시작)
+static var enter_seed := 0
 ## 탐험을 다시 시작할 칸 (-1이면 시작 지점)
 static var explore_cell := Vector2i(-1, -1)
 ## 방에 들어서기 직전 칸. 전투에서 도망치면(Esc) 여기로 돌아옴
@@ -112,6 +114,20 @@ var shop_buy: Button
 
 func _ready() -> void:
 	InputSetup.register()
+	var from_outside := enter_seed != 0
+	if from_outside:
+		# 같은 입구는 늘 같은 던전. 이전 탐험 기록은 비움
+		saved = DungeonParams.new()
+		saved.rng_seed = enter_seed
+		enter_seed = 0
+		exploring = false
+		cleared.clear()
+		opened.clear()
+		used_fires.clear()
+		seen.clear()
+		selected = -1
+		explore_cell = Vector2i(-1, -1)
+		retreat_cell = Vector2i(-1, -1)
 	if saved == null:
 		saved = DungeonParams.new()
 		saved.rng_seed = randi_range(1, 999999)
@@ -120,6 +136,8 @@ func _ready() -> void:
 	_build_ui()
 	Sfx.wire_buttons(self)
 	_generate()
+	if from_outside:
+		_set_exploring(true)
 
 
 func _take_battle_result() -> void:

@@ -25,7 +25,19 @@ const FOLIAGE := [
 	[["Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Common_Short", "Grass_Common_Tall", "Clover_1"], 12000, -0.35, Vector2(0.4, 0.7), 0.8],
 ]
 
+## 던전 입구에 들어서면 (플레이어 몸)
+signal entrance_entered(body: Node3D)
+
+## 던전 입구: 빈터에서 ENTRANCE_DIST칸 떨어진 평평한 터, 빈터 쪽(+Z)을 봄. 빈터에서 돌길이 이어짐
+const ENTRANCE_DIST := 40.0
+const PAD := 5.0
+const PATH_W := 1.6
+## 입구 뒤 둔덕 높이 (칸)
+const MOUND := 4.0
+
 var terrain: Node3D = null
+## 입구 자리와 방향 (+Z가 빈터 쪽, 문 앞)
+var entrance := Transform3D.IDENTITY
 ## 모델 이름 → 메시 번호
 var _mesh_ids := {}
 ## 부딪히는 식생 (나무·바위) 충돌체를 담는 노드
@@ -69,6 +81,15 @@ func generate(seed_value: int) -> bool:
 	var ctl := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF)
 	ctl.fill(Color(ClassDB.class_call_static("Terrain3DUtil", "as_float", auto_bits), 0, 0, 1))
 	var half := SIZE / 2.0
+	# 입구 자리: 빈터에서 화면 위쪽(기본 카메라가 -X-Z 쪽을 봄) 방향으로 ENTRANCE_DIST칸.
+	# 그래야 문이 카메라 쪽을 보고 뒤 둔덕에 가려지지 않음. 그 자리의 원래 높이로 터를 고르고, 빈터까지 비탈길
+	var ang := deg_to_rad(225.0 + rng.randf_range(-35.0, 35.0))
+	var e2 := Vector2(cos(ang), sin(ang)) * ENTRANCE_DIST
+	var e_h := (hills.get_noise_2d(e2.x, e2.y) * 0.5 + 0.5) * HILL
+	var c_h := _clearing_height(hills)
+	var face := Vector3(-e2.x, 0, -e2.y).normalized()
+	var f2 := Vector2(face.x, face.z)
+	entrance = Transform3D(Basis.looking_at(-face, Vector3.UP), Vector3(e2.x, e_h, e2.y))
 	for y in SIZE:
 		for x in SIZE:
 			var wx := x - half
@@ -77,7 +98,19 @@ func generate(seed_value: int) -> bool:
 			# 가운데 빈터는 평평하게 (가장자리로 갈수록 원래 높이)
 			var d := Vector2(wx, wz).length()
 			var t := smoothstep(CLEARING, CLEARING * 2.2, d)
-			h = lerpf(_clearing_height(hills), h, t)
+			h = lerpf(c_h, h, t)
+			# 입구 앞 터
+			var de := Vector2(wx, wz).distance_to(e2)
+			h = lerpf(e_h, h, smoothstep(PAD, PAD * 2.0, de))
+			# 빈터 → 입구 길: 길 위는 두 높이 사이 비탈
+			var along := clampf(Vector2(wx, wz).dot(e2) / e2.length_squared(), 0.0, 1.0)
+			var off := Vector2(wx, wz).distance_to(e2 * along)
+			h = lerpf(lerpf(c_h, e_h, smoothstep(0.3, 0.9, along)), h, smoothstep(PATH_W, PATH_W * 3.0, off))
+			# 입구 뒤 둔덕: 문이 비탈에 박힌 것처럼 (뒤로 갈수록 솟았다가 다시 낮아짐)
+			var rel := Vector2(wx, wz) - e2
+			var back := rel.dot(-f2)
+			var lat := absf(rel.dot(Vector2(-f2.y, f2.x)))
+			h += MOUND * smoothstep(0.9, 3.0, back) * (1.0 - smoothstep(6.0, 14.0, back)) * (1.0 - smoothstep(3.0, 9.0, lat))
 			# 지도 끝은 높여 막힌 느낌
 			var edge := maxf(absf(wx), absf(wz)) / half
 			h += smoothstep(0.8, 1.0, edge) * HILL * 1.5
@@ -89,6 +122,8 @@ func generate(seed_value: int) -> bool:
 	_obstacles.name = "Obstacles"
 	add_child(_obstacles)
 	_scatter(rng, seed_value)
+	_path_stones(rng, e2)
+	_build_entrance()
 	return true
 
 
@@ -151,6 +186,8 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 			# 빈터: 풀만 (가운데는 비움)
 			if d < CLEARING * (0.5 if is_grass else 1.3):
 				continue
+			if not is_grass and _near_path(Vector2(p.x, p.z)):
+				continue
 			if forest.get_noise_2d(p.x, p.z) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
 				continue
 			var n: Vector3 = terrain.data.get_normal(p)
@@ -185,3 +222,113 @@ func _add_obstacle(model: String, p: Vector3, s: float) -> void:
 			shape.position = p + Vector3(0, 1.0, 0)
 			_obstacles.add_child(shape)
 			return
+
+
+## 입구 터나 길 위인가 (큰 식생을 두지 않음)
+func _near_path(p: Vector2) -> bool:
+	var e2 := Vector2(entrance.origin.x, entrance.origin.z)
+	if p.distance_to(e2) < PAD * 1.6:
+		return true
+	var along := clampf(p.dot(e2) / e2.length_squared(), 0.0, 1.0)
+	return p.distance_to(e2 * along) < PATH_W * 2.0
+
+
+## 빈터에서 입구까지 디딤돌
+func _path_stones(rng: RandomNumberGenerator, e2: Vector2) -> void:
+	var stones := ["RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3", "RockPath_Round_Wide", "RockPath_Round_Thin"]
+	var by_model := {}
+	var start := CLEARING * 0.6
+	var dist := start
+	var dir := e2.normalized()
+	var side := Vector2(-dir.y, dir.x)
+	while dist < e2.length() - 2.0:
+		var q := dir * dist + side * rng.randf_range(-0.5, 0.5)
+		var p := Vector3(q.x, 0, q.y)
+		p.y = height_at(p) + 0.02
+		var m: String = stones[rng.randi() % stones.size()]
+		if not by_model.has(m):
+			by_model[m] = []
+		by_model[m].append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.3)), p))
+		dist += rng.randf_range(0.9, 1.3)
+	for m in by_model:
+		var id := _mesh_id(m)
+		if id >= 0:
+			var xfs: Array[Transform3D] = []
+			xfs.assign(by_model[m])
+			terrain.instancer.add_transforms(id, xfs)
+
+
+## 돌 문(Medieval Village 둥근 문 벽) + 양옆 기둥 + 횃불. 문 안쪽은 어둠, 문턱에 들어서면 entrance_entered
+func _build_entrance() -> void:
+	var root := Node3D.new()
+	root.name = "DungeonEntrance"
+	root.transform = entrance
+	add_child(root)
+	var k := 2.2  # 마을 조각(1칸 너비)을 이만큼 키움
+	var door := MeshInstance3D.new()
+	door.mesh = load("res://assets/quaternius/village/door.res")
+	door.scale = Vector3.ONE * k
+	root.add_child(door)
+	for sx in [-1.0, 1.0]:
+		var col := MeshInstance3D.new()
+		col.mesh = load("res://assets/quaternius/village/column.res")
+		col.scale = Vector3(0.45, k * 1.05, 0.45)
+		col.position = Vector3(sx * (k * 0.5 + 0.2), 0, 0)
+		root.add_child(col)
+		var torch := MeshInstance3D.new()
+		torch.mesh = load("res://assets/quaternius/props/Torch_Metal.res")
+		torch.position = Vector3(sx * (k * 0.5 + 0.2), 1.5, 0.3)
+		root.add_child(torch)
+		var light := OmniLight3D.new()
+		light.light_color = Color(1.0, 0.65, 0.3)
+		light.light_energy = 1.6
+		light.omni_range = 5.0
+		light.position = torch.position + Vector3(0, 0.5, 0.15)
+		root.add_child(light)
+	# 문 안쪽 어둠 (계단이 아래로 내려가는 느낌)
+	var dark := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(k * 0.5, k * 0.95)
+	dark.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.02, 0.02, 0.03)
+	dark.material_override = mat
+	dark.position = Vector3(0, quad.size.y * 0.5, -0.02)
+	root.add_child(dark)
+	# 벽: 문 구멍 빼고 막음
+	var body := StaticBody3D.new()
+	root.add_child(body)
+	for sx in [-1.0, 1.0]:
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(k * 0.35 + 0.5, 3.0, 0.6)
+		cs.shape = box
+		cs.position = Vector3(sx * (k * 0.25 + box.size.x * 0.5), 1.5, 0)
+		body.add_child(cs)
+	var back := CollisionShape3D.new()
+	var bb := BoxShape3D.new()
+	bb.size = Vector3(k, 3.0, 0.4)
+	back.shape = bb
+	back.position = Vector3(0, 1.5, -0.6)
+	body.add_child(back)
+	# 문턱
+	var area := Area3D.new()
+	area.name = "Threshold"
+	var ac := CollisionShape3D.new()
+	var abox := BoxShape3D.new()
+	abox.size = Vector3(k * 0.45, 2.0, 0.5)
+	ac.shape = abox
+	ac.position = Vector3(0, 1.0, 0.05)
+	area.add_child(ac)
+	root.add_child(area)
+	area.body_entered.connect(func(b: Node3D) -> void:
+		if b is CharacterBody3D:
+			entrance_entered.emit(b))
+
+
+## 입구 앞 (빈터 쪽으로 dist칸) 땅 위 자리
+func before_entrance(dist := 2.5) -> Vector3:
+	var p := entrance * Vector3(0, 0, dist)
+	p.y = height_at(p) + 0.3
+	return p
