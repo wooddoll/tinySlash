@@ -46,8 +46,8 @@ static func weapon(id: String) -> WeaponData:
 		"silk_claws": return _w(id, "갈고리 발", 1, 8, "slashing", {"finesse": true})
 		"scion_vine": return _w(id, "얼음 덩굴", 2, 8, "bludgeoning", {"reach": true})
 		"aurochs_gore": return _w(id, "뿔 들이받기", 2, 10, "piercing", {"heavy": true, "reach": true})
-		"cantor_tentacle": return _w(id, "촉수", 1, 6, "bludgeoning", {"finesse": true, "reach": true})
-		"regent_sting": return _w(id, "꼬리 침", 2, 6, "piercing", {"finesse": true, "reach": true, "on_hit_save": CON, "on_hit_dc": 12, "on_hit_effect": "poisoned"})
+		"cantor_tentacle": return _w(id, "큰 도끼", 1, 6, "slashing", {"finesse": true, "reach": true})
+		"regent_sting": return _w(id, "독 칼날", 2, 6, "piercing", {"finesse": true, "reach": true, "on_hit_save": CON, "on_hit_dc": 12, "on_hit_effect": "poisoned"})
 	push_error("알 수 없는 무기: " + id)
 	return null
 
@@ -691,13 +691,13 @@ static func monster(id: String) -> CreatureStats:
 			s.model = "dark/bellwarden"
 			s.weapon_model = ""
 		"cantor":
-			_m(s, "심연의 노래꾼", 3.0, 700, [16, 14, 14, 8, 12, 10], 13, 52, 8, Rules.Size.LARGE, 2)
+			_m(s, "포효하는 오크 족장", 3.0, 700, [16, 14, 14, 8, 12, 10], 13, 52, 8, Rules.Size.LARGE, 2)
 			s.weapons = [weapon("cantor_tentacle")]
 			s.multiattack = 3
-			s.creature_type = "monstrosity"
+			s.creature_type = "humanoid"
 			s.resistances = PackedStringArray(["cold", "thunder"])
-			s.features = PackedStringArray(["flying"])
-			s.model = "dark/cantor"
+			s.sprite_scale = 1.6
+			s.model = "qhero/orc_chief"
 			s.weapon_model = ""
 		"regent":
 			_m(s, "납골 섭정", 4.0, 1100, [17, 15, 15, 6, 12, 8], 14, 68, 8, Rules.Size.LARGE, 2)
@@ -706,7 +706,8 @@ static func monster(id: String) -> CreatureStats:
 			_undead(s)
 			s.resistances = PackedStringArray(["necrotic"])
 			s.features = PackedStringArray(["flying"])
-			s.model = "dark/regent"
+			s.sprite_scale = 1.5
+			s.model = "qhero/dark_regent"
 			s.weapon_model = ""
 		"burrwheel":
 			_m(s, "가시 바퀴", 2.0, 450, [16, 14, 15, 3, 10, 4], 15, 42, 8, Rules.Size.LARGE, 2)

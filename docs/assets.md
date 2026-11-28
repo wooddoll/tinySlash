@@ -18,11 +18,12 @@
 | Universal Base Characters (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/universal-base-characters) | CC0 | 아니요 | `assets/quaternius/heroes/` · `tools/bake_heroes.gd` | 직업·마을 사람·언데드의 머리·머리카락 | 씀 |
 | Modular Character Outfits - Fantasy (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/modular-character-outfits-fantasy) | CC0 | 아니요 | 위와 같음 | 직업 12종, 마을 사람, 좀비·구울·가스트·섀도·스펙터·움직이는 갑옷 | 씀 |
 | Bestiary - Dungeon Monsters Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/bestiary-dungeon-monsters-kit) | **QAL v1.0** | 아니요 | 위와 같음 | 고블린 졸개·전사(퍼글린), 고블린 대장(임프) | 씀 |
+| Characters - Fantasy Races Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/characters-fantasy-races) | **QAL v1.0** | 아니요 | `assets/quaternius/heroes/` · `tools/bake_heroes.gd` | 보스 오크 족장(붉은 오크 머리), 납골 섭정(다크엘프 머리) | 씀 |
 | Ultimate Monsters Bundle | Quaternius | [poly.pizza](https://poly.pizza/bundle/Ultimate-Monsters-Bundle-5oyGWAmOB6) | CC0 | 아니요 | `assets/quaternius/monsters/` (원본 glb) | 박쥐 떼(demon), 벌레 떼(armabee), 오크·좀비 등 옛 이름 | 씀 |
 | Animated Animal Pack, Rat | Quaternius | [poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS) | CC0 | 아니요 | `assets/quaternius/animals/` (원본 glb) | 늑대, 쥐 떼 | 씀 |
 | RPG Animations GLB FREE | Explosive LLC | [Godot 에셋 스토어](https://store.godotengine.org/asset/explosive-llc/rpg-character-animations-pack-free/) | **MIT** | 아니요 | `tools/retarget.gd`로 옮김 | 웅크리기·다친 대기·점프·구르기 등 | 씀 |
 | Stylized Dark Fantasy Skeleton | Hotstrike Studio | [Fab](https://www.fab.com/listings/de87148f-4683-48bb-be42-e772a620fb35) | **CC-BY** | 예 | `assets/dark/skeleton/` · `tools/bake_undead.gd` | 스켈레톤 | 씀 |
-| The Eightfold Archive (보스 8종) | Bento Models | [Fab](https://www.fab.com/listings/5311167e-f8c4-4f53-ab89-defee5d1a228) | Fab Standard | 예 | `assets/dark/<보스>/` · `tools/bake_boss.gd` | 던전 보스: 종지기·칸토르·섭정(Hadal), 버어휠·왜가리·실접목사·겨울 접순·들소(Glasshouse) | 씀 |
+| The Eightfold Archive (보스 8종) | Bento Models | [Fab](https://www.fab.com/listings/5311167e-f8c4-4f53-ab89-defee5d1a228) | Fab Standard | 예 | `assets/dark/<보스>/` · `tools/bake_boss.gd` (칸토르·섭정은 안 씀) | 던전 보스: 종지기(Hadal), 버어휠·왜가리·실접목사·겨울 접순·들소(Glasshouse) | 씀 |
 | Free Rigged Dark Fantasy Knight | Bento Pack (Pedro Bento) | [Fab](https://www.fab.com/listings/04f3294d-4338-4458-a7a9-16f6fc11142c) | Fab Standard | 예 | `assets/dark/knight/` · `tools/bake_dark.gd` | 스켈레톤에 동작·롱소드를 옮길 때만 씀 (굽는 시점) | 간접 |
 | Kenney 3D 키트: Mini Dungeon, Mini Characters, Survival Kit, Nature Kit, Modular Cave Kit | Kenney | [kenney.nl](https://kenney.nl/assets) | CC0 | 아니요 | `assets/kenney/<팩>/` (각 팩에 License.txt) | 야외 나무·풀, 텐트·모닥불·망치, 동굴 바위. 옛 조각·캐릭터 이름은 새 모델로 바꿔 이어 줌 | 씀 (일부) |
 | Kenney 오디오: Interface, Impact, RPG, UI Audio, Voiceover Pack(+Fighter) | Kenney | [kenney.nl](https://kenney.nl/assets) | CC0 | 아니요 | `assets/kenney/audio/` | 효과음, 목소리 | 씀 |
@@ -41,7 +42,7 @@
 - **CC0**: 아무 조건이 없습니다. 크레딧은 예의로 남깁니다.
 - **CC-BY** (해골, SRD): 게임 안이나 함께 배포하는 크레딧에 만든 이, 작품 이름, 라이선스를 적어야 합니다. `CREDITS.md`에 있습니다.
 - **MIT** (Explosive RPG 동작): 배포본에 저작권 문구와 MIT 허락 문구를 함께 넣어야 합니다. 원문은 받은 팩에 있으니, 출시 전에 `CREDITS.md` 아래에 붙입니다.
-- **QAL v1.0** (Bestiary): 게임에 넣어 상업적으로 팔아도 되고 크레딧도 필요 없습니다. 대신 모델을 에셋 그 자체로 다시 나눠 주면 안 됩니다. 고쳐도 마찬가지입니다. 그래서 `assets/quaternius/`를 공개 저장소에 올리지 않습니다.
+- **QAL v1.0** (Bestiary, Fantasy Races): 게임에 넣어 상업적으로 팔아도 되고 크레딧도 필요 없습니다. 대신 모델을 에셋 그 자체로 다시 나눠 주면 안 됩니다. 고쳐도 마찬가지입니다. 그래서 `assets/quaternius/`를 공개 저장소에 올리지 않습니다.
 - **Fab Standard License**: 게임에 넣어 배포하는 것은 됩니다. 원본이나 고친 에셋 파일을 따로 나눠 주는 것은 안 됩니다. 개인·소규모와 큰 회사의 등급 구분이 있으니, 매출이 생기면 Fab 약관에서 등급을 다시 봅니다.
 - **Unity Asset Store EULA**: 완성된 게임 안에 넣는 것은 되고, 패키지 파일을 다시 나눠 주는 것은 안 됩니다. 지금은 안 쓰므로 출시 전에 파일을 지우는 편이 깔끔합니다.
 
@@ -52,7 +53,7 @@
    - Godot는 기본 설정으로 프로젝트 안 리소스를 모두 내보냅니다. 그래서 지우거나 내보내기 설정에서 빼야 쓰지 않는 Fab·Unity 파일이 배포본에 들어가지 않습니다.
    - `assets/dark/knight`는 스켈레톤을 다시 구울 때만 필요하니 내보내기에서 뺍니다.
 2. **생성형 AI 표시**
-   - "AI 생성: 예"인 에셋은 해골, 보스 8종, 옛 Bento 캐릭터입니다.
+   - "AI 생성: 예"인 에셋은 해골, 보스 6종, 옛 Bento 캐릭터입니다.
    - 일부 판매처(예: Steam)는 출시 때 AI 생성 콘텐츠를 밝히라고 요구합니다.
 3. **MIT 문구**: Explosive RPG의 MIT 문구를 `CREDITS.md`에 붙입니다.
 4. **KayKit 정리**: 화살과 대체용 던전 조각만 남았습니다. Quaternius로 바꾸면 KayKit을 통째로 뺄 수 있습니다.

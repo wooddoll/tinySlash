@@ -459,7 +459,7 @@ func test_monster_hp_scaled_in_action() -> void:
 
 
 func test_large_boss_body_and_reach() -> void:
-	# 대형 보스는 몸이 커서 더 멀리서 맞고 더 멀리 닿음. 섭정 꼬리 침은 중독
+	# 대형 보스는 몸이 커서 더 멀리서 맞고 더 멀리 닿음. 섭정 독 칼날은 중독
 	var ac := arena()
 	var r := ac.add(foe("regent"), Vector2(3.5, 3.5), "monster")
 	eq(r.radius, 0.45, "large radius")
@@ -486,7 +486,7 @@ func p_dummy(ac: ActionCombat) -> ActionCombat.Actor:
 func test_bosses_exist() -> void:
 	for id in DungeonGenerator.BOSSES:
 		var s := Catalog.monster(id)
-		check(s.size >= Rules.Size.LARGE and s.model.begins_with("dark/"), "%s is large with a model" % id)
+		check(s.size >= Rules.Size.LARGE and not s.model.is_empty(), "%s is large with a model" % id)
 		check(ActionCombat.BOSS_SKILLS.has(id), "%s has a skill" % id)
 
 

@@ -14,6 +14,8 @@ const HAIR := BASE + "Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)/"
 ## Bestiary - Dungeon Monsters Kit (Standard, QAL): 무기 든 몬스터 (같은 사람 뼈대)
 const BESTIARY := "F:/workspace/fab_downloads/godot/quaternius_bestiary/x/Bestiary - Dungeon Monsters Kit[Standard]/Exports/GLB (Godot-Unreal)/"
 const BESTIARY_TEX := "F:/workspace/fab_downloads/godot/quaternius_bestiary/x/Bestiary - Dungeon Monsters Kit[Standard]/Textures/"
+## Characters - Fantasy Races Kit (Standard, QAL): 엘프·오크 맨몸 (같은 사람 뼈대, 근육 모프 "Size")
+const RACES := "F:/workspace/fab_downloads/godot/quaternius_races/x/Characters - Fantasy Races Kit[Standard]/"
 ## 좀비 몸짓 (비틀거리기·맨손 휘두르기)
 const ZOMBIE_ANIMS := {
 	"idle": ["rpg", "UnarmedIdleInjured", 0.0], "walk": ["rpg", "UnarmedWalkInjured", 0.0],
@@ -49,6 +51,9 @@ const HEROES := {
 	"shadow": {"outfit": "Female_Ranger", "body": "f", "hair": [], "hair_color": Color(0, 0, 0), "tint": Color(0.15, 0.15, 0.18), "recolor": Color(0.05, 0.05, 0.08), "skin": Color(0.1, 0.1, 0.12), "alpha": 0.6},
 	"specter": {"outfit": "Male_Ranger", "body": "m", "hair": [], "hair_color": Color(0.7, 0.8, 0.9), "tint": Color(0.6, 0.75, 0.95), "recolor": Color(0.6, 0.75, 0.95), "skin": Color(0.7, 0.85, 1.0), "alpha": 0.5},
 	"animated_armor": {"outfit": "Male_Ranger", "no_head": true, "no_hood": true, "tint": Color(0.75, 0.75, 0.8), "recolor": Color(0.4, 0.42, 0.48), "skin": Color(0.25, 0.25, 0.28), "weapon": ["Sword_Bronze", 1.0]},
+	# 사람형 보스 (Characters - Fantasy Races, QAL): 종족 머리 + 옷
+	"orc_chief": {"race": "Orc_Male", "variant": 2, "wear": "Male_Ranger", "no_hood": true, "tint": Color(0.75, 0.6, 0.55), "recolor": Color(0.55, 0.12, 0.08), "weapon": ["Axe_Bronze", 1.2]},
+	"dark_regent": {"race": "Elf_Male", "variant": 3, "wear": "Male_Ranger", "tint": Color(0.55, 0.55, 0.6), "recolor": Color(0.2, 0.08, 0.28), "skin": Color(0.85, 0.85, 0.95), "weapon": ["Sword_Bronze", 0.8]},
 	# 마을 사람(상인 등 NPC)
 	"villager_m": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_SimpleParted"], "hair_color": Color(0.3, 0.2, 0.12), "tint": Color(1, 1, 1), "weapon": []},
 	"villager_f": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Buns"], "hair_color": Color(0.4, 0.26, 0.14), "tint": Color(1, 1, 1), "weapon": []},
@@ -131,7 +136,11 @@ func _gltf(path: String) -> Node3D:
 func _bake(name: String, spec: Dictionary) -> void:
 	var root := Node3D.new()
 	root.name = name
-	var src_path: String = (BESTIARY + spec.glb + ".glb") if spec.has("glb") else (OUTFITS + spec.outfit + ".gltf")
+	var src_path: String = OUTFITS + spec.get("outfit", "") + ".gltf"
+	if spec.has("glb"):
+		src_path = BESTIARY + spec.glb + ".glb"
+	elif spec.has("race"):
+		src_path = RACES + "Exports/GLB (Godot-Unreal)/" + spec.race + ".glb"
 	var outfit := _gltf(src_path)
 	var sk := outfit.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
 	var arm := sk.get_parent() as Node3D
@@ -146,7 +155,10 @@ func _bake(name: String, spec: Dictionary) -> void:
 	_alpha = spec.get("alpha", 1.0)
 	# 몬스터 팩: 색 변형 텍스처로 바꿈 (T_<이름>_BaseColor_<번호>.png)
 	if spec.has("variant"):
-		_variant = Image.load_from_file(BESTIARY_TEX + "T_%s_BaseColor_%d.png" % [spec.glb, spec.variant])
+		if spec.has("race"):
+			_variant = Image.load_from_file(RACES + "Textures/" + ("" if spec.variant == 1 else "Variations/") + "T_%s_BaseColor_%d.png" % [spec.race, spec.variant])
+		else:
+			_variant = Image.load_from_file(BESTIARY_TEX + "T_%s_BaseColor_%d.png" % [spec.glb, spec.variant])
 	if spec.get("no_hood", false):
 		for mi in sk.get_children():
 			if String(mi.name).contains("Hood"):
@@ -154,7 +166,26 @@ func _bake(name: String, spec: Dictionary) -> void:
 	_recolor = spec.get("recolor", Color(0, 0, 0, 0))
 	for mi in sk.get_children():
 		if mi is MeshInstance3D:
+			_fix_materials(mi, tint, spec.get("hair_color", Color.WHITE))
+			# 종족 몸: 근육 모프 (0 보통 ~ 1 우람)
+			if spec.has("size") and (mi as MeshInstance3D).mesh.get_blend_shape_count() > 0:
+				var bi := (mi as MeshInstance3D).find_blend_shape_by_name("Size")
+				if bi >= 0:
+					(mi as MeshInstance3D).set_blend_shape_value(bi, float(spec.size))
+	_variant = null
+	# 종족 몸 위에 옷 입히기 (옷도 같은 뼈대)
+	if spec.has("wear"):
+		# 옷 밖으로 몸이 비치지 않게 맨몸은 머리·목만 남김 (손·발은 옷에 있음)
+		for mi in sk.get_children():
+			if mi is MeshInstance3D and String(mi.name).ends_with("_Body"):
+				(mi as MeshInstance3D).mesh = _head_only(mi)
+		var wear := _gltf(OUTFITS + spec.wear + ".gltf")
+		for mi in wear.find_children("*", "MeshInstance3D", true, false):
+			if spec.get("no_hood", false) and String(mi.name).contains("Hood"):
+				continue
+			_move_to(mi, sk)
 			_fix_materials(mi, tint)
+		wear.free()
 	_recolor = Color(0, 0, 0, 0)
 	_variant = null
 	# 머리: 기본 몸에서 머리·목 면만, 눈·눈썹은 그대로 (몬스터 팩·빈 갑옷은 없음)
@@ -300,11 +331,11 @@ func _fix_materials(mi: MeshInstance3D, tint: Color, hair := Color.WHITE) -> voi
 		var mn := String(mat.resource_name)
 		if mn.contains("Hair"):
 			c.albedo_color *= hair
-		elif mn.contains("Regular") or mn.contains("Superhero"):
+		elif mn.contains("Regular") or mn.contains("Superhero") or mn.contains("Orc_") or mn.contains("Elf_"):
 			c.albedo_color *= _skin
 		elif not mn.contains("Eyes"):
 			c.albedo_color *= tint
-		if _variant and c.albedo_texture:
+		if _variant and c.albedo_texture and not (mn.contains("Hair") or mn.contains("Eyes")):
 			c.albedo_texture = ImageTexture.create_from_image(_variant)
 		if _alpha < 1.0:
 			# 유령: 반투명, 그림자 없음

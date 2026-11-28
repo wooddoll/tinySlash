@@ -1001,7 +1001,7 @@ func revive_party() -> void:
 const BOSS_SKILLS := {
 	"bellwarden": {"id": "toll", "name": "종소리", "shape": "circle", "radius": 2.6, "windup": 1.2, "cooldown": 8.0,
 		"range": 2.2, "save": CON, "dc": 12, "dice": [2, 8], "type": "thunder", "push": 5.0, "anim": "cast"},
-	"cantor": {"id": "sonar", "name": "음파", "shape": "cone", "length": 5.0, "cos": 0.6, "windup": 1.0, "cooldown": 9.0,
+	"cantor": {"id": "sonar", "name": "함성", "shape": "cone", "length": 5.0, "cos": 0.6, "windup": 1.0, "cooldown": 9.0,
 		"range": 4.5, "save": WIS, "dc": 12, "dice": [2, 6], "type": "psychic", "stun": 1.5, "anim": "holding-right-shoot"},
 	"regent": {"id": "dive", "name": "급강하", "shape": "circle", "radius": 1.3, "windup": 1.0, "cooldown": 9.0,
 		"range": 7.0, "min_range": 2.0, "save": DEX, "dc": 13, "dice": [3, 6], "type": "piercing", "dash": true, "anim": "cast"},

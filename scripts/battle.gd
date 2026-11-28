@@ -33,7 +33,7 @@ const ENCOUNTERS := {
 	"undead": {"label": "언데드 — 스켈레톤 2 + 섀도 + 스펙터", "foes": [["skeleton", Vector2i(11, 2)], ["skeleton", Vector2i(11, 7)],
 		["shadow", Vector2i(12, 4)], ["specter", Vector2i(12, 6)]]},
 	"bellwarden": {"label": "보스 — 가라앉은 종지기 (2레벨 파티용)", "foes": [["bellwarden", Vector2i(11, 5)]], "level": 2},
-	"cantor": {"label": "보스 — 심연의 노래꾼 (3레벨 파티용)", "foes": [["cantor", Vector2i(11, 5)]], "level": 3},
+	"cantor": {"label": "보스 — 포효하는 오크 족장 (3레벨 파티용)", "foes": [["cantor", Vector2i(11, 5)]], "level": 3},
 	"regent": {"label": "보스 — 납골 섭정 (4레벨 파티용)", "foes": [["regent", Vector2i(11, 5)]], "level": 4},
 }
 const ENCOUNTER_KEYS := {KEY_F1: "easy", KEY_F2: "normal", KEY_F3: "hard", KEY_F4: "boss", KEY_F5: "undead", KEY_F6: "bellwarden", KEY_F7: "cantor", KEY_F8: "regent"}
