@@ -106,7 +106,7 @@ into `assets/terrain/`.
 
 EmacEArt Stylized Grass (grass shader with wind) by EmacEArt (https://emaceart.itch.io), free on the Godot
 Asset Store under the EmacEArt Asset License (use in projects allowed, no redistribution of the assets).
-Installed into `assets/emace_grass/` by `tools/install_emace_grass.sh`; used for the grass on outdoor battle maps.
+Installed into `assets/emace_grass/` by `tools/install_emace_grass.sh`; used for the grass on the outdoor terrain and outdoor battle maps.
 
 ## Audio
 

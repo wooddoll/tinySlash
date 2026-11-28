@@ -22,8 +22,12 @@ const FOLIAGE := [
 	[["Bush_Common", "Fern_1", "Plant_1", "Plant_7"], 1400, -0.1, Vector2(0.7, 1.2), 0.75],
 	[["Flower_3_Group", "Flower_4_Group"], 500, -0.3, Vector2(0.6, 0.9), 0.85],
 	[["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], 260, -1.0, Vector2(0.6, 1.6), 0.0],
-	[["Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Common_Short", "Grass_Common_Tall", "Clover_1"], 12000, -0.35, Vector2(0.4, 0.7), 0.8],
+	[["Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Common_Short", "Grass_Common_Tall", "Clover_1"], 6000, -0.35, Vector2(0.4, 0.7), 0.8],
+	# 바람에 흔들리는 풀 덤불 (EmacEArt Stylized Grass, tools/install_emace_grass.sh). 없으면 건너뜀
+	[["Grass_Wind"], 40000, -0.6, Vector2(0.35, 0.6), 0.78],
 ]
+const WIND_GRASS_MESH := "res://assets/emace_grass/Meshes/EA_Grass_Clump.mesh"
+const WIND_GRASS_MAT := "res://assets/emace_grass/Materials/EA_Grass_Green.tres"
 
 ## 던전 입구에 들어서면 (플레이어 몸)
 signal entrance_entered(body: Node3D)
@@ -158,16 +162,41 @@ func _setup_material() -> void:
 func _mesh_id(model: String) -> int:
 	if _mesh_ids.has(model):
 		return _mesh_ids[model]
-	var scene := load(NATURE % model) as PackedScene
+	var scene := _wind_grass_scene() if model == "Grass_Wind" else load(NATURE % model) as PackedScene
 	if scene == null:
 		return -1
 	var id := _mesh_ids.size()
 	var ma = ClassDB.instantiate("Terrain3DMeshAsset")
 	ma.name = model
 	ma.scene_file = scene
+	if model == "Grass_Wind":
+		ma.material_override = _wind_grass_mat()
+		ma.set("cast_shadows", GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)  # 수만 개라 그림자는 끔
 	terrain.assets.set_mesh_asset(id, ma)
 	_mesh_ids[model] = id
 	return id
+
+
+## 바람 풀 재질 (식생 배치 메시와 장면이 같은 재질을 씀)
+var _wind_mat: ShaderMaterial = null
+func _wind_grass_mat() -> ShaderMaterial:
+	if _wind_mat == null:
+		_wind_mat = (load(WIND_GRASS_MAT) as ShaderMaterial).duplicate()
+	return _wind_mat
+
+
+## 바람 풀 덤불 하나를 장면으로 (Terrain3D 식생 배치는 장면 파일을 받음). 설치가 안 됐으면 null
+func _wind_grass_scene() -> PackedScene:
+	if not ResourceLoader.exists(WIND_GRASS_MESH) or not ResourceLoader.exists(WIND_GRASS_MAT):
+		return null
+	var mi := MeshInstance3D.new()
+	mi.name = "Grass_Wind"
+	mi.mesh = load(WIND_GRASS_MESH)
+	mi.material_override = _wind_grass_mat()
+	var packed := PackedScene.new()
+	packed.pack(mi)
+	mi.free()
+	return packed
 
 
 ## 숲 노이즈가 높은 곳에 나무, 경사가 급하면 바위만
@@ -186,7 +215,7 @@ func _scatter(rng: RandomNumberGenerator, seed_value: int) -> void:
 			# 빈터: 풀만 (가운데는 비움)
 			if d < CLEARING * (0.5 if is_grass else 1.3):
 				continue
-			if not is_grass and _near_path(Vector2(p.x, p.z)):
+			if (not is_grass or models[0] == "Grass_Wind") and _near_path(Vector2(p.x, p.z)):
 				continue
 			if forest.get_noise_2d(p.x, p.z) < float(layer[2]) + rng.randf_range(-0.1, 0.1):
 				continue
