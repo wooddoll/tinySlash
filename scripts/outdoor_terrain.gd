@@ -47,6 +47,8 @@ var entrance := Transform3D.IDENTITY
 var _mesh_ids := {}
 ## 부딪히는 식생 (나무·바위) 충돌체를 담는 노드
 var _obstacles: StaticBody3D = null
+## 같은 것을 값으로: Vector3(x, z, 반지름). 바깥 전투 격자(battle_grid)가 막힌 칸을 정할 때 씀
+var solids: Array[Vector3] = []
 ## 이 모델들(이름 앞부분)에는 충돌체를 붙임: [앞부분, 반지름(크기 1일 때)]
 const SOLID := [["CommonTree_", 0.22], ["Pine_", 0.25], ["TwistedTree_", 0.22], ["DeadTree_", 0.2], ["Rock_Medium_", 0.5]]
 
@@ -251,6 +253,7 @@ func _add_obstacle(model: String, p: Vector3, s: float) -> void:
 			shape.shape = cyl
 			shape.position = p + Vector3(0, 1.0, 0)
 			_obstacles.add_child(shape)
+			solids.append(Vector3(p.x, p.z, cyl.radius))
 			return
 
 
@@ -355,6 +358,43 @@ func _build_entrance() -> void:
 	area.body_entered.connect(func(b: Node3D) -> void:
 		if b is CharacterBody3D:
 			entrance_entered.emit(b))
+
+
+## 바깥 전투용 격자: origin(왼쪽 위 칸의 모서리, 월드 x·z)부터 size칸. 칸 (x, y)의 가운데는 월드 (origin.x + x + 0.5, origin.y + y + 0.5).
+## 높이는 땅 높이 그대로(월드 y), 너무 가파른 칸(이웃과 높이 차 STEEP 넘음)은 벽, 나무 줄기·바위 칸은 장애물.
+## 실시간 액션 전투(ActionCombat)는 높이를 통과 판정에 쓰지 않으므로 벽·장애물만 막음.
+const STEEP := 0.9
+func battle_grid(origin: Vector2i, size: Vector2i) -> Dungeon:
+	var d := Dungeon.new(size.x, size.y)
+	var hs := {}
+	for y in range(-1, size.y + 1):
+		for x in range(-1, size.x + 1):
+			hs[Vector2i(x, y)] = height_at(Vector3(origin.x + x + 0.5, 0, origin.y + y + 0.5))
+	for y in size.y:
+		for x in size.x:
+			var c := Vector2i(x, y)
+			var h: float = hs[c]
+			var steep := false
+			for dd in Dungeon.DIRS4:
+				if absf(float(hs[c + dd]) - h) > STEEP:
+					steep = true
+					break
+			if steep:
+				continue
+			d.set_tile(c, Dungeon.Tile.FLOOR)
+			d.heights[c] = h
+	var rect := Rect2(Vector2(origin), Vector2(size))
+	for sd in solids:
+		var at := Vector2(sd.x, sd.y)
+		if not rect.grow(1.0).has_point(at):
+			continue
+		var r := maxf(sd.z, 0.3)
+		for cy in range(floori(at.y - r), floori(at.y + r) + 1):
+			for cx in range(floori(at.x - r), floori(at.x + r) + 1):
+				var c := Vector2i(cx - origin.x, cy - origin.y)
+				if d.is_floor(c) and Vector2(cx + 0.5, cy + 0.5).distance_to(at) < r + 0.35:
+					d.obstacles[c] = 3.0
+	return d
 
 
 ## 입구 앞 (빈터 쪽으로 dist칸) 땅 위 자리

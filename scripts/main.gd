@@ -4,7 +4,8 @@ const InputSetup = preload("res://scripts/input_setup.gd")
 const Kenney = preload("res://scripts/kenney.gd")
 const Outdoor = preload("res://scripts/outdoor_terrain.gd")
 const DungeonView = preload("res://scripts/dungeon_view.gd")
-const Battle = preload("res://scripts/battle.gd")
+const ActionLayer = preload("res://scripts/action_layer.gd")
+const Sfx = preload("res://scripts/sfx.gd")
 const Monsters = preload("res://scripts/outdoor_monsters.gd")
 const Game = preload("res://scripts/game.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
@@ -28,17 +29,18 @@ static var back_from_dungeon := false
 static var defeated: Dictionary:
 	get: return Game.defeated
 	set(v): Game.defeated = v
-## 바깥 몬스터와 싸우러 가기 직전 자리 (도망쳐 오면 여기로)
-static var _fight_pos := Vector3.INF
-## 바깥 전투 지도의 풀밭 크기와 시작 자리
-const FIELD_W := 14
-const FIELD_H := 10
-const FIELD_PC := Vector2i(2, 5)
-const FIELD_FOES := [Vector2i(11, 4), Vector2i(11, 7), Vector2i(12, 5)]
+## 바깥 전투 격자 크기 (칸), 이만큼 멀어지면 도망친 것으로 봄
+const FIGHT_SIZE := 40
+const FLEE_DIST := 14.0
 
 ## 만든 지형 (Terrain3D가 없으면 null: 예전 평평한 풀밭 + Kenney 나무)
 var outdoor: Node3D = null
 var monsters: Node3D = null
+## 바깥 전투 중이면 그 ActionLayer, 싸우는 무리 번호, 파티원 Actor들
+var fight: Node3D = null
+var fight_group := -1
+var fight_members: Array = []
+var _flee_time := 0.0
 var _seed := 0
 var _toast_label: Label
 var _toast_left := 0.0
@@ -82,9 +84,9 @@ func _build_terrain() -> bool:
 		player.global_position = loaded + Vector3(0, 0.3, 0)
 		_pending_toast = "이어서 합니다"
 	outdoor.entrance_entered.connect(_enter_dungeon)
-	var calm := _take_battle_result(player)
+	var calm := 0.0
 	if loaded != Vector3.INF:
-		calm = maxf(calm, 4.0)  # 불러온 자리 바로 옆에 몬스터가 있어도 잠깐은 덤비지 않음
+		calm = 4.0  # 불러온 자리 바로 옆에 몬스터가 있어도 잠깐은 덤비지 않음
 	monsters = Monsters.new()
 	monsters.name = "Monsters"
 	add_child(monsters)
@@ -97,6 +99,8 @@ func _build_terrain() -> bool:
 
 
 func _process(delta: float) -> void:
+	if fight != null:
+		_fight_process(delta)
 	if outdoor:
 		_autosave_in -= delta
 		if _autosave_in <= 0.0:
@@ -181,74 +185,138 @@ func _enter_dungeon(_body: Node3D) -> void:
 	get_tree().change_scene_to_file.call_deferred("res://scenes/dungeon.tscn")
 
 
-## 바깥 전투에서 돌아왔으면 결과를 반영: 이기면 그 무리는 사라지고, 지면 빈터에서 다시 (기력 회복),
-## 도망치면 싸우기 전 자리. 몬스터가 바로 다시 덤비지 않게 잠깐 조용히 (초)
-func _take_battle_result(player: Node3D) -> float:
-	if not Battle.custom.has("outdoor_group"):
-		return 0.0
-	var res := str(Battle.custom.get("result", ""))
-	var calm := 4.0
-	if res == "win":
-		defeated[int(Battle.custom.outdoor_group)] = true
-		_pending_toast = "물리쳤어요!" + (" 레벨 업! %d레벨" % Battle.custom.level_up if Battle.custom.has("level_up") else "")
-		calm = 1.0
-	elif res == "lose":
-		for h in DungeonView.party():
-			(h as HeroState).long_rest()
-		_pending_toast = "쓰러졌어요… 빈터에서 정신을 차렸어요 (기력 회복)"
-	else:
-		_pending_toast = "도망쳤어요"
-	if res != "lose" and _fight_pos != Vector3.INF:
-		player.global_position = _fight_pos
-	_fight_pos = Vector3.INF
-	Battle.custom = {}
-	return calm
-
-
-## 바깥 몬스터 무리와 마주침: 풀밭 전투 지도로 (파티는 던전 탐험과 같은 HeroState)
+## 바깥 몬스터 무리와 마주침: 그 자리 지형 위에서 실시간 액션 전투 (장면을 넘기지 않음, 기획 M2).
+## 둘레 FIGHT_SIZE칸을 지형에서 읽어 격자로 만들고(OutdoorTerrain.battle_grid) 던전과 같은 ActionLayer를 그 위에 얹음.
+## 파티는 던전 탐험과 같은 HeroState(Game). 이기면 무리는 사라지고, 멀리 도망치면 무리는 제자리로, 지면 빈터에서 다시.
 func _fight_outdoor(group: int) -> void:
-	if DungeonView.hero == null:
-		DungeonView.hero = DungeonView._fresh_member(0)
-	if DungeonView.ally == null:
-		DungeonView.ally = DungeonView._fresh_member(1)
+	if fight != null:
+		return
+	Game.ensure_party()
 	var player := $Player as Node3D
-	_fight_pos = player.global_position
-	_autosave()
+	var foes: Array = monsters.take_group(group)
+	var center := player.global_position
+	for f in foes:
+		center += (f[1] as Vector3)
+	center /= foes.size() + 1
+	var origin := Vector2i(floori(center.x) - FIGHT_SIZE / 2, floori(center.z) - FIGHT_SIZE / 2)
+	var d: Dungeon = outdoor.battle_grid(origin, Vector2i(FIGHT_SIZE, FIGHT_SIZE))
+	fight = ActionLayer.new()
+	fight.name = "Fight"
+	fight.position = Vector3(origin.x, 0, origin.y)
+	add_child(fight)
+	fight.camera_rig = $CameraRig
+	fight.setup(d, {})
+	fight_group = group
+	fight_members.clear()
+	var taken := {}
+	var pc := _free_cell(d, _to_cell(origin, player.global_position), taken)
+	var heroes := Game.party()
+	for i in heroes.size():
+		var cell := pc if i == 0 else _free_cell(d, pc, taken)
+		fight_members.append(fight.add_member((heroes[i] as HeroState).make_creature(), cell, "player" if i == 0 else "ally"))
+	for f in foes:
+		fight.add_foe(str(f[0]), _free_cell(d, _to_cell(origin, f[1]), taken), 0)
+	fight.ac.wake_room(-1)
+	fight.message.connect(_toast)
+	fight.fight_over.connect(_fight_won)
+	fight.defeated.connect(_fight_lost)
+	player.visible = false
 	player.set_physics_process(false)
-	var foes: Array = []
-	var ids: Array = monsters.foes_of(group)
-	for i in ids.size():
-		foes.append([ids[i], FIELD_FOES[i % FIELD_FOES.size()]])
-	var rng := RandomNumberGenerator.new()
-	rng.seed = world_seed * 101 + group
-	Battle.custom = {"map": field_map(rng), "pc_start": FIELD_PC, "foes": foes, "label": monsters.label(group),
-			"style": "outdoor", "return_scene": "res://scenes/main.tscn", "outdoor_group": group,
-			"party": DungeonView.party()}
+	($CameraRig as Node3D).set("target", fight.views[fight.player].model)
+	monsters.set_process(false)
+	_flee_time = 0.0
 	_toast("몬스터 발견! — " + monsters.label(group))
-	await get_tree().create_timer(0.8).timeout
-	get_tree().change_scene_to_file("res://scenes/battle.tscn")
+	Sfx.play(self, "alert")
 
 
-## 바깥 전투용 풀밭: 나무(T)·덤불(,)·바위(#)를 조금 흩뿌림. 시작 자리와 몬스터 자리 둘레는 비움
-static func field_map(rng: RandomNumberGenerator) -> Array:
-	var rows: Array = []
-	for y in FIELD_H:
-		var row := ""
-		for x in FIELD_W:
-			var c := Vector2i(x, y)
-			var ch := "."
-			var clear := (c - FIELD_PC).length() < 2.0 or FIELD_FOES.any(func(f: Vector2i) -> bool: return (c - f).length() < 1.5)
-			if not clear:
-				var r := rng.randf()
-				if r < 0.07:
-					ch = "T"
-				elif r < 0.14:
-					ch = ","
-				elif r < 0.17:
-					ch = "#"
-			row += ch
-		rows.append(row)
-	return rows
+## 월드 자리 → 전투 격자 칸
+func _to_cell(origin: Vector2i, p: Vector3) -> Vector2i:
+	return Vector2i(floori(p.x) - origin.x, floori(p.z) - origin.y)
+
+
+## c에서 가장 가까운 서 있을 수 있는 빈 칸 (taken에 적어 둠)
+func _free_cell(d: Dungeon, c: Vector2i, taken: Dictionary) -> Vector2i:
+	for r in range(0, 8):
+		for y in range(c.y - r, c.y + r + 1):
+			for x in range(c.x - r, c.x + r + 1):
+				var n := Vector2i(x, y)
+				if maxi(absi(n.x - c.x), absi(n.y - c.y)) == r and d.is_walkable(n) and not taken.has(n):
+					taken[n] = true
+					return n
+	return c
+
+
+## 전투 중: 주인공 모델을 전투 위치에 붙이고(ActionLayer는 주인공 위치를 탐험자에게 맡김), 멀리 도망쳤는지 봄
+func _fight_process(delta: float) -> void:
+	var a = fight.player
+	var m: Node3D = fight.views[a].model
+	var h: float = fight.dungeon.get_height(Vector2i(floori(a.pos.x), floori(a.pos.y)))
+	m.position = Vector3(a.pos.x, lerpf(m.position.y, h, 1.0 - exp(-14.0 * delta)), a.pos.y)
+	var near := false
+	for b in fight.ac.actors:
+		if b.brain == "monster" and b.alive() and b.pos.distance_to(a.pos) < FLEE_DIST:
+			near = true
+			break
+	_flee_time = 0.0 if near else _flee_time + delta
+	if _flee_time > 1.5:
+		_toast("도망쳤어요")
+		_end_fight("flee")
+
+
+func _fight_won(xp: int) -> void:
+	var heroes := Game.party()
+	var share := xp / maxi(heroes.size(), 1)
+	var level_up := 0
+	for i in mini(heroes.size(), fight_members.size()):
+		var up: Dictionary = (heroes[i] as HeroState).absorb(fight_members[i].c, share)
+		if up.has("level_up"):
+			level_up = up.level_up
+	defeated[fight_group] = true
+	_toast("물리쳤어요! XP +%d씩%s" % [share, ("  — 레벨 업! %d레벨" % level_up) if level_up > 0 else ""])
+	Sfx.play(self, "level_up" if level_up > 0 else "win")
+	_end_fight("win")
+
+
+func _fight_lost() -> void:
+	_toast("파티가 모두 쓰러졌어요…")
+	Sfx.play(self, "lose")
+	await get_tree().create_timer(2.0).timeout
+	if fight != null:
+		_end_fight("lose")
+
+
+## 전투를 걷고 바깥 탐험으로 돌아감
+func _end_fight(result: String) -> void:
+	var heroes := Game.party()
+	if result != "win":
+		for i in mini(heroes.size(), fight_members.size()):
+			(heroes[i] as HeroState).absorb(fight_members[i].c, 0)
+	var player := $Player as Node3D
+	var a = fight.player
+	if result == "lose":
+		for h in heroes:
+			(h as HeroState).long_rest()
+		player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.5, 0)
+		_toast("쓰러졌어요… 빈터에서 정신을 차렸어요 (기력 회복)")
+	else:
+		var p := Vector3(fight.position.x + a.pos.x, 0, fight.position.z + a.pos.y)
+		p.y = outdoor.height_at(p) + 0.3
+		player.global_position = p
+	if result != "win":
+		monsters.restore_group(fight_group)
+	player.visible = true
+	player.set_physics_process(true)
+	var rig := $CameraRig as Node3D
+	rig.set("target", player)
+	rig.set("look_offset", Vector3.ZERO)
+	rig.set("zoom_bonus", 0.0)
+	fight.queue_free()
+	fight = null
+	fight_group = -1
+	fight_members.clear()
+	monsters.calm = 1.0 if result == "win" else 4.0
+	monsters.set_process(true)
+	_autosave()
 
 
 func _toast(text: String) -> void:
