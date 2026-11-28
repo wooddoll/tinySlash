@@ -2,7 +2,7 @@
 ## godot --headless --path . --script res://tests/run_tests.gd
 extends SceneTree
 
-const SUITES := ["res://tests/test_rules.gd", "res://tests/test_dungeon.gd", "res://tests/test_scenario.gd", "res://tests/test_crowwatch.gd", "res://tests/test_classes.gd", "res://tests/test_action.gd", "res://tests/test_game.gd", "res://tests/test_village.gd"]
+const SUITES := ["res://tests/test_rules.gd", "res://tests/test_dungeon.gd", "res://tests/test_scenario.gd", "res://tests/test_crowwatch.gd", "res://tests/test_classes.gd", "res://tests/test_action.gd", "res://tests/test_game.gd", "res://tests/test_village.gd", "res://tests/test_quests.gd"]
 
 
 ## 테스트 도중 생긴 스크립트 오류를 세서 실패로 처리합니다.

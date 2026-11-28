@@ -21,6 +21,7 @@ const PartyPanel = preload("res://scripts/party_panel.gd")
 const LevelUpDialog = preload("res://scripts/level_up_dialog.gd")
 const ActionLayer = preload("res://scripts/action_layer.gd")
 const Game = preload("res://scripts/game.gd")
+const Quests = preload("res://rules/quests.gd")
 
 ## 전투에 다녀와도 같은 던전이 나오도록 장면 밖에 보관
 static var saved: DungeonParams = null
@@ -125,6 +126,9 @@ var rest_log := PackedStringArray()
 var rest_dice := Dice.new()
 var shelter := Vector2i(-1, -1)
 var merchant := Vector2i(-1, -1)
+## 의뢰 물건(찾아오기 의뢰)이 놓인 칸과 그 노드들 (없으면 -1)
+var quest_item_cell := Vector2i(-1, -1)
+var _quest_item_nodes: Array = []
 var shop_panel: PanelContainer
 var shop_label: RichTextLabel
 var shop_rest: Button
@@ -370,8 +374,71 @@ func _build_world() -> void:
 			if merchant != Vector2i(-1, -1):
 				_add_merchant(merchant)
 
+	_place_quest_item(d)
+
 	select_mesh = _overlay_layer(Color(1.0, 0.85, 0.2, 0.4))
 	hover_mesh = _overlay_layer(Color(1, 1, 1, 0.18))
+
+
+## 찾아오기 의뢰(rules/quests.gd)의 물건: 바깥 입구로 들어온 던전에서 그 층이면, 시작 칸에서 가장 먼 방 가운데에 둠
+func _place_quest_item(d: Dungeon) -> void:
+	quest_item_cell = Vector2i(-1, -1)
+	_quest_item_nodes.clear()
+	if not from_outside:
+		return
+	var q := Quests.item_on_floor(Game.quests, params.floor_depth)
+	if q.is_empty():
+		return
+	var best := -1.0
+	for r in d.rooms:
+		if r.kind == "start":
+			continue
+		var c: Vector2i = r.center
+		if not d.is_walkable(c):
+			continue
+		var dist := Vector2(c).distance_to(Vector2(d.start))
+		if dist > best:
+			best = dist
+			quest_item_cell = c
+	if quest_item_cell == Vector2i(-1, -1):
+		return
+	var item := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.28, 0.12, 0.2)
+	item.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.8, 0.3)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.7, 0.2)
+	mat.emission_energy_multiplier = 1.5
+	item.material_override = mat
+	item.position = _top(quest_item_cell) + Vector3(0, 0.08, 0)
+	item.rotation.y = 0.6
+	world.add_child(item)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.75, 0.35)
+	glow.light_energy = 1.2
+	glow.omni_range = 2.5
+	glow.position = _top(quest_item_cell) + Vector3(0, 0.6, 0)
+	world.add_child(glow)
+	_quest_item_nodes = [item, glow, _marker_disc(quest_item_cell, Color(1.0, 0.75, 0.3))]
+	for n in _quest_item_nodes:
+		_fog_add(quest_item_cell, [n])
+
+
+func _pick_quest_item() -> void:
+	var q := Quests.item_on_floor(Game.quests, floor_no)
+	quest_item_cell = Vector2i(-1, -1)
+	for n in _quest_item_nodes:
+		if is_instance_valid(n):
+			(n as Node).queue_free()
+	_quest_item_nodes.clear()
+	if q.is_empty():
+		return
+	Quests.on_item(Game.quests, floor_no)
+	Sfx.play(self, "chest")
+	_toast("찾았어요: %s — 의뢰판에서 보상 받기" % q.item)
+	_autosave()
 
 
 func _touches_floor(c: Vector2i) -> bool:
@@ -972,6 +1039,8 @@ func _on_entered_cell(from: Vector2i, to: Vector2i) -> void:
 	for c in chests:
 		if not opened.has(c) and maxi(absi(c.x - to.x), absi(c.y - to.y)) <= 1:
 			_open_chest(c)
+	if quest_item_cell != Vector2i(-1, -1) and maxi(absi(quest_item_cell.x - to.x), absi(quest_item_cell.y - to.y)) <= 1:
+		_pick_quest_item()
 	var r := dungeon.room_at(to)
 	if r >= 0 and not cleared.has(r) and not dungeon.rooms[r].encounter.is_empty() and action:
 		action.ac.wake_room(r)
@@ -1063,9 +1132,15 @@ func _on_fight_over(xp: int) -> void:
 		var up: Dictionary = (heroes[i] as HeroState).absorb(members[i].c, share)
 		if up.has("level_up"):
 			level_up = up.level_up
+	var news := PackedStringArray()
 	for r in dungeon.rooms:
 		if not r.encounter.is_empty() and not cleared.has(r.id) and action.ac.room_clear(r.id):
 			cleared[r.id] = true
+			if from_outside and r.encounter.get("boss", false):
+				for q in Quests.on_boss(Game.quests, floor_no):
+					news.append("의뢰 끝: %s — 의뢰판에서 보상 받기" % q.title)
+	if not news.is_empty():
+		get_tree().create_timer(2.5).timeout.connect(func() -> void: _toast("\n".join(news)))
 	_heroes_changed()
 	if xp > 0:
 		_toast("전투 끝! XP +%d씩%s" % [share, ("  — 레벨 업! %d레벨" % level_up) if level_up > 0 else ""])
@@ -1478,9 +1553,11 @@ func _long_rest() -> void:
 	for h in party():
 		h.long_rest()
 	rested_here = true
+	var failed := Game.advance_day()
 	_write_save()
 	Sfx.play(self, "confirm")
-	_toast("긴 휴식: HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요")
+	_toast("긴 휴식 (%d일째): HP, 히트 다이스, 기능, 주문 슬롯 회복 · 저장했어요%s" % [Game.day,
+		"".join(failed.map(func(q): return "\n의뢰 실패: %s (기한 지남)" % q.title))])
 	_heroes_changed()
 
 
@@ -1650,6 +1727,12 @@ func _update_explore_info() -> void:
 	for h in party():
 		lines.append(_member_line(h))
 	lines.append("금화 %d · 물약 %d · 남은 몬스터 방 %d" % [gold, hero.potions(), left])
+	if from_outside:
+		for q in Game.quests:
+			if q.state == "active" and q.kind != "group":
+				lines.append("[color=#fd8]의뢰: %s[/color]%s" % [q.title, " [color=gray](%d층)[/color]" % q.floor if int(q.floor) != floor_no else " [color=#fd8]← 이 층[/color]"])
+			elif q.state == "done" and q.kind != "group":
+				lines.append("[color=#9f9]의뢰 끝: %s[/color]" % q.title)
 	lines.append("[color=#6af]●[/color] 시작 · 계단=출구 · 상자 · 모닥불 · 텐트=쉼터")
 	info_label.text = "\n".join(lines)
 	var members: Array = []

@@ -11,6 +11,7 @@ const Game = preload("res://scripts/game.gd")
 const Village = preload("res://rules/village.gd")
 const TownBuilder = preload("res://scripts/town_builder.gd")
 const TownDialog = preload("res://scripts/town_dialog.gd")
+const Quests = preload("res://rules/quests.gd")
 ## 바깥에 있는 동안 이만큼(초)마다 저장
 const AUTOSAVE_EVERY := 60.0
 
@@ -148,7 +149,7 @@ func _process(delta: float) -> void:
 func _add_hint() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
-	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Enter/F 문·의뢰판 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
+	label.text = ("지형 시드 %d · " % _seed if outdoor else "") + "WASD 이동 · Space 점프 · Enter/F 문·의뢰판 · J 일지 · Q/E 카메라 90° 회전 · 휠 줌 · B 전투 시작 · G 던전 생성기 · H 모험(시나리오)"
 	label.position = Vector2(16, 12)
 	label.add_theme_constant_override("outline_size", 6)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -304,7 +305,10 @@ func _fight_won(xp: int) -> void:
 	defeated[fight_group] = true
 	_toast("물리쳤어요! XP +%d씩%s" % [share, ("  — 레벨 업! %d레벨" % level_up) if level_up > 0 else ""])
 	Sfx.play(self, "level_up" if level_up > 0 else "win")
+	var done := Quests.on_group_defeated(Game.quests, fight_group)
 	_end_fight("win")
+	if not done.is_empty():
+		_quest_news.call_deferred(done)
 
 
 func _fight_lost() -> void:
@@ -327,7 +331,8 @@ func _end_fight(result: String) -> void:
 		for h in heroes:
 			(h as HeroState).long_rest()
 		player.global_position = Vector3(0, outdoor.height_at(Vector3.ZERO) + 0.5, 0)
-		_toast("쓰러졌어요… 빈터에서 정신을 차렸어요 (기력 회복)")
+		_toast("쓰러졌어요… 하루 뒤 광장에서 정신을 차렸어요 (기력 회복)")
+		_quest_news.call_deferred([], Game.advance_day())
 	else:
 		var p := Vector3(fight.position.x + a.pos.x, 0, fight.position.z + a.pos.y)
 		p.y = outdoor.height_at(p) + 0.3
@@ -365,6 +370,8 @@ func _town_process() -> void:
 	_show_use_hint("Enter / F / Y: %s" % near.name if not near.is_empty() else "")
 	if not near.is_empty() and Input.is_action_just_pressed("interact"):
 		_open_place(str(near.kind))
+	elif Input.is_action_just_pressed("journal"):
+		_open_journal()
 
 
 func _show_use_hint(text: String) -> void:
@@ -397,7 +404,7 @@ func _open_place(kind: String) -> void:
 		"guild":
 			dialog.open(_guild_text())
 		"board":
-			dialog.open(_board_text())
+			_open_board()
 
 
 func _dialog_closed() -> void:
@@ -421,8 +428,7 @@ func _inn_text() -> String:
 	lines.append_array(_party_lines())
 	if Game.gold < INN_PRICE:
 		lines.append("[color=gray]금화가 모자라요 (던전 상자에서 모을 수 있어요)[/color]")
-	return "
-".join(lines)
+	return "\n".join(lines)
 
 
 func _inn_rest() -> void:
@@ -431,10 +437,11 @@ func _inn_rest() -> void:
 	Game.gold -= INN_PRICE
 	for h in Game.party():
 		h.long_rest()
+	var failed := Game.advance_day()
 	_autosave()
+	_quest_news([], failed)
 	Sfx.play(self, "coins")
-	dialog.refresh(_inn_text() + "
-[color=#9f9]푹 쉬었어요. 저장했어요.[/color]", [Game.gold >= INN_PRICE])
+	dialog.refresh(_inn_text() + "\n[color=#9f9]푹 쉬었어요 (%d일째). 저장했어요." % Game.day + "[/color]", [Game.gold >= INN_PRICE])
 
 
 func _shop_text() -> String:
@@ -444,8 +451,7 @@ func _shop_text() -> String:
 		lines.append("[color=gray]물약이 가득 찼어요[/color]")
 	elif Game.gold < HeroState.POTION_PRICE:
 		lines.append("[color=gray]금화가 모자라요[/color]")
-	return "
-".join(lines)
+	return "\n".join(lines)
 
 
 func _buy_potion() -> void:
@@ -462,29 +468,115 @@ func _guild_text() -> String:
 		"\"%s에 온 걸 환영하네. 일거리는 광장 의뢰판에 붙여 두지.\"" % village.name, "",
 		"[color=gray]조합 가입과 등급은 아직 준비 중이에요 (평판, M6).[/color]", ""])
 	lines.append_array(_party_lines())
-	return "
-".join(lines)
+	return "\n".join(lines)
 
 
-## 의뢰판: 아직 의뢰(M4)는 없고, 근처 몬스터 무리와 던전 입구 소식을 붙여 둠
-func _board_text() -> String:
-	var lines := PackedStringArray(["[font_size=22]%s 의뢰판[/font_size]" % village.name, ""])
+## 의뢰판 (M4): 끝낸 의뢰 보상, 오늘 붙은 의뢰 받기, 아래에 소문 두 줄
+func _open_board(note := "") -> void:
+	var offers := Game.board_offers(_quest_world())
+	var busy := Quests.busy(Game.quests)
+	var done := Quests.ready_to_reward(Game.quests)
+	var lines := PackedStringArray(["[font_size=22]%s 의뢰판[/font_size]  [color=gray]%d일째 · 받은 의뢰 %d/%d[/color]" % [
+		village.name, Game.day, busy, Quests.MAX_ACTIVE]])
+	if note != "":
+		lines.append(note)
+	var buttons := []
+	if not done.is_empty():
+		lines.append("")
+		lines.append("[color=#9f9]끝낸 의뢰[/color]")
+		for q in done:
+			lines.append("• %s — 금화 %d, 경험치 %d" % [q.title, q.gold, q.xp])
+		buttons.append(["보상 받기", _take_rewards, true])
+	lines.append("")
+	if offers.is_empty():
+		lines.append("[color=gray]오늘 붙은 의뢰를 모두 가져갔어요. 하룻밤 자고 나면 새로 붙어요.[/color]")
+	for k in offers.size():
+		var q: Dictionary = offers[k]
+		lines.append("[color=#fd8]%d. %s[/color]  [color=gray](%s · %d일 · 금화 %d · 경험치 %d)[/color]" % [
+			k + 1, q.title, q.giver, q.days, q.gold, q.xp])
+		lines.append("    " + str(q.text))
+		buttons.append(["%d번 받기" % (k + 1), _take_offer.bind(q), busy < Quests.MAX_ACTIVE])
+	if busy >= Quests.MAX_ACTIVE and not offers.is_empty():
+		lines.append("[color=gray]더 받으려면 하던 의뢰를 끝내세요.[/color]")
+	lines.append("")
+	for n in _rumors().slice(0, 2):
+		lines.append("[color=#bbb]%s[/color]" % n)
+	lines.append("[color=gray]J: 일지[/color]")
+	dialog.open("\n".join(lines), buttons)
+
+
+func _quest_world() -> Dictionary:
+	var groups := []
+	for g in monsters.groups:
+		var home: Vector3 = g.home
+		groups.append({"id": g.id, "label": monsters.label(g.id), "home": Vector2(home.x, home.z)})
+	var e: Vector3 = (outdoor.entrance as Transform3D).origin
+	return {"groups": groups, "entrance": Vector2(e.x, e.z), "max_floor": clampi(1 + Game.hero.level() / 2, 2, 3)}
+
+
+func _take_offer(q: Dictionary) -> void:
+	if Game.take_offer(q):
+		Sfx.play(self, "confirm")
+		_autosave()
+		_open_board("[color=#9f9]받았어요: %s (%d일째까지)[/color]" % [q.title, q.deadline])
+
+
+func _take_rewards() -> void:
+	var total_gold := 0
+	var up := 0
+	for q in Quests.ready_to_reward(Game.quests):
+		total_gold += int(q.gold)
+		up = maxi(up, Game.reward(q))
+	Sfx.play(self, "level_up" if up > 0 else "coins")
+	_autosave()
+	_open_board("[color=#9f9]보상: 금화 %d%s[/color]" % [total_gold, ("  — 레벨 업! %d레벨 (레벨업 고르기는 던전 쉼터에서)" % up) if up > 0 else ""])
+
+
+## 소문: 가까운 몬스터 무리, 던전 입구
+func _rumors() -> Array:
 	var news := []
 	for g in monsters.groups:
 		var home: Vector3 = g.home
-		news.append([Vector2(home.x, home.z).length(), "• %s 무리가 %s쪽 %d걸음쯤에서 어슬렁거린다." % [
+		news.append([Vector2(home.x, home.z).length(), "• %s 무리가 %s쪽 %d걸음쯤에서 어슬렁거린다고 한다." % [
 			monsters.label(g.id), _compass(Vector2(home.x, home.z)), roundi(Vector2(home.x, home.z).length() / 5.0) * 5]])
 	news.sort_custom(func(a, b) -> bool: return a[0] < b[0])
-	for n in news.slice(0, 4):
-		lines.append(n[1])
-	if news.is_empty():
-		lines.append("• 근처 몬스터 무리는 모두 물리쳤다. 조용한 날들이다.")
+	var out := news.map(func(n): return n[1])
 	var e: Vector3 = (outdoor.entrance as Transform3D).origin
-	lines.append("• %s쪽 언덕에 오래된 던전 입구가 있다. 들어간 사람들이 잘 안 돌아온다." % _compass(Vector2(e.x, e.z)))
-	lines.append("")
-	lines.append("[color=gray]정식 의뢰는 곧 붙어요 (M4).[/color]")
-	return "
-".join(lines)
+	out.insert(mini(1, out.size()), "• %s쪽 언덕에 오래된 던전 입구가 있다." % _compass(Vector2(e.x, e.z)))
+	return out
+
+
+## 일지 (J): 받은 의뢰와 지난 의뢰
+func _open_journal() -> void:
+	($Player as Node3D).set_physics_process(false)
+	monsters.set_process(false)
+	_show_use_hint("")
+	var lines := PackedStringArray(["[font_size=22]일지[/font_size]  [color=gray]%d일째 · 금화 %d[/color]" % [Game.day, Game.gold], ""])
+	var now := Game.quests.filter(func(q) -> bool: return q.state == "active" or q.state == "done")
+	if now.is_empty():
+		lines.append("[color=gray]받은 의뢰가 없어요. 광장 의뢰판을 보세요.[/color]")
+	for q in now:
+		lines.append(("[color=#9f9]" if q.state == "done" else "[color=#fd8]") + Quests.line(q, Game.day) + "[/color]")
+		if q.state == "active":
+			lines.append("    " + str(q.text))
+	var past := Game.quests.filter(func(q) -> bool: return q.state == "rewarded" or q.state == "failed")
+	if not past.is_empty():
+		lines.append("")
+		lines.append("[color=gray]지난 의뢰[/color]")
+		for q in past.slice(maxi(0, past.size() - 5)):
+			lines.append("[color=gray]%s[/color]" % Quests.line(q, Game.day))
+	dialog.open("\n".join(lines))
+
+
+## 의뢰 진행 알림 (목표를 이룸 / 실패)
+func _quest_news(done: Array, failed: Array = []) -> void:
+	var parts := PackedStringArray()
+	for q in done:
+		parts.append("의뢰 끝: %s — 의뢰판에서 보상 받기" % q.title)
+	for q in failed:
+		parts.append("의뢰 실패: %s (기한 지남)" % q.title)
+	if not parts.is_empty():
+		_toast("\n".join(parts))
 
 
 ## 방향 이름 (-Z가 북쪽)
