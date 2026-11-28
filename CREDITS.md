@@ -62,7 +62,8 @@ Fantasy Props MegaKit crates, barrels, chests, torches, lanterns, banners and ca
 Universal Base Characters and Modular Character Outfits - Fantasy (Standard) by Quaternius, CC0 1.0,
 from itch.io (quaternius.itch.io). Baked by `tools/bake_heroes.gd` into `assets/quaternius/heroes/`:
 the base body's head and hairstyles are put on the Ranger and Peasant outfits for the cleric, barbarian,
-rogue, monk, ranger, bard, druid and villager models (replacing the KayKit adventurers), animated with
+rogue, monk, ranger, bard, druid, fighter, paladin, wizard, sorcerer, warlock and villager models
+(replacing the KayKit adventurers and the Bento hero models), animated with
 the Universal Animation Library and Explosive RPG clips.
 
 Bestiary - Dungeon Monsters Kit (Standard) by Quaternius, Quaternius Asset License (QAL) v1.0, from

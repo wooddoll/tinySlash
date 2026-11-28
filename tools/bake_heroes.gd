@@ -22,6 +22,12 @@ const HEROES := {
 	"bard": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Long"], "hair_color": Color(0.75, 0.55, 0.3), "tint": Color(0.9, 0.55, 0.6), "weapon": []},
 	"cleric": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Buns"], "hair_color": Color(0.3, 0.18, 0.1), "tint": Color(1.0, 0.97, 0.88), "weapon": []},
 	"druid": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_SimpleParted", "Hair_Beard"], "hair_color": Color(0.55, 0.55, 0.52), "tint": Color(0.6, 0.85, 0.55), "weapon": []},
+	# 예전 다크 판타지(Bento) 자리: 후드를 벗기고 갑옷 색으로
+	"fighter": {"outfit": "Male_Ranger", "body": "m", "hair": ["Hair_Buzzed"], "hair_color": Color(0.25, 0.17, 0.1), "no_hood": true, "tint": Color(1, 1, 1), "recolor": Color(0.45, 0.48, 0.55), "weapon": ["Sword_Bronze", 1.0]},
+	"paladin": {"outfit": "Male_Ranger", "body": "m", "hair": ["Hair_SimpleParted", "Hair_Beard"], "hair_color": Color(0.7, 0.55, 0.3), "no_hood": true, "tint": Color(1, 1, 1), "recolor": Color(0.85, 0.82, 0.7), "weapon": ["Sword_Bronze", 0.9], "shield": ["Shield_Wooden", 0.55]},
+	"wizard": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_Long", "Hair_Beard"], "hair_color": Color(0.8, 0.8, 0.8), "tint": Color(0.45, 0.55, 1.0), "weapon": []},
+	"sorcerer": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Long"], "hair_color": Color(0.6, 0.12, 0.08), "tint": Color(0.75, 0.5, 0.95), "weapon": []},
+	"warlock": {"outfit": "Female_Ranger", "body": "f", "hair": [], "hair_color": Color(0.1, 0.08, 0.1), "tint": Color(1, 1, 1), "recolor": Color(0.35, 0.12, 0.4), "weapon": []},
 	# 마을 사람(상인 등 NPC)
 	"villager_m": {"outfit": "Male_Peasant", "body": "m", "hair": ["Hair_SimpleParted"], "hair_color": Color(0.3, 0.2, 0.12), "tint": Color(1, 1, 1), "weapon": []},
 	"villager_f": {"outfit": "Female_Peasant", "body": "f", "hair": ["Hair_Buns"], "hair_color": Color(0.4, 0.26, 0.14), "tint": Color(1, 1, 1), "weapon": []},
@@ -75,6 +81,8 @@ const CHAIN := [
 
 var _src := {}
 var _tex := {}
+## 옷 텍스처의 초록(레인저 옷감)을 바꿀 색 (알파 0이면 그대로)
+var _recolor := Color(0, 0, 0, 0)
 
 
 func _init() -> void:
@@ -106,9 +114,15 @@ func _bake(name: String, spec: Dictionary) -> void:
 	outfit.free()
 	var sk := arm.get_node("Skeleton3D") as Skeleton3D
 	var tint: Color = spec.tint
+	if spec.get("no_hood", false):
+		for mi in sk.get_children():
+			if String(mi.name).contains("Hood"):
+				mi.free()
+	_recolor = spec.get("recolor", Color(0, 0, 0, 0))
 	for mi in sk.get_children():
 		if mi is MeshInstance3D:
 			_fix_materials(mi, tint)
+	_recolor = Color(0, 0, 0, 0)
 	# 머리: 기본 몸에서 머리·목 면만, 눈·눈썹은 그대로
 	var body := _gltf(BASE + "Base Characters/Godot - UE/" + BODIES[spec.body] + ".gltf")
 	for mi in body.find_children("*", "MeshInstance3D", true, false):
@@ -141,6 +155,21 @@ func _bake(name: String, spec: Dictionary) -> void:
 			var grip := Basis(Vector3(0, 0.7071, 0.7071), Vector3(0, 0.7071, -0.7071), Vector3(-1, 0, 0)).scaled(Vector3.ONE * s)
 			wi.transform = Transform3D(grip, Vector3(-0.03, 0.09, 0.0)) * Transform3D(Basis.IDENTITY, Vector3(0, -0.12, 0))
 			ba.add_child(wi)
+	# 방패 (왼손, 손등 쪽으로 면이 향하게)
+	if spec.has("shield"):
+		var sm := load("res://assets/quaternius/props/%s.res" % spec.shield[0]) as Mesh
+		if sm:
+			var sa := BoneAttachment3D.new()
+			sa.name = "Shield"
+			sa.bone_name = "lowerarm_l"
+			sk.add_child(sa)
+			var si := MeshInstance3D.new()
+			si.name = "ShieldMesh"
+			si.mesh = sm
+			var k: float = float(spec.shield[1]) / 0.6
+			# 아래팔 뼈 +Y가 손 쪽: 방패 위(+Y)를 팔을 따라, 앞면(+Z)을 팔 바깥(-X)으로
+			si.transform = Transform3D(Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0)).scaled(Vector3.ONE * k), Vector3(-0.06, 0.05, 0)) 					* Transform3D(Basis.IDENTITY, Vector3(0, -0.18, 0))
+			sa.add_child(si)
 	# 동작
 	var ap := AnimationPlayer.new()
 	ap.name = "AnimationPlayer"
@@ -239,13 +268,15 @@ func _fix_materials(mi: MeshInstance3D, tint: Color, hair := Color.WHITE) -> voi
 		for prop in ["albedo_texture", "normal_texture", "orm_texture", "roughness_texture", "metallic_texture", "ao_texture"]:
 			var t = c.get(prop)
 			if t is Texture2D:
-				c.set(prop, _shrink(t, prop == "normal_texture"))
+				var rc: bool = _recolor.a > 0 and prop == "albedo_texture" and not (mn.contains("Regular") or mn.contains("Superhero") or mn.contains("Hair") or mn.contains("Eyes"))
+				c.set(prop, _shrink(t, prop == "normal_texture", _recolor if rc else Color(0, 0, 0, 0)))
 		m.surface_set_material(s, c)
 
 
-func _shrink(t: Texture2D, normal: bool) -> Texture2D:
-	if _tex.has(t):
-		return _tex[t]
+func _shrink(t: Texture2D, normal: bool, recolor := Color(0, 0, 0, 0)) -> Texture2D:
+	var key := [t, recolor]
+	if _tex.has(key):
+		return _tex[key]
 	var img := t.get_image()
 	if img == null:
 		return t
@@ -253,10 +284,19 @@ func _shrink(t: Texture2D, normal: bool) -> Texture2D:
 	img.decompress()
 	if img.get_width() > TEX:
 		img.resize(TEX, TEX * img.get_height() / img.get_width(), Image.INTERPOLATE_LANCZOS)
+	if recolor.a > 0:
+		# 초록 기운이 있는 픽셀만 색상·채도를 바꾸고 밝기는 둠 (가죽·쇠는 그대로)
+		img.convert(Image.FORMAT_RGBA8)
+		for y in img.get_height():
+			for x in img.get_width():
+				var p := img.get_pixel(x, y)
+				if p.h > 0.17 and p.h < 0.5 and p.s > 0.15:
+					var v := p.v * (0.6 + recolor.v)
+					img.set_pixel(x, y, Color.from_hsv(recolor.h, recolor.s, clampf(v, 0, 1), p.a))
 	img.generate_mipmaps(normal)
 	img.compress(Image.COMPRESS_S3TC, Image.COMPRESS_SOURCE_NORMAL if normal else Image.COMPRESS_SOURCE_GENERIC)
 	var out := ImageTexture.create_from_image(img)
-	_tex[t] = out
+	_tex[key] = out
 	return out
 
 
