@@ -92,6 +92,18 @@ KayKit Dungeon Remastered, Adventurers and Skeletons by Kay Lousberg (www.kaylou
 itch.io. Files are in `assets/kaykit/` with each pack's license. Only the arrow and the fallback dungeon
 pieces (used when the Quaternius pieces are not baked) are still used.
 
+Stylized Nature MegaKit (Standard) by Quaternius, CC0 1.0, from the Godot Asset Store. Trees, grass,
+flowers and rocks are baked by `tools/bake_nature.gd` into `assets/quaternius/nature/` for the outdoor
+terrain prototype.
+
+## Libraries and textures
+
+Terrain3D by Tokisan Games (Cory Petkovsek), MIT License, https://github.com/TokisanGames/Terrain3D.
+Installed into `addons/terrain_3d/` (with its `LICENSE.txt`) by `tools/install_terrain3d.sh`.
+
+Ground037 and Rock023 textures by ambientCG (ambientcg.com), CC0 1.0, taken from the Terrain3D demo
+into `assets/terrain/`.
+
 ## Audio
 
 Interface Sounds, Impact Sounds, RPG Audio, UI Audio, Voiceover Pack,

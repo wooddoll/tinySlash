@@ -3,6 +3,7 @@
 게임에 들어간 외부 에셋을 팩마다 한 줄씩 적습니다. 새 에셋을 넣거나 빼면 이 표와 [CREDITS.md](../CREDITS.md)를 같이 고칩니다.
 마지막 점검: 2026-11-28 (판매 페이지의 라이선스 칸을 직접 열어 확인함).
 
+- **시제품**: "시제품"은 아직 게임에 연결하지 않고 따로 띄워 보는 것만 된다는 뜻입니다.
 - **저장소**: `assets/kenney/`만 공개 저장소에 들어 있습니다. `assets/dark/`, `assets/kaykit/`, `assets/quaternius/`는 `.gitignore`로 빠져 있습니다. 변환 스크립트(`tools/`)만 올립니다.
 - **원본**: 받은 원본은 프로젝트 밖 `F:/workspace/fab_downloads/`에 둡니다.
 - **상태**: "씀"은 지금 게임 화면에 나온다는 뜻입니다. "대체용"은 구운 파일이 없을 때만 나온다는 뜻입니다. "안 씀"은 파일만 남아 있다는 뜻입니다.
@@ -19,6 +20,9 @@
 | Modular Character Outfits - Fantasy (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/modular-character-outfits-fantasy) | CC0 | 아니요 | 위와 같음 | 직업 12종, 마을 사람, 좀비·구울·가스트·섀도·스펙터·움직이는 갑옷 | 씀 |
 | Bestiary - Dungeon Monsters Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/bestiary-dungeon-monsters-kit) | **QAL v1.0** | 아니요 | 위와 같음 | 고블린 졸개·전사(퍼글린), 고블린 대장(임프) | 씀 |
 | Characters - Fantasy Races Kit (Standard) | Quaternius | [itch.io](https://quaternius.itch.io/characters-fantasy-races) | **QAL v1.0** | 아니요 | `assets/quaternius/heroes/` · `tools/bake_heroes.gd` | 보스 오크 족장(붉은 오크 머리), 납골 섭정(다크엘프 머리) | 씀 |
+| Stylized Nature MegaKit (Standard) | Quaternius | [Godot 에셋 스토어](https://store.godotengine.org/asset/quaternius/stylized-nature-megakit/) | CC0 | 아니요 | `assets/quaternius/nature/` · `tools/bake_nature.gd` | 야외 지형 시제품의 나무·풀·꽃·바위 | 시제품 |
+| Terrain3D (플러그인) | Tokisan Games | [Godot 에셋 스토어](https://store.godotengine.org/asset/tokisangames/terrain3d/) | **MIT** | 아니요 | `addons/terrain_3d/` · `tools/install_terrain3d.sh` | 야외 지형 시제품 (`scripts/outdoor_terrain.gd`) | 시제품 |
+| Ground037, Rock023 (지형 텍스처) | ambientCG | [ambientcg.com](https://ambientcg.com/view?id=Ground037) (Terrain3D 데모에 들어 있음) | CC0 | 아니요 | `assets/terrain/` · `tools/install_terrain3d.sh` | 야외 지형 풀밭·절벽 | 시제품 |
 | Ultimate Monsters Bundle | Quaternius | [poly.pizza](https://poly.pizza/bundle/Ultimate-Monsters-Bundle-5oyGWAmOB6) | CC0 | 아니요 | `assets/quaternius/monsters/` (원본 glb) | 박쥐 떼(demon), 벌레 떼(armabee), 오크·좀비 등 옛 이름 | 씀 |
 | Animated Animal Pack, Rat | Quaternius | [poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS) | CC0 | 아니요 | `assets/quaternius/animals/` (원본 glb) | 늑대, 쥐 떼, 보스 접붙인 들소(황소) | 씀 |
 | RPG Animations GLB FREE | Explosive LLC | [Godot 에셋 스토어](https://store.godotengine.org/asset/explosive-llc/rpg-character-animations-pack-free/) | **MIT** | 아니요 | `tools/retarget.gd`로 옮김 | 웅크리기·다친 대기·점프·구르기 등 | 씀 |
@@ -41,6 +45,7 @@
 
 - **CC0**: 아무 조건이 없습니다. 크레딧은 예의로 남깁니다.
 - **CC-BY** (해골, SRD): 게임 안이나 함께 배포하는 크레딧에 만든 이, 작품 이름, 라이선스를 적어야 합니다. `CREDITS.md`에 있습니다.
+- **MIT** (Terrain3D): 플러그인 폴더의 `LICENSE.txt`를 지우지 말고 배포본에 같이 넣습니다.
 - **MIT** (Explosive RPG 동작): 배포본에 저작권 문구와 MIT 허락 문구를 함께 넣어야 합니다. 원문은 받은 팩에 있으니, 출시 전에 `CREDITS.md` 아래에 붙입니다.
 - **QAL v1.0** (Bestiary, Fantasy Races): 게임에 넣어 상업적으로 팔아도 되고 크레딧도 필요 없습니다. 대신 모델을 에셋 그 자체로 다시 나눠 주면 안 됩니다. 고쳐도 마찬가지입니다. 그래서 `assets/quaternius/`를 공개 저장소에 올리지 않습니다.
 - **Fab Standard License**: 게임에 넣어 배포하는 것은 됩니다. 원본이나 고친 에셋 파일을 따로 나눠 주는 것은 안 됩니다. 개인·소규모와 큰 회사의 등급 구분이 있으니, 매출이 생기면 Fab 약관에서 등급을 다시 봅니다.
